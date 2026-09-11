@@ -15,6 +15,7 @@ export interface SensorMetricCardProps {
   onRetry?: () => void;
   accentColor?: string;
   className?: string;
+  suggestedValue?: number | null;
 }
 
 export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
@@ -29,6 +30,7 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
   onRetry,
   accentColor = 'var(--accent-blue)',
   className = '',
+  suggestedValue,
 }) => {
   if (isLoading) {
     return (
@@ -125,6 +127,12 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
               style={{ width: `${rangePct}%`, backgroundColor: accentColor }}
             />
           </div>
+        </div>
+      )}
+
+      {typeof suggestedValue === 'number' && (
+        <div className="sg-metric-card__suggested">
+          Suggested: <strong>{suggestedValue.toFixed(1)} {unit}</strong>
         </div>
       )}
     </Card>

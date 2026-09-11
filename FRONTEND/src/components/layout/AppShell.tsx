@@ -26,7 +26,7 @@ export const AppShell: React.FC = () => {
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Hook providing telemetry data and status summary
-  const { systemStatus, refresh, loading } = useSensorPolling(false);
+  const { systemStatus, refresh, loading } = useSensorPolling(true);
 
   // Keyboard shortcut for Global Search: Ctrl+K / Cmd+K
   useEffect(() => {

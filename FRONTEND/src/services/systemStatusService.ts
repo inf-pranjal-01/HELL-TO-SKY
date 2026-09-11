@@ -1,7 +1,11 @@
-import { SystemStreamStatus } from '../types';
+import { SystemStreamStatus, SystemStatusSummary } from '../types';
 import { API_CONFIG, isMockMode } from '../config/api.config';
 import { apiClient, RequestOptions } from './apiClient';
 import { ApiError } from './apiError';
+import { validateNetworkStatus } from './validators';
+import { stationService } from './stationService';
+import { summarizeNetworkStatus } from '../utils/networkStatus';
+import { MOCK_ANOMALIES } from '../mock/anomalyData';
 
 export const systemStatusService = {
   async get(options?: RequestOptions): Promise<SystemStreamStatus> {
@@ -37,5 +41,17 @@ export const systemStatusService = {
   async refreshLive(options?: RequestOptions): Promise<void> {
     if (isMockMode()) return;
     await apiClient.post<unknown>(API_CONFIG.endpoints.refreshLive, undefined, options);
+  },
+
+  async getNetworkStatus(options?: RequestOptions): Promise<SystemStatusSummary> {
+    if (isMockMode()) {
+      const stations = await stationService.getAllStations(options);
+      return summarizeNetworkStatus(
+        stations,
+        MOCK_ANOMALIES.filter((item) => item.status === 'detected').length
+      );
+    }
+    const data = await apiClient.get<unknown>(API_CONFIG.endpoints.networkStatus, undefined, options);
+    return validateNetworkStatus(data);
   },
 };

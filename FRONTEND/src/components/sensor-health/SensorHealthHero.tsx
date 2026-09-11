@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, AlertTriangle, AlertOctagon, Radio, Wrench, Activity } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, AlertOctagon, Radio, Wrench, Activity, Zap } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { StatusBadge } from '../common/StatusBadge';
@@ -14,6 +14,7 @@ export interface SensorHealthHeroProps {
   error?: string | null;
   onRetry?: () => void;
   onRepair?: () => Promise<void>;
+  onForceRecover?: () => void;
   isRepairing?: boolean;
   repairResult?: RepairSensorResponse | null;
   repairError?: string | null;
@@ -27,6 +28,7 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
   error = null,
   onRetry,
   onRepair,
+  onForceRecover,
   isRepairing = false,
   repairResult = null,
   repairError = null,
@@ -167,21 +169,38 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
             <p className="sg-health-hero__description">{statusCopy}</p>
 
             {/* Repair / Recovery Action & Status */}
-            {onRepair && (
+            {(onRepair || onForceRecover) && (
               <div className="sg-health-hero__repair-section">
-                <div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onRepair}
-                    isLoading={isRepairing}
-                    disabled={isRepairing || isLoading || !health}
-                    leftIcon={<Wrench size={14} />}
-                    ariaLabel="Initiate sensor repair and recovery"
-                  >
-                    {isRepairing ? 'Initiating Repair...' : 'Repair Sensor'}
-                  </Button>
+                <div className="sg-health-hero__repair-actions">
+                  {onRepair && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onRepair}
+                      isLoading={isRepairing}
+                      disabled={isRepairing || isLoading || !health}
+                      leftIcon={<Wrench size={14} />}
+                      ariaLabel="Confirm physical repair and start gradual recovery"
+                    >
+                      {isRepairing ? 'Working...' : 'Mark Repaired'}
+                    </Button>
+                  )}
+                  {onForceRecover && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onForceRecover}
+                      disabled={isRepairing || isLoading || !health}
+                      leftIcon={<Zap size={14} />}
+                      ariaLabel="Force clear sensor health immediately"
+                    >
+                      Force Recovery
+                    </Button>
+                  )}
                 </div>
+                <p className="sg-health-hero__repair-hint">
+                  Mark Repaired waits for 3 clean readings. Force Recovery instantly clears a stuck sensor.
+                </p>
 
                 {repairResult && (
                   <div className="sg-health-hero__recovery-notice" role="status">

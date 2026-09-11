@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { SensorReading, SystemStatusSummary } from '../types';
-import { sensorService } from '../services/sensorService';
+import { SystemStatusSummary } from '../types';
 import { anomalyService } from '../services/anomalyService';
-import { API_CONFIG } from '../config/api.config';
+import { systemStatusService } from '../services/systemStatusService';
+import { requestTelemetryRefresh } from '../utils/refreshEvents';
+import { isMockMode } from '../config/api.config';
 
 export interface UseSensorPollingResult {
-  readings: SensorReading[];
+  readings: never[];
   systemStatus: SystemStatusSummary | null;
   loading: boolean;
   error: string | null;
@@ -15,49 +16,43 @@ export interface UseSensorPollingResult {
 }
 
 /**
- * Custom Hook: useSensorPolling
- * 
- * [REALTIME: HTTP POLLING]
- * Manages periodic HTTP polling for meteorological telemetry data and network status.
- * Fetches data from service boundary and provides manual refresh & polling controls.
+ * Header network-health poll. Station telemetry lives in useDashboardData;
+ * this hook only keeps the real aggregate status badge honest.
  */
 export function useSensorPolling(autoPoll: boolean = false): UseSensorPollingResult {
-  const [readings, setReadings] = useState<SensorReading[]>([]);
   const [systemStatus, setSystemStatus] = useState<SystemStatusSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
   const timerRef = useRef<number | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (alsoRefreshLive = false) => {
     try {
       setError(null);
-      const [readingsData, statusData] = await Promise.all([
-        sensorService.getLatestReadings(),
-        anomalyService.getSystemStatus(),
-      ]);
-      setReadings(readingsData);
+      if (alsoRefreshLive && !isMockMode()) {
+        try {
+          await systemStatusService.refreshLive();
+        } catch {
+          // Network status should still update even if Open-Meteo refresh fails.
+        }
+      }
+      const statusData = await anomalyService.getSystemStatus();
       setSystemStatus(statusData);
       setLastUpdated(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch meteorological telemetry data.');
+      setError(err instanceof Error ? err.message : 'Failed to fetch network status.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-
-    // [REALTIME: HTTP POLLING]
-    // Live polling follows the configured 30-minute Open-Meteo cadence.
-    if (autoPoll && API_CONFIG.realtime.enabled) {
+    fetchData(false);
+    if (autoPoll) {
       timerRef.current = window.setInterval(() => {
-        fetchData();
-      }, API_CONFIG.realtime.pollingIntervalMs);
+        fetchData(false);
+      }, 5000);
     }
-
     return () => {
       if (timerRef.current !== null) {
         clearInterval(timerRef.current);
@@ -65,13 +60,18 @@ export function useSensorPolling(autoPoll: boolean = false): UseSensorPollingRes
     };
   }, [fetchData, autoPoll]);
 
+  const refresh = useCallback(async () => {
+    await fetchData(true);
+    requestTelemetryRefresh();
+  }, [fetchData]);
+
   return {
-    readings,
+    readings: [],
     systemStatus,
     loading,
     error,
-    isPolling: autoPoll && API_CONFIG.realtime.enabled,
+    isPolling: autoPoll,
     lastUpdated,
-    refresh: fetchData,
+    refresh,
   };
 }

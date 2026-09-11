@@ -38,6 +38,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     categoryClass = 'sg-badge--degraded';
   } else if (['critical', 'offline'].includes(normalized)) {
     categoryClass = 'sg-badge--critical';
+  } else if (['normal', 'optimal', 'active', 'low'].includes(normalized)) {
+    categoryClass = 'sg-badge--optimal';
   }
 
   return (

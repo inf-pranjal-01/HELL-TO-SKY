@@ -15,6 +15,7 @@ import { sensorHealthService } from '../services/sensorHealthService';
 import { systemStatusService } from '../services/systemStatusService';
 import { ApiError, formatUserErrorMessage } from '../services/apiError';
 import { calculateFreshness, FreshnessState } from '../utils/freshness';
+import { TELEMETRY_REFRESH_EVENT } from '../utils/refreshEvents';
 
 export interface DashboardDataState {
   currentReading: CurrentSensorReading | null;
@@ -56,6 +57,7 @@ export interface DashboardDataState {
   refreshTrends: (hours?: number) => Promise<void>;
   refreshAnomalies: () => Promise<void>;
   refreshHealth: () => Promise<void>;
+  syncStreamStatus: () => Promise<void>;
 }
 
 export interface UseDashboardDataOptions {
@@ -80,6 +82,8 @@ export function useDashboardData(
   options: UseDashboardDataOptions = {}
 ): DashboardDataState {
   const { pollingIntervalMs = 30 * 60 * 1000, autoPoll = true, trendHours = 10 } = options;
+  const trendHoursRef = useRef(trendHours);
+  trendHoursRef.current = trendHours;
 
   const [currentReading, setCurrentReading] = useState<CurrentSensorReading | null>(null);
   const [trends, setTrends] = useState<TrendsResponse | null>(null);
@@ -161,10 +165,11 @@ export function useDashboardData(
         }
         const byTimestamp = new Map(previous.points.map((item) => [item.timestamp, item]));
         byTimestamp.set(point.timestamp, point);
-        const visibleHours = previous.hours <= 10 ? 10 : previous.hours;
+        const visibleHours = trendHoursRef.current;
         const cutoff = new Date(new Date(point.timestamp).getTime() - visibleHours * 60 * 60 * 1000).getTime();
         return {
           ...previous,
+          hours: visibleHours,
           points: Array.from(byTimestamp.values())
             .filter((item) => new Date(item.timestamp).getTime() >= cutoff)
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
@@ -354,17 +359,21 @@ export function useDashboardData(
     setAnomaliesError(null);
     setHealthError(null);
 
-    // A station selection is a deliberate user request for the latest
-    // provider value, so refresh once now rather than waiting for cadence.
-    if (streamStatus.mode === 'live') {
+    const live = priorStreamModeRef.current === 'live';
+    if (live) {
       systemStatusService.refreshLive().finally(fetchReading);
     } else {
       fetchReading();
     }
-    fetchTrends(trendHours);
+    fetchTrends(trendHoursRef.current);
     fetchAnomalies();
     fetchHealth();
-  }, [stationId, trendHours, fetchReading, fetchTrends, fetchAnomalies, fetchHealth]);
+  }, [stationId, fetchReading, fetchTrends, fetchAnomalies, fetchHealth]);
+
+  useEffect(() => {
+    if (!stationId) return;
+    fetchTrends(trendHours);
+  }, [stationId, trendHours, fetchTrends]);
 
   // Mode is deliberately light-weight and checked each second so a
   // user-triggered replay changes data cadence promptly. Sensor data
@@ -386,17 +395,34 @@ export function useDashboardData(
     if (!stationId || previousMode === streamStatus.mode) return;
 
     setTrends(null);
+    setCurrentReading(null);
+    setSensorHealth(null);
+    setLatestAnomaly(null);
+    setRecentAnomalies([]);
     setTelemetryHistory([]);
     setLastUpdated(null);
+    setIsLoadingReading(true);
     setIsLoadingTrends(true);
-    fetchTrends(trendHours);
+    setIsLoadingHealth(true);
+    setIsLoadingAnomalies(true);
+    fetchTrends(trendHoursRef.current);
+    fetchAnomalies();
     if (streamStatus.mode === 'live') {
       systemStatusService.refreshLive().finally(fetchReading);
     } else {
       fetchReading();
     }
     fetchHealth();
-  }, [streamStatus.mode, stationId, trendHours, fetchTrends, fetchReading, fetchHealth]);
+  }, [streamStatus.mode, stationId, fetchTrends, fetchReading, fetchHealth, fetchAnomalies]);
+
+  useEffect(() => {
+    const onRefresh = () => {
+      if (!activeStationIdRef.current) return;
+      refreshAll();
+    };
+    window.addEventListener(TELEMETRY_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(TELEMETRY_REFRESH_EVENT, onRefresh);
+  }, [refreshAll]);
 
   // Single Centralized Polling loop for telemetry (3–5s)
   useEffect(() => {
@@ -439,8 +465,9 @@ export function useDashboardData(
     : isDelayed
     ? 'DATA DELAYED'
     : 'LIVE';
+  const replaySeconds = streamStatus.replay_step_seconds ?? 2;
   const pollStatusText = streamStatus.mode === 'replay'
-    ? 'REPLAY · 1H / 2S'
+    ? `REPLAY · 1H / ${replaySeconds}S`
     : freshness.label;
 
   return {
@@ -473,5 +500,6 @@ export function useDashboardData(
     refreshTrends: fetchTrends,
     refreshAnomalies: fetchAnomalies,
     refreshHealth: fetchHealth,
+    syncStreamStatus: fetchStreamStatus,
   };
 }

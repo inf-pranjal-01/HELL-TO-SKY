@@ -34,6 +34,7 @@ export interface ApiEndpoints {
   systemStatus: string;
   systemMode: string;
   refreshLive: string;
+  networkStatus: string;
 }
 
 export interface ApiConfig {
@@ -87,6 +88,7 @@ export const API_CONFIG: ApiConfig = {
     systemStatus: '/api/system-status',
     systemMode: '/api/system-mode',
     refreshLive: '/api/refresh-live',
+    networkStatus: '/api/network-status',
   },
 };
 

@@ -55,6 +55,28 @@
   border-radius: var(--radius-lg, 12px);
   overflow: hidden;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  touch-action: none;
+}
+
+.sg-network-overview__canvas-wrapper:active {
+  cursor: grabbing;
+}
+
+.sg-network-overview__zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.sg-network-overview__zoom-level {
+  min-width: 3.2rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: #e2e8f0;
 }
 
 .sg-network-overview__svg {
@@ -106,16 +128,33 @@
 }
 
 .sg-network-overview__node-label {
-  font-size: 11px;
-  font-family: var(--font-mono, monospace);
-  fill: var(--color-text-secondary, #cbd5e1);
-  font-weight: 500;
+  font-size: 13px;
+  font-family: Inter, "Segoe UI", sans-serif;
+  fill: #f8fafc;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  paint-order: stroke fill;
+  stroke: #050b16;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 
 .sg-network-overview__node-label--selected {
-  fill: var(--color-accent-cyan, #38bdf8);
+  fill: #e0f2fe;
+  font-size: 14px;
+}
+
+.sg-network-overview__node-id {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  fill: #e2e8f0;
   font-weight: 700;
-  font-size: 12px;
+  paint-order: stroke fill;
+  stroke: #050b16;
+  stroke-width: 4.5px;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 
 .sg-network-overview__halo {

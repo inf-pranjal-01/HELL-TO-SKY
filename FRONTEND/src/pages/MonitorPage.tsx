@@ -23,7 +23,7 @@ import './MonitorPage.css';
 
 export const MonitorPage: React.FC = () => {
   const { selectedStation, isLoading: isLoadingStation } = useStation();
-  const [selectedHours, setSelectedHours] = useState<number>(6);
+  const [selectedHours, setSelectedHours] = useState<number>(10);
 
   // Single centralized polling architecture shared with dashboard
   const {

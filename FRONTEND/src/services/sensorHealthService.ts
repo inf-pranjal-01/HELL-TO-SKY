@@ -47,13 +47,30 @@ export const sensorHealthService = {
    * [FRONTEND DERIVED — DEMO HISTORY]
    * [NOT IN CURRENT API CONTRACT: Historical health endpoint]
    */
-  async getHealthHistory(stationId: string, hours: number = 6): Promise<HealthHistoryPoint[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const history = generateMockHealthHistory(stationId, hours);
-        resolve(history);
-      }, 60);
-    });
+  async getHealthHistory(stationId: string, hours: number = 10): Promise<HealthHistoryPoint[]> {
+    if (isMockMode()) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          const history = generateMockHealthHistory(stationId, hours);
+          resolve(history);
+        }, 60);
+      });
+    }
+
+    const { trendsService } = await import('./trendsService');
+    const trends = await trendsService.getTrends(stationId, hours);
+    const healthFromStatus = (status: string | undefined): number => {
+      if (status === 'OFFLINE') return 0;
+      if (status === 'WARNING' || status === 'CRITICAL') return 50;
+      return 100;
+    };
+    return trends.points.map((point) => ({
+      timestamp: point.timestamp,
+      health_pct: point.health_status
+        ? healthFromStatus(String(point.health_status))
+        : Math.max(0, 100 - (point.anomaly_score_pct ?? 0)),
+      status: (point.health_status as HealthHistoryPoint['status']) || 'HEALTHY',
+    }));
   },
 
   /**
@@ -61,28 +78,43 @@ export const sensorHealthService = {
    * Request contract: POST /api/repair-sensor  { station_id }
    * [API: POST /api/repair-sensor — INTEGRATED]
    */
-  async repairSensor(stationId: string, options?: RequestOptions): Promise<RepairSensorResponse> {
+  async markRepaired(stationId: string, options?: RequestOptions): Promise<RepairSensorResponse> {
     if (isMockMode()) {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({
-            success: true,
-            station_id: stationId,
-            status: 'WARNING',
-            recovery_active: true,
-            message: `Sensor marked for repair recovery. Clean readings will be evaluated before returning it to HEALTHY.`,
-          });
-        }, 60);
-      });
+      return {
+        success: true,
+        station_id: stationId,
+        status: 'WARNING',
+        recovery_active: true,
+        message: 'Physical repair confirmed. Three consecutive clean readings are required before HEALTHY.',
+      };
     }
-
     const rawData = await apiClient.post<unknown>(
       API_CONFIG.endpoints.repairSensor,
-      // The Health-page control is the operator's explicit force-recovery
-      // action: immediately restore online/healthy state and clear counters.
+      { station_id: stationId, force_recovery: false },
+      options
+    );
+    return validateRepairSensorResponse(rawData, stationId);
+  },
+
+  async forceRecover(stationId: string, options?: RequestOptions): Promise<RepairSensorResponse> {
+    if (isMockMode()) {
+      return {
+        success: true,
+        station_id: stationId,
+        status: 'HEALTHY',
+        recovery_active: false,
+        message: 'Sensor force-recovered and health counters reset.',
+      };
+    }
+    const rawData = await apiClient.post<unknown>(
+      API_CONFIG.endpoints.repairSensor,
       { station_id: stationId, force_recovery: true },
       options
     );
     return validateRepairSensorResponse(rawData, stationId);
+  },
+
+  async repairSensor(stationId: string, options?: RequestOptions): Promise<RepairSensorResponse> {
+    return this.markRepaired(stationId, options);
   },
 };

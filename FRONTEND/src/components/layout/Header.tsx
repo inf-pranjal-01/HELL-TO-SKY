@@ -37,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { user } = useAuth();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
-  const overallStatus = systemStatus?.overall_status || 'optimal';
+  const overallStatus = systemStatus?.overall_status || null;
   const displayName = user?.name || 'Met Operator';
   const displayRole = user?.role || 'Administrator';
 
@@ -80,7 +80,10 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Overall Health Status Indicator */}
         <div className="sg-header__status">
           <span className="sg-header__status-label">Network Health:</span>
-          <StatusBadge status={overallStatus} label={`STATUS: ${overallStatus.toUpperCase()}`} />
+          <StatusBadge
+            status={overallStatus ?? 'NORMAL'}
+            label={overallStatus ? `STATUS: ${overallStatus}` : 'STATUS: …'}
+          />
         </div>
 
         {/* Action Controls */}

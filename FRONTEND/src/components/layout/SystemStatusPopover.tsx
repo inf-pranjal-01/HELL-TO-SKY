@@ -73,7 +73,7 @@ export const SystemStatusPopover: React.FC<SystemStatusPopoverProps> = ({ system
 
           <div className="sg-status-popover__body">
             <div className="sg-status-notice-tag">
-              <span>DEMO STATUS SUMMARY — NOT IN CURRENT API CONTRACT</span>
+              <span>LIVE NETWORK ROLLUP FROM STATION HEALTH</span>
             </div>
 
             <div className="sg-status-metric-grid">
@@ -85,28 +85,28 @@ export const SystemStatusPopover: React.FC<SystemStatusPopoverProps> = ({ system
               <div className="sg-status-metric-item">
                 <span className="sg-status-metric-label">Active Observatories</span>
                 <span className="sg-status-metric-val">
-                  {systemStatus?.active_stations_count || 4} / {systemStatus?.total_stations_count || 5}
+                  {systemStatus?.active_stations_count ?? '—'} / {systemStatus?.total_stations_count ?? '—'}
                 </span>
               </div>
 
               <div className="sg-status-metric-item">
                 <span className="sg-status-metric-label">Active Anomalies</span>
                 <span className="sg-status-metric-val text-critical">
-                  {systemStatus?.active_anomalies_count || 2}
+                  {systemStatus?.active_anomalies_count ?? '—'}
                 </span>
               </div>
 
               <div className="sg-status-metric-item">
                 <span className="sg-status-metric-label">Avg Hardware Health</span>
                 <span className="sg-status-metric-val">
-                  {systemStatus?.avg_sensor_health_pct || 79}%
+                  {systemStatus?.avg_sensor_health_pct ?? '—'}%
                 </span>
               </div>
             </div>
 
             <div className="sg-status-popover__footer-info">
               <ShieldCheck size={14} className="text-optimal" />
-              <span>Real-time Strategy: HTTP Polling (3–5s)</span>
+              <span>Real-time Strategy: HTTP polling of live station health</span>
             </div>
           </div>
         </div>

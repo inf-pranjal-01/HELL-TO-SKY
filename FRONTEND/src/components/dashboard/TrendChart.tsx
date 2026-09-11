@@ -3,6 +3,9 @@ import { LineChart, Clock } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { TrendPoint } from '../../types';
+import { windowTrendPoints } from '../../utils/chartWindow';
+import { suggestedFromTrendPoint } from '../../utils/suggestedValues';
+import { SuggestedValues } from '../common/SuggestedValues';
 import './TrendChart.css';
 
 export type MetricType = 'temperature' | 'pressure' | 'humidity';
@@ -57,7 +60,7 @@ const formatChartTime = (timestamp: string, includeDate = false): string => {
 
 export const TrendChart: React.FC<TrendChartProps> = ({
   points = [],
-  hours = 6,
+  hours = 10,
   onHoursChange,
   isLoading = false,
   error = null,
@@ -73,14 +76,66 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
   const chartId = useId();
   const activeCfg = METRIC_CONFIG[selectedMetric];
+  const { points: windowedPoints, windowStart, windowEnd } = windowTrendPoints(points, hours);
+
+  const renderToolbar = () => (
+    <div className="sg-trend-header">
+      <div className="sg-trend-title-group">
+        <div className="sg-trend-title">
+          <LineChart size={18} className="text-accent" aria-hidden="true" />
+          <h3 id={chartId}>Sensor Telemetry Trends</h3>
+        </div>
+        <span className="sg-trend-notice">● {hours}H WINDOW</span>
+      </div>
+
+      <div className="sg-trend-actions">
+        <div className="sg-metric-tabs" role="tablist" aria-label="Select telemetry metric to graph">
+          {(Object.keys(METRIC_CONFIG) as MetricType[]).map((metricKey) => {
+            const cfg = METRIC_CONFIG[metricKey];
+            const isSelected = selectedMetric === metricKey;
+            return (
+              <button
+                key={metricKey}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                className={`sg-metric-tab ${isSelected ? 'sg-metric-tab--active' : ''}`}
+                onClick={() => setSelectedMetric(metricKey)}
+              >
+                <span
+                  className="sg-metric-tab-dot"
+                  style={{ backgroundColor: cfg.color }}
+                  aria-hidden="true"
+                />
+                <span>{cfg.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {onHoursChange && (
+          <div className="sg-range-select" aria-label="Time window selection">
+            <Clock size={13} className="text-muted" aria-hidden="true" />
+            {[10, 24, 72].map((h) => (
+              <button
+                key={h}
+                type="button"
+                className={`sg-range-btn ${hours === h ? 'sg-range-btn--active' : ''}`}
+                onClick={() => onHoursChange(h)}
+              >
+                {h}h
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   if (isLoading) {
     return (
       <Card variant="glass" className={`sg-trend-card ${className}`}>
-        <div className="sg-trend-header">
-          <Skeleton width="200px" height="1.5rem" />
-          <Skeleton width="180px" height="2rem" />
-        </div>
+        {renderToolbar()}
         <div style={{ padding: '2rem 0' }}>
           <Skeleton width="100%" height="240px" borderRadius="var(--radius-md)" />
         </div>
@@ -91,9 +146,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   if (error) {
     return (
       <Card variant="glass" className={`sg-trend-card sg-trend-card--error ${className}`}>
-        <div className="sg-trend-header">
-          <h3>Real-Time Telemetry Trends</h3>
-        </div>
+        {renderToolbar()}
         <div className="sg-trend-error">
           <p>{error}</p>
           {onRetry && (
@@ -106,21 +159,18 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     );
   }
 
-  if (!points || points.length === 0) {
+  if (!windowedPoints || windowedPoints.length === 0) {
     return (
       <Card variant="glass" className={`sg-trend-card ${className}`}>
-        <div className="sg-trend-header">
-          <h3>Real-Time Telemetry Trends</h3>
-        </div>
+        {renderToolbar()}
         <div className="sg-trend-empty">
-          <p>No trend data available for this station.</p>
+          <p>No trend data in the selected {hours}h window for this station.</p>
         </div>
       </Card>
     );
   }
 
-  // Calculate SVG scales
-  const values = points.map((p) => p[activeCfg.key]);
+  const values = windowedPoints.map((p) => p[activeCfg.key]);
   const minVal = Math.floor(Math.min(...values) - 1);
   const maxVal = Math.ceil(Math.max(...values) + 1);
   const valRange = maxVal - minVal || 1;
@@ -135,14 +185,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   const plotWidth = width - padLeft - padRight;
   const plotHeight = height - padTop - padBottom;
 
-  // Timestamp is the only chart-time authority. Array position is not
-  // meaningful after replay, delayed polls, or historical queries.
-  const timestamps = points.map((point) => new Date(point.timestamp).getTime());
-  const minTime = Math.min(...timestamps);
-  const maxTime = Math.max(...timestamps);
+  const span = windowEnd - windowStart || 1;
   const getX = (timestamp: string) => {
-    if (maxTime === minTime) return padLeft + plotWidth / 2;
-    return padLeft + ((new Date(timestamp).getTime() - minTime) / (maxTime - minTime)) * plotWidth;
+    return padLeft + ((new Date(timestamp).getTime() - windowStart) / span) * plotWidth;
   };
 
   const getY = (val: number) => {
@@ -150,14 +195,13 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   };
 
   // Generate SVG path commands
-  const pathD = points.reduce((acc, point, i) => {
+  const pathD = windowedPoints.reduce((acc, point, i) => {
     const x = getX(point.timestamp);
     const y = getY(point[activeCfg.key]);
     return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
   }, '');
 
-  // Fill area under line
-  const areaD = `${pathD} L ${getX(points[points.length - 1].timestamp)} ${padTop + plotHeight} L ${getX(points[0].timestamp)} ${padTop + plotHeight} Z`;
+  const areaD = `${pathD} L ${getX(windowedPoints[windowedPoints.length - 1].timestamp)} ${padTop + plotHeight} L ${getX(windowedPoints[0].timestamp)} ${padTop + plotHeight} Z`;
 
   // Horizontal Grid Lines & Y Labels (4 steps)
   const yTicks = [0, 0.33, 0.66, 1].map((ratio) => {
@@ -169,68 +213,13 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   // These labels make the chart's time basis visible. They are calculated
   // from the same real timestamps used for the plotted x coordinates.
   const xTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-    const time = minTime + ratio * (maxTime - minTime);
-    return { x: padLeft + ratio * plotWidth, label: formatChartTime(new Date(time).toISOString(), ratio === 0) };
+    const time = windowStart + ratio * span;
+    return { x: padLeft + ratio * plotWidth, label: formatChartTime(new Date(time).toISOString(), ratio === 0 || hours > 24) };
   });
 
   return (
     <Card variant="glass" className={`sg-trend-card ${className}`}>
-      {/* Chart Controls Header */}
-      <div className="sg-trend-header">
-        <div className="sg-trend-title-group">
-          <div className="sg-trend-title">
-            <LineChart size={18} className="text-accent" aria-hidden="true" />
-            <h3 id={chartId}>Sensor Telemetry Trends</h3>
-          </div>
-          <span className="sg-trend-notice">
-            ● LIVE BACKEND
-          </span>
-        </div>
-
-        <div className="sg-trend-actions">
-          {/* Metric Selector Tabs */}
-          <div className="sg-metric-tabs" role="tablist" aria-label="Select telemetry metric to graph">
-            {(Object.keys(METRIC_CONFIG) as MetricType[]).map((metricKey) => {
-              const cfg = METRIC_CONFIG[metricKey];
-              const isSelected = selectedMetric === metricKey;
-              return (
-                <button
-                  key={metricKey}
-                  type="button"
-                  role="tab"
-                  aria-selected={isSelected}
-                  className={`sg-metric-tab ${isSelected ? 'sg-metric-tab--active' : ''}`}
-                  onClick={() => setSelectedMetric(metricKey)}
-                >
-                  <span
-                    className="sg-metric-tab-dot"
-                    style={{ backgroundColor: cfg.color }}
-                    aria-hidden="true"
-                  />
-                  <span>{cfg.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Time Range Selector */}
-          {onHoursChange && (
-            <div className="sg-range-select" aria-label="Time window selection">
-              <Clock size={13} className="text-muted" aria-hidden="true" />
-              {[10, 24, 72].map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  className={`sg-range-btn ${hours === h ? 'sg-range-btn--active' : ''}`}
-                  onClick={() => onHoursChange(h)}
-                >
-                  {h}h
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {renderToolbar()}
 
       {/* SVG Interactive Chart Canvas */}
       <div className="sg-chart-wrapper">
@@ -302,7 +291,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           />
 
           {/* Points & Interactive Tooltip Anchors */}
-          {points.map((pt, i) => {
+          {windowedPoints.map((pt, i) => {
             const cx = getX(pt.timestamp);
             const cy = getY(pt[activeCfg.key]);
             const isAnomaly = pt.is_anomaly === true;
@@ -355,9 +344,10 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             {hoveredPoint.point.is_anomaly && (
               <>
                 <div className="sg-tooltip-score">Fault: {hoveredPoint.point.fault_type?.replace(/_/g, ' ') || 'anomaly'}</div>
-                {typeof hoveredPoint.point[`suggested_${activeCfg.key}` as const] === 'number' && (
-                  <div className="sg-tooltip-value">Suggested: {hoveredPoint.point[`suggested_${activeCfg.key}` as const]} {activeCfg.unit}</div>
+                {hoveredPoint.point.severity && (
+                  <div className="sg-tooltip-score">Severity: {hoveredPoint.point.severity}</div>
                 )}
+                <SuggestedValues items={suggestedFromTrendPoint(hoveredPoint.point)} compact />
                 {hoveredPoint.point.health_status && <div className="sg-tooltip-time">Sensor: {hoveredPoint.point.health_status}</div>}
               </>
             )}
@@ -377,7 +367,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
               </tr>
             </thead>
             <tbody>
-              {points.map((pt, i) => (
+              {windowedPoints.map((pt, i) => (
                 <tr key={i}>
                   <td>{formatChartTime(pt.timestamp)}</td>
                   <td>{pt[activeCfg.key]}</td>

@@ -15,7 +15,7 @@ import {
   AnomalyContextNotice,
   FutureDiagnosticsNotice,
 } from '../components/sensor-health';
-import './SensorHealthPage.css';
+import { ConfirmationDialog } from '../components/common/ConfirmationDialog';
 
 export const SensorHealthPage: React.FC = () => {
   const { selectedStation } = useStation();
@@ -39,6 +39,7 @@ export const SensorHealthPage: React.FC = () => {
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairResult, setRepairResult] = useState<RepairSensorResponse | null>(null);
   const [repairError, setRepairError] = useState<string | null>(null);
+  const [showForceConfirm, setShowForceConfirm] = useState(false);
   const activeStationRef = useRef<string | undefined>(stationId);
 
   // Clear repair feedback when station changes
@@ -56,13 +57,36 @@ export const SensorHealthPage: React.FC = () => {
     setRepairError(null);
 
     try {
-      const result = await sensorHealthService.repairSensor(targetStationId);
+      const result = await sensorHealthService.markRepaired(targetStationId);
       if (activeStationRef.current !== targetStationId) return;
       setRepairResult(result);
       refreshHealth();
     } catch (err) {
       if (activeStationRef.current !== targetStationId) return;
-      setRepairError(formatUserErrorMessage(err, 'Failed to initiate sensor repair.'));
+      setRepairError(formatUserErrorMessage(err, 'Failed to mark sensor repaired.'));
+    } finally {
+      if (activeStationRef.current === targetStationId) {
+        setIsRepairing(false);
+      }
+    }
+  };
+
+  const handleForceRecover = async () => {
+    if (!stationId || isRepairing) return;
+    const targetStationId = stationId;
+    setIsRepairing(true);
+    setRepairError(null);
+    setShowForceConfirm(false);
+
+    try {
+      const result = await sensorHealthService.forceRecover(targetStationId);
+      if (activeStationRef.current !== targetStationId) return;
+      setRepairResult(result);
+      refreshHealth();
+      refreshReading();
+    } catch (err) {
+      if (activeStationRef.current !== targetStationId) return;
+      setRepairError(formatUserErrorMessage(err, 'Failed to force-recover sensor.'));
     } finally {
       if (activeStationRef.current === targetStationId) {
         setIsRepairing(false);
@@ -139,6 +163,7 @@ export const SensorHealthPage: React.FC = () => {
         error={healthError}
         onRetry={refreshHealth}
         onRepair={handleRepair}
+        onForceRecover={() => setShowForceConfirm(true)}
         isRepairing={isRepairing}
         repairResult={repairResult}
         repairError={repairError}
@@ -167,6 +192,18 @@ export const SensorHealthPage: React.FC = () => {
 
       {/* 6. Future Hardware Diagnostics Capability Seam */}
       <FutureDiagnosticsNotice />
+
+      <ConfirmationDialog
+        isOpen={showForceConfirm}
+        onClose={() => setShowForceConfirm(false)}
+        onConfirm={handleForceRecover}
+        title="Force sensor recovery?"
+        message="This immediately clears health counters and skips the three-reading trust ramp. Use only for a stuck sensor or a demo reset."
+        confirmLabel="Force Recovery"
+        cancelLabel="Cancel"
+        isDanger={true}
+        isLoading={isRepairing}
+      />
     </div>
   );
 };

@@ -87,6 +87,40 @@ def set_system_mode(body: dict):
     return {"mode": "live", "message": "Replay stopped; live buffers and view were reset."}
 
 
+@app.get("/api/network-status")
+def get_network_status():
+    """Aggregate station health for the header badge — not a static demo label."""
+    from datetime import datetime, timezone
+
+    sim = app.state.sim
+    statuses = []
+    health_pcts = []
+    for sid in sim.manager.buffers:
+        station_health = sim.manager.get_station_status(sid)
+        mapped = {"HEALTHY": "NORMAL", "WARNING": "WARNING", "OFFLINE": "OFFLINE"}.get(
+            station_health["status"], "NORMAL"
+        )
+        statuses.append(mapped)
+        health_pcts.append(_health_pct(sim.manager.buffers[sid].health.param_status))
+
+    if "CRITICAL" in statuses:
+        overall = "CRITICAL"
+    elif "WARNING" in statuses or "OFFLINE" in statuses:
+        overall = "WARNING"
+    else:
+        overall = "NORMAL"
+
+    return {
+        "overall_status": overall,
+        "active_stations_count": sum(1 for status in statuses if status != "OFFLINE"),
+        "total_stations_count": len(statuses),
+        "active_anomalies_count": len(sim.recent_anomalies),
+        "avg_sensor_health_pct": round(sum(health_pcts) / len(health_pcts)) if health_pcts else 100,
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+        "mode": sim.mode,
+    }
+
+
 @app.post("/api/refresh-live")
 async def refresh_live_snapshot():
     """Explicit, user-triggered Open-Meteo refresh; does not alter cadence."""

@@ -54,8 +54,10 @@ export const DashboardPage: React.FC = () => {
     refreshReading,
     refreshTrends,
     refreshAnomalies,
+    syncStreamStatus,
   } = useDashboardData(selectedStation?.station_id, {
     autoPoll: true,
+    trendHours,
   });
 
   useEffect(() => {
@@ -89,6 +91,7 @@ export const DashboardPage: React.FC = () => {
       });
       if (activeStationRef.current !== targetStationId) return;
       setInjectionNotice(`Anomaly replay initiated [ID: ${res.anomaly_id}] — ${res.message}`);
+      await syncStreamStatus();
       refreshAnomalies();
     } catch (err) {
       if (activeStationRef.current !== targetStationId) return;
@@ -107,6 +110,17 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    if (streamMode === 'live') {
+      try {
+        await systemStatusService.refreshLive();
+      } catch {
+        // Still re-fetch cached latest even if the provider refresh fails.
+      }
+    }
+    await refreshAll();
+  };
+
   const handleModeToggle = async () => {
     if (isInjecting) return;
     if (streamMode !== 'replay') {
@@ -116,6 +130,7 @@ export const DashboardPage: React.FC = () => {
     setIsInjecting(true);
     try {
       await systemStatusService.switchToLive();
+      await syncStreamStatus();
       setInjectionNotice('Replay stopped. Dashboard is returning to live Open-Meteo data.');
       await refreshAll();
     } catch (err) {
@@ -183,7 +198,7 @@ export const DashboardPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={refreshAll}
+              onClick={handleRefresh}
               ariaLabel="Refresh all dashboard data"
               leftIcon={<RefreshCw size={14} />}
             >
@@ -243,6 +258,9 @@ export const DashboardPage: React.FC = () => {
             error={readingError}
             onRetry={refreshReading}
             accentColor="#3b82f6"
+            suggestedValue={
+              currentReading?.is_anomaly ? currentReading.suggested_values?.temperature_c : undefined
+            }
           />
 
           {/* Atmospheric Pressure Overview */}
@@ -257,6 +275,9 @@ export const DashboardPage: React.FC = () => {
             error={readingError}
             onRetry={refreshReading}
             accentColor="#06b6d4"
+            suggestedValue={
+              currentReading?.is_anomaly ? currentReading.suggested_values?.pressure_hpa : undefined
+            }
           />
 
           {/* Relative Humidity Overview */}
@@ -271,6 +292,9 @@ export const DashboardPage: React.FC = () => {
             error={readingError}
             onRetry={refreshReading}
             accentColor="#10b981"
+            suggestedValue={
+              currentReading?.is_anomaly ? currentReading.suggested_values?.humidity_pct : undefined
+            }
           />
 
           {/* Anomaly Score & Risk Card */}
@@ -303,7 +327,7 @@ export const DashboardPage: React.FC = () => {
           onHoursChange={setTrendHours}
           isLoading={isLoadingTrends}
           error={trendsError}
-          onRetry={refreshTrends}
+          onRetry={() => refreshTrends(trendHours)}
         />
         {selectedStation && (
           <div className="sg-history-export">

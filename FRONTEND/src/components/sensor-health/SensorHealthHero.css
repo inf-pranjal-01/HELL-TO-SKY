@@ -173,6 +173,18 @@
   margin-top: 0.75rem;
 }
 
+.sg-health-hero__repair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sg-health-hero__repair-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #94a3b8);
+}
+
 .sg-health-hero__recovery-notice {
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.3);

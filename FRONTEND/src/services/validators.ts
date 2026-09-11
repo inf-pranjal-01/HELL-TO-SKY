@@ -26,6 +26,8 @@ import {
   RepairSensorResponse,
   AnomalySeverity,
   AnomalyType,
+  SystemStatusSummary,
+  SystemOverallStatus,
 } from '../types';
 import { ApiError } from './apiError';
 
@@ -237,6 +239,8 @@ export function validateTrends(data: unknown, fallbackHours: number = 6): Trends
       ...(typeof pt.is_anomaly === 'boolean' ? { is_anomaly: pt.is_anomaly } : {}),
       ...(typeof pt.fault_type === 'string' && (VALID_ANOMALY_TYPES as readonly string[]).includes(pt.fault_type)
         ? { fault_type: pt.fault_type as AnomalyType } : {}),
+      ...(typeof pt.severity === 'string' && VALID_SEVERITIES.includes(pt.severity as AnomalySeverity)
+        ? { severity: pt.severity as AnomalySeverity } : {}),
       ...(typeof pt.suggested_temperature_c === 'number' ? { suggested_temperature_c: pt.suggested_temperature_c } : {}),
       ...(typeof pt.suggested_pressure_hpa === 'number' ? { suggested_pressure_hpa: pt.suggested_pressure_hpa } : {}),
       ...(typeof pt.suggested_humidity_pct === 'number' ? { suggested_humidity_pct: pt.suggested_humidity_pct } : {}),
@@ -709,5 +713,32 @@ export function validateRepairSensorResponse(
     status: data.status,
     recovery_active: data.recovery_active,
     message: data.message,
+  };
+}
+
+const NETWORK_STATUSES: readonly SystemOverallStatus[] = ['NORMAL', 'WARNING', 'CRITICAL', 'OFFLINE'];
+
+export function validateNetworkStatus(data: unknown): SystemStatusSummary {
+  if (!isObject(data)) {
+    throw ApiError.validationError('Network status response must be an object.');
+  }
+  if (typeof data.overall_status !== 'string' || !NETWORK_STATUSES.includes(data.overall_status as SystemOverallStatus)) {
+    throw ApiError.validationError('Network status has an invalid overall_status.');
+  }
+  if (typeof data.active_stations_count !== 'number' || typeof data.total_stations_count !== 'number') {
+    throw ApiError.validationError('Network status is missing station counts.');
+  }
+  if (typeof data.active_anomalies_count !== 'number') {
+    throw ApiError.validationError('Network status is missing active_anomalies_count.');
+  }
+  const avg =
+    typeof data.avg_sensor_health_pct === 'number' ? data.avg_sensor_health_pct : 100;
+  return {
+    overall_status: data.overall_status as SystemOverallStatus,
+    active_stations_count: data.active_stations_count,
+    total_stations_count: data.total_stations_count,
+    active_anomalies_count: data.active_anomalies_count,
+    avg_sensor_health_pct: avg,
+    last_updated: typeof data.last_updated === 'string' ? data.last_updated : new Date().toISOString(),
   };
 }

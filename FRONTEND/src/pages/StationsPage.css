@@ -40,6 +40,19 @@
   padding: 6rem 2rem;
 }
 
+.sg-stations-spatial-pause {
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1.1rem;
+  border-left: 3px solid #38bdf8;
+}
+
+.sg-stations-spatial-pause p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
 .sg-stations-page__section-label {
   font-size: 0.75rem;
   font-family: var(--font-mono, monospace);

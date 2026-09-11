@@ -11,7 +11,6 @@ import {
   MOCK_RECENT_ANOMALIES,
   MOCK_ANOMALY_EXPLANATIONS,
 } from '../mock/anomalyData';
-import { MOCK_SYSTEM_STATUS } from '../mock/systemStatusData';
 import { API_CONFIG, isMockMode } from '../config/api.config';
 import { apiClient, RequestOptions } from './apiClient';
 import { ApiError } from './apiError';
@@ -20,6 +19,7 @@ import {
   validateRecentAnomalies,
   validateAnomalyExplanation,
 } from './validators';
+import { systemStatusService } from './systemStatusService';
 
 /**
  * Anomaly Service & System Status
@@ -47,12 +47,8 @@ export const anomalyService = {
    * Fetch overall system health status summary.
    * [FRONTEND HELPER — MOCK DATA]
    */
-  async getSystemStatus(): Promise<SystemStatusSummary> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ ...MOCK_SYSTEM_STATUS });
-      }, 50);
-    });
+  async getSystemStatus(options?: RequestOptions): Promise<SystemStatusSummary> {
+    return systemStatusService.getNetworkStatus(options);
   },
 
   /**
