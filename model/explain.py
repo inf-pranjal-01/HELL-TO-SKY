@@ -46,6 +46,9 @@ except ImportError:
 # entry MUST have one here -- a silently-missing feature in an
 # explanation is worse than a loud startup error, see ExplainerCache.explain.
 FEATURE_DISPLAY_NAMES = {
+    "temperature_c": "Temperature",
+    "pressure_hpa": "Pressure",
+    "humidity_pct": "Humidity",
     "temp_deviation": "Temp Deviation",
     "pressure_deviation": "Pressure Deviation",
     "humidity_deviation": "Humidity Deviation",
@@ -58,11 +61,6 @@ FEATURE_DISPLAY_NAMES = {
     "temp_volatility_z": "Temp Volatility",
     "pressure_volatility_z": "Pressure Volatility",
     "humidity_volatility_z": "Humidity Volatility",
-    "temp_humidity_coupling_signal": "Temp/Humidity Coupling",
-    "pressure_inconsistency": "Pressure Inconsistency",
-    "spatial_temp_inconsistency": "Temp vs. Neighboring Stations",
-    "spatial_pressure_inconsistency": "Pressure vs. Neighboring Stations",
-    "spatial_humidity_inconsistency": "Humidity vs. Neighboring Stations",
     "hour_sin": "Time of Day Pattern",
     "hour_cos": "Time of Day Pattern",
     "doy_sin": "Seasonal Pattern",
@@ -73,14 +71,15 @@ FEATURE_DISPLAY_NAMES = {
 # couples multiple sensors or is a time signal, not attributable to
 # one sensor alone.
 FEATURE_TO_PARAM = {
+    "temperature_c": "temperature_c",
+    "pressure_hpa": "pressure_hpa",
+    "humidity_pct": "humidity_pct",
     "temp_deviation": "temperature_c", "temp_roc_1h": "temperature_c", "temp_roc_3h": "temperature_c",
-    "temp_volatility_z": "temperature_c", "spatial_temp_inconsistency": "temperature_c",
+    "temp_volatility_z": "temperature_c",
     "pressure_deviation": "pressure_hpa", "pressure_roc_1h": "pressure_hpa", "pressure_roc_3h": "pressure_hpa",
-    "pressure_volatility_z": "pressure_hpa", "pressure_inconsistency": "pressure_hpa",
-    "spatial_pressure_inconsistency": "pressure_hpa",
+    "pressure_volatility_z": "pressure_hpa",
     "humidity_deviation": "humidity_pct", "humidity_roc_1h": "humidity_pct", "humidity_roc_3h": "humidity_pct",
-    "humidity_volatility_z": "humidity_pct", "spatial_humidity_inconsistency": "humidity_pct",
-    "temp_humidity_coupling_signal": None,
+    "humidity_volatility_z": "humidity_pct",
     "hour_sin": None, "hour_cos": None, "doy_sin": None, "doy_cos": None,
 }
 

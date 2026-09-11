@@ -1,0 +1,41 @@
+import { SystemStreamStatus } from '../types';
+import { API_CONFIG, isMockMode } from '../config/api.config';
+import { apiClient, RequestOptions } from './apiClient';
+import { ApiError } from './apiError';
+
+export const systemStatusService = {
+  async get(options?: RequestOptions): Promise<SystemStreamStatus> {
+    if (isMockMode()) {
+      return { mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60 };
+    }
+    const data = await apiClient.get<unknown>(API_CONFIG.endpoints.systemStatus, undefined, options);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw ApiError.validationError('System status response must be an object.');
+    }
+    const status = data as Record<string, unknown>;
+    if ((status.mode !== 'live' && status.mode !== 'replay') || typeof status.live_poll_interval_seconds !== 'number') {
+      throw ApiError.validationError('System status response has an invalid mode or cadence.');
+    }
+    return {
+      mode: status.mode,
+      replay_step_seconds: typeof status.replay_step_seconds === 'number' ? status.replay_step_seconds : null,
+      live_poll_interval_seconds: status.live_poll_interval_seconds,
+    };
+  },
+
+  async switchToLive(options?: RequestOptions): Promise<SystemStreamStatus> {
+    if (isMockMode()) {
+      return { mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60 };
+    }
+    const data = await apiClient.post<unknown>(API_CONFIG.endpoints.systemMode, { mode: 'live' }, options);
+    if (!data || typeof data !== 'object' || (data as Record<string, unknown>).mode !== 'live') {
+      throw ApiError.validationError('Live-mode switch response is invalid.');
+    }
+    return { mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60 };
+  },
+
+  async refreshLive(options?: RequestOptions): Promise<void> {
+    if (isMockMode()) return;
+    await apiClient.post<unknown>(API_CONFIG.endpoints.refreshLive, undefined, options);
+  },
+};

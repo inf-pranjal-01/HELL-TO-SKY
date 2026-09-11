@@ -1,0 +1,13 @@
+station_id,timestamp,fault_type,is_anomaly,__predicted,__decision_route,__model_pct,__rule_confidence_pct,__score_pct
+AWS-KOL-101,2025-03-12 12:00:00,multivariate_inconsistency,True,True,rule_bypass,99.95433728092752,100.0,99.97260236855651
+AWS-KOL-101,2025-01-04 18:00:00,drift,True,True,rule_bypass,99.89891071062159,100.0,99.93934642637295
+AWS-DEL-103,2025-01-29 21:00:00,multivariate_inconsistency,True,True,rule_bypass,99.89470050117275,100.0,99.93682030070364
+AWS-MUM-101,2025-01-20 19:00:00,drift,True,True,rule_bypass,99.87195937546862,100.0,99.92317562528117
+AWS-KOL-101,2025-01-04 17:00:00,drift,True,True,rule_bypass,99.86248692327405,100.0,99.91749215396442
+AWS-DEL-103,2025-03-01 06:00:00,drift,True,True,rule_bypass,99.84083084003053,100.0,99.90449850401832
+AWS-KOL-101,2025-02-16 13:00:00,multivariate_inconsistency,True,True,rule_bypass,99.83962470003438,100.0,99.90377482002063
+AWS-DEL-103,2025-03-01 07:00:00,drift,True,True,rule_bypass,99.83586891445427,100.0,99.90152134867256
+AWS-KOL-101,2025-01-04 13:00:00,drift,True,True,rule_bypass,99.83187107326549,100.0,99.89912264395929
+AWS-KOL-101,2025-02-12 20:00:00,multivariate_inconsistency,True,True,rule_bypass,99.83004355373453,100.0,99.89802613224072
+AWS-KOL-101,2025-01-04 14:00:00,drift,True,True,rule_bypass,99.73560230231395,100.0,99.84136138138837
+AWS-MUM-101,2025-01-11 15:00:00,multivariate_inconsistency,True,True,rule_bypass,99.72892915620122,100.0,99.83735749372073

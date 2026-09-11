@@ -42,8 +42,9 @@ timestamp merge (never by row position -- see build_feature_matrix's
 ROW ORDER NOTE). See evaluate.py's module docstring for the bug this
 caused when it wasn't done.
 
-FOUR MODEL FEATURE GROUPS (all in FEATURE_COLUMNS, all seen by
-train.py -- changing any of these requires a retrain):
+THREE MODEL FEATURE GROUPS (all in FEATURE_COLUMNS, all seen by
+train.py -- changing any of these requires a retrain), plus cyclical
+time encodings:
 
   1. Raw values              -- the baseline signal itself.
   2. Temporal features       -- rate-of-change + deviation from each
@@ -52,26 +53,67 @@ train.py -- changing any of these requires a retrain):
                                  cycle).
   3. Cross-parameter features -- "multivariate consistency analysis",
                                  a named PS objective.
-  4. Spatial features         -- cluster-based neighbor consistency.
+  4. Cyclical time            -- hour-of-day / day-of-year encodings.
 
-PLUS a fifth group, RULE-ONLY signals (added below): short-horizon raw-
-reading comparisons used exclusively by the deterministic rule layer in
+SPATIAL FEATURES REMOVED (locked, SKYGUARD_ARCHITECTURE_DRAFT_2.md §9):
+at >10km station separation, cross-station "neighbor consistency"
+carried no real physical signal for any of our fault types, and it was
+the direct cause of a train/serve mismatch (evaluate.py processing one
+station at a time meant every cluster only ever had 1 station present,
+so spatial features silently fell back to a neutral 0.0 every single
+row of every eval run, while train.py -- run on the full multi-station
+file -- saw real non-zero values for the same features). Removing them
+outright, not patching around the mismatch, closes that gap for good.
+FEATURE_COLUMNS is 3 shorter than before -- retrain required.
+
+PLUS a fifth group, RULE-ONLY signals: short-horizon raw-reading
+comparisons used exclusively by the deterministic rule layer in
 detect.py/evaluate.py, NEVER added to FEATURE_COLUMNS and NEVER seen by
-the trained model. This distinction exists because of a diagnosed real
-problem: ROLLING_WINDOW_HOURS=48 is correctly sized for diurnal-cycle
-normalization, but it's much longer than a typical injected fault
-(observed frozen faults ~3-6h, drift faults tens of hours) -- a 48h
-window dilutes a short fault with 40+ hours of surrounding normal data,
-so *_rolling_std/roc_1h rarely swing far enough to trip a frozen/drift
-rule built on them. Rather than shrinking ROLLING_WINDOW_HOURS (which
-would silently invalidate the already-trained model, since that's a
-training-time constant baked into its learned splits), these are
-independent, short-horizon signals that only the rule layer reads.
-Their thresholds are calibrated empirically from real clean training
-data inside train.py (see calibrate_rule_thresholds) and stored in the
-model artifact -- not hardcoded here, since what counts as
-"suspiciously static" or "too much 24h change" is scale- and
-station-dependent, not a single guessable constant.
+the trained model. Most live in add_rule_only_signals(); one exception
+-- {prefix}_normalized_roc_1h -- is computed inside add_temporal_features
+instead (see that function's docstring for why) but is equally
+rule-only: it is not in FEATURE_COLUMNS either.
+
+REBUILT AROUND THE LOCKED REDESIGN (SKYGUARD_ARCHITECTURE_DRAFT_2.md):
+
+  - Frozen (§1): the OLD design used a calibrated percentile threshold
+    on {prefix}_consec_diff ("suspiciously static" was a guessed,
+    scale-dependent cutoff). The NEW rule is deterministic and needs no
+    calibration at all: a parameter is frozen when floor(reading) is
+    identical across 3 consecutive readings. That's now computed once,
+    here, as {prefix}_floor_frozen_match -- a boolean that's True at row
+    t iff readings t, t-1, and t-2 all share the same integer part.
+    detect.py/evaluate.py read this column directly instead of each
+    re-deriving floor() logic independently -- see the
+    RULE_ONLY_PREFIXES comment below for the exact bug that caused last
+    time two derivations of the same thing drifted apart. The old
+    percentile-calibrated "frozen" threshold is REMOVED from
+    calibrate_rule_thresholds -- it has no role under the new rule.
+
+  - Drift (§2): the OLD design used a calibrated percentile threshold on
+    {prefix}_{DRIFT_LOOKBACK_HOURS}h_delta (a fixed-lookback magnitude
+    check). The NEW mechanism is CUSUM (S+/S- accumulator, confirmed
+    final) which needs a per-reading NORMALIZED step change as its
+    input, not a fixed-lookback delta. That accessor is
+    {prefix}_normalized_roc_1h, added below. CUSUM's own accumulator
+    state (running S+/S-, reset-on-reversal) is inherently sequential
+    and lives in detect.py/state.py, not here -- this file's job is
+    only to hand it a consistent, causally-safe input signal. The old
+    percentile-calibrated "drift" threshold is REMOVED from
+    calibrate_rule_thresholds -- CUSUM's own threshold/allowance are new
+    config.py constants (§11), not a data-calibrated percentile.
+
+  - roc_small's calibration is LEFT IN for now but flagged: its only
+    documented purpose (distinguishing "genuinely calm weather" from a
+    frozen sensor under the old ambiguous-threshold design) no longer
+    applies now that frozen is a deterministic floor-match. Nothing else
+    in the locked draft claims it, but it isn't deleted here without
+    confirming that's actually intended -- see the accompanying message.
+
+  - {prefix}_consec_diff and {prefix}_{DRIFT_LOOKBACK_HOURS}h_delta raw
+    columns are KEPT (cheap, still human-readable diagnostics useful for
+    evaluate.py's per-station/per-sensor breakdown, §10) even though
+    neither feeds a calibrated threshold anymore.
 
 LEAKAGE NOTE: every rolling/baseline statistic below is computed with
 `.shift(1)` before the rolling window, i.e. "as of the reading before
@@ -111,21 +153,24 @@ RAW_COLUMNS = ["temperature_c", "pressure_hpa", "humidity_pct"]
 # of Day Pattern", "Seasonal Pattern") so explain.py can map straight
 # from these column names to that response shape later without a
 # separate translation table.
+#
+# BUGFIX: the "# raw" section below previously listed no actual raw
+# column names -- the docstring promised raw values as one of the model
+# feature groups, but RAW_COLUMNS was never actually appended to this
+# list, so the model was blind to absolute physical values entirely and
+# only ever saw *_deviation (relative-to-baseline) signals. That's a
+# real gap, not a style choice: absolute-value context (e.g. "-15.0C" is
+# implausible regardless of what this station's recent baseline says)
+# is exactly the kind of thing a purely relative feature set can miss,
+# and it's directly relevant to a precision/recall target. Fixed below.
 FEATURE_COLUMNS = [
     # raw
-
+    "temperature_c", "pressure_hpa", "humidity_pct",
     # temporal
     "temp_deviation", "pressure_deviation", "humidity_deviation",
     "temp_roc_1h", "pressure_roc_1h", "humidity_roc_1h",
     "temp_roc_3h", "pressure_roc_3h", "humidity_roc_3h",
-  "temp_volatility_z", "pressure_volatility_z", "humidity_volatility_z",
-    # cross-parameter (multivariate consistency)
-    "temp_humidity_coupling_signal",
-    "pressure_inconsistency",
-    # spatial (cluster neighbor consistency)
-    "spatial_temp_inconsistency",
-    "spatial_pressure_inconsistency",
-    "spatial_humidity_inconsistency",
+    "temp_volatility_z", "pressure_volatility_z", "humidity_volatility_z",
     # cyclical time
     "hour_sin", "hour_cos", "doy_sin", "doy_cos",
 ]
@@ -142,7 +187,8 @@ RULE_ONLY_PREFIXES = [
     ("humidity_pct", "humidity"),
 ]
 
-# Lookback for the drift signal, in hours. Deliberately independent of
+# Lookback for the (now diagnostic-only, see module docstring) drift
+# delta column, in hours. Deliberately independent of
 # ROLLING_WINDOW_HOURS -- see module docstring.
 DRIFT_LOOKBACK_HOURS = 24
 
@@ -189,63 +235,43 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     window. Evaluation code must strip is_anomaly/fault_type before
     calling build_feature_matrix. See the module-level CALLER CONTRACT
     note and evaluate.py's docstring.
+
+    Also computes {prefix}_normalized_roc_1h here, NOT in
+    add_rule_only_signals -- it needs {prefix}_rolling_std, which only
+    exists at this point in the pipeline. It reuses that SAME causal,
+    shifted rolling std that {prefix}_deviation is built from, rather
+    than a second independent rolling-std computation -- this is what
+    add_cross_parameter_features consumes for its z-scored roc products,
+    and it's also CUSUM's "normalized_change" input (§2) in detect.py.
+    One source of truth for "how big is this station's normal step size
+    right now" feeding three different downstream consumers, instead of
+    three separate derivations that could quietly drift apart.
     """
     df = df.sort_values("timestamp").reset_index(drop=True)
     exclude_mask = df["is_anomaly"].fillna(False).astype(bool) if "is_anomaly" in df.columns else None
 
     for col, prefix in [("temperature_c", "temp"), ("pressure_hpa", "pressure"), ("humidity_pct", "humidity")]:
-        mean, std = _rolling_baseline(df[col], exclude_mask)
+        # Providers and replay dropout records legitimately contain a null
+        # measurement.  Pandas keeps a mixed float/None column as ``object``;
+        # ``Series.diff`` then attempts ``None - float`` and used to crash the
+        # entire simulator tick.  Coerce only this feature-engineering copy:
+        # the original raw value remains intact for dropout detection,
+        # telemetry/history display, and suggested-value generation.
+        values = pd.to_numeric(df[col], errors="coerce")
+        df[col] = values
+        mean, std = _rolling_baseline(values, exclude_mask)
         # std of 0 (or NaN from too little history) would divide-by-zero
         # into inf; treat as "no meaningful deviation info yet" instead.
         safe_std = std.replace(0, np.nan)
-        df[f"{prefix}_deviation"] = (df[col] - mean) / safe_std
+        df[f"{prefix}_deviation"] = (values - mean) / safe_std
         df[f"{prefix}_rolling_std"] = std
         df[f"{prefix}_rolling_mean"] = mean
         long_baseline = std.rolling(VOLATILITY_BASELINE_WINDOW_HOURS, min_periods=ROLLING_WINDOW_HOURS).median()
         long_spread = std.rolling(VOLATILITY_BASELINE_WINDOW_HOURS, min_periods=ROLLING_WINDOW_HOURS).std()
         df[f"{prefix}_volatility_z"] = (std - long_baseline) / long_spread.replace(0, np.nan)
-        df[f"{prefix}_roc_1h"] = df[col].diff(ROC_SHORT_HOURS)
-        df[f"{prefix}_roc_3h"] = df[col].diff(ROC_LONG_HOURS)
-
-    return df
-
-
-def add_cross_parameter_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Multivariate consistency -- the PS's own named objective, and the
-    exact mechanism behind inject_multivariate() in anomaly_injector.py.
-    Rather than hand-coding a threshold rule ("flag if temp up AND
-    humidity up AND pressure flat"), we hand the model two continuous,
-    physically-motivated signals and let the Isolation Forest learn
-    what's actually unusual about their joint distribution.
-
-    temp_humidity_coupling_signal:
-        NOAA's own guidance is a useful caution here: relative humidity
-        depends on BOTH temperature and actual atmospheric moisture
-        content, not temperature alone -- so a temperature rise
-        alongside a humidity rise isn't automatically a sensor fault.
-        This is deliberately a soft, continuous SIGNAL for the model to
-        weigh alongside everything else. We z-score each param's 1h
-        rate-of-change against its own rolling std, then multiply:
-        opposite-signed changes give a negative number; same-signed
-        changes give a positive number.
-
-    pressure_inconsistency:
-        A real weather event large enough to move temperature sharply
-        usually shows up in pressure too. Sharp temp movement with a
-        flat pressure trace is the "sensor fault, not real weather"
-        signature. |z(temp_roc)| minus |z(pressure_roc)|.
-    """
-    temp_std = df["temperature_c"].rolling(ROLLING_WINDOW_HOURS, min_periods=ROLLING_MIN_PERIODS).std().shift(1)
-    pressure_std = df["pressure_hpa"].rolling(ROLLING_WINDOW_HOURS, min_periods=ROLLING_MIN_PERIODS).std().shift(1)
-    humidity_std = df["humidity_pct"].rolling(ROLLING_WINDOW_HOURS, min_periods=ROLLING_MIN_PERIODS).std().shift(1)
-
-    z_temp_roc = df["temp_roc_1h"] / temp_std.replace(0, np.nan)
-    z_pressure_roc = df["pressure_roc_1h"] / pressure_std.replace(0, np.nan)
-    z_humidity_roc = df["humidity_roc_1h"] / humidity_std.replace(0, np.nan)
-
-    df["temp_humidity_coupling_signal"] = z_temp_roc * z_humidity_roc
-    df["pressure_inconsistency"] = z_temp_roc.abs() - z_pressure_roc.abs()
+        df[f"{prefix}_roc_1h"] = values.diff(ROC_SHORT_HOURS)
+        df[f"{prefix}_roc_3h"] = values.diff(ROC_LONG_HOURS)
+        df[f"{prefix}_normalized_roc_1h"] = df[f"{prefix}_roc_1h"] / safe_std
 
     return df
 
@@ -268,33 +294,55 @@ def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_rule_only_signals(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Per-station, adds two RULE-LAYER-ONLY signal families -- never
-    added to FEATURE_COLUMNS, never seen by the trained Isolation
-    Forest. See module docstring for why these exist alongside the
-    48h-windowed temporal features instead of replacing them.
+    Per-station, adds RULE-LAYER-ONLY signal families -- never added to
+    FEATURE_COLUMNS, never seen by the trained Isolation Forest. See
+    module docstring for why these exist alongside the 48h-windowed
+    temporal features instead of replacing them, and for which parts of
+    this were rebuilt around the locked redesign.
+
+    `{prefix}_floor_frozen_match` (bool): True at row t iff
+    floor(reading[t]) == floor(reading[t-1]) == floor(reading[t-2]) --
+    the exact, deterministic §1 frozen rule, computed once here so
+    detect.py/evaluate.py never re-derive floor() logic independently
+    (see RULE_ONLY_PREFIXES comment for the bug that caused last time).
+    Because the 3-reading condition is already baked into this single
+    column, a caller only needs the LATEST row's value to know whether
+    frozen fires right now -- no separate persistence-window bookkeeping
+    needed at the call site. NaN propagates naturally through floor()
+    comparisons, so a dropout (NaN) reading correctly does NOT register
+    as a floor match with its neighbors.
 
     `{prefix}_consec_diff`: absolute difference between this reading
     and the immediately-previous raw reading (NOT a rolling window).
-    A genuinely frozen sensor repeats near-identical values reading-to-
-    reading (the injector's jitter is tiny by design), which this
-    catches directly and immediately, unlike a windowed std that needs
-    the fault to occupy most of a 48h window before it moves much.
+    No longer calibrated as a frozen threshold (see module docstring) --
+    kept only as a cheap diagnostic for evaluate.py's per-sensor
+    breakdown.
 
     `{prefix}_{DRIFT_LOOKBACK_HOURS}h_delta`: raw value minus its value
-    DRIFT_LOOKBACK_HOURS ago. A slow drift moves this steadily away
-    from 0 over the fault's duration even though each individual 1h
-    step (roc_1h) looks unremarkable on its own -- the "small steps,
-    large cumulative change" signature a short-horizon rate-of-change
-    feature can't see by itself.
+    DRIFT_LOOKBACK_HOURS ago. No longer calibrated as a drift threshold
+    (superseded by CUSUM, see module docstring) -- kept only as a cheap
+    diagnostic for evaluate.py's per-sensor breakdown.
 
-    Thresholds for both are NOT defined here -- see
-    calibrate_rule_thresholds, called once in train.py against real
-    clean data and stored in the model artifact.
+    roc_small threshold (calibrated in calibrate_rule_thresholds, not
+    computed here) is flagged in the module docstring as likely dead
+    under the new frozen rule -- not removed without confirming that's
+    intended.
     """
     df = df.sort_values("timestamp").reset_index(drop=True)
     for col, prefix in RULE_ONLY_PREFIXES:
         df[f"{prefix}_consec_diff"] = df[col].diff(1).abs()
         df[f"{prefix}_{DRIFT_LOOKBACK_HOURS}h_delta"] = df[col] - df[col].shift(DRIFT_LOOKBACK_HOURS)
+
+        # Open-Meteo reports these values to one decimal place. Matching
+        # only an integer part makes normal stable pressure look frozen;
+        # matching the reported precision preserves the intended
+        # persistence shape while eliminating that aliasing false positive.
+        floor_vals = df[col].round(1)
+        df[f"{prefix}_floor_frozen_match"] = (
+            (floor_vals == floor_vals.shift(1)) & (floor_vals == floor_vals.shift(2))
+        )
+        run_id = floor_vals.ne(floor_vals.shift()).cumsum()
+        df[f"{prefix}_frozen_streak"] = floor_vals.groupby(run_id).cumcount() + 1
     return df
 
 
@@ -314,20 +362,29 @@ def calibrate_rule_thresholds(featured_clean: pd.DataFrame) -> dict:
     directly against real 20-station eval output: temp_rolling_std
     ranges 2.38 (AWS-CHN-024) to 5.42 (AWS-MUM-101) across stations,
     more than 2x. A single global percentile is necessarily
-    miscalibrated for whichever end of that range it doesn't fit --
-    the actual cause of frozen's 302 clean-row false positives being
-    spread broadly across nearly every station instead of concentrated
-    in one or two.
+    miscalibrated for whichever end of that range it doesn't fit.
 
-    Each threshold is now {station_id: value, "__global__": value} --
-    the global entry is the same pooled-percentile calculation as
-    before, kept as a fallback for any station with too little clean
-    data to calibrate its own threshold reliably (min_rows guard below)
-    or any station missing entirely at calibration time. See
-    get_threshold() for the lookup that applies this fallback.
+    Each threshold is {station_id: value, "__global__": value} -- the
+    global entry is the same pooled-percentile calculation as before,
+    kept as a fallback for any station with too little clean data to
+    calibrate its own threshold reliably (min_rows guard below) or any
+    station missing entirely at calibration time. See get_threshold()
+    for the lookup that applies this fallback.
 
-    frozen[prefix]: 1st percentile of NONZERO consec_diff, per station.
-    drift[prefix]: 99th percentile of Nh_delta magnitude, per station.
+    REMOVED under the locked redesign (see module docstring):
+      - "frozen" -- the new frozen rule (floor-match, §1) is
+        deterministic and needs no calibrated threshold at all.
+      - "drift" -- superseded by CUSUM (§2, final); CUSUM's own
+        threshold/allowance are new config.py constants, not a
+        data-calibrated percentile of this file's Nh_delta column.
+
+    STILL HERE, FLAGGED (see module docstring):
+      - "roc_small" -- its only documented purpose (distinguishing
+        genuinely calm weather from a frozen sensor under the old
+        ambiguous-threshold design) no longer applies now that frozen
+        is a deterministic floor-match. Left in pending confirmation
+        it's actually still wanted for anything.
+
     roc_small[prefix]: 20th percentile of roc_1h magnitude, per station.
     spike[prefix]: 99.9th percentile of *_deviation magnitude, per station.
     (Percentile choices carried over unchanged from the pooled version --
@@ -336,7 +393,7 @@ def calibrate_rule_thresholds(featured_clean: pd.DataFrame) -> dict:
     """
     MIN_ROWS_FOR_PER_STATION = 200  # below this, a station's own quantile is too noisy to trust
 
-    thresholds = {"frozen": {}, "drift": {}, "roc_small": {}, "spike": {}}
+    thresholds = {"roc_small": {}, "spike": {}}
 
     def _calibrate(
         rule_key: str,
@@ -364,29 +421,10 @@ def calibrate_rule_thresholds(featured_clean: pd.DataFrame) -> dict:
         }
 
     for _, prefix in RULE_ONLY_PREFIXES:
-        consec_col = f"{prefix}_consec_diff"
-        delta_col = f"{prefix}_{DRIFT_LOOKBACK_HOURS}h_delta"
         roc_col = f"{prefix}_roc_1h"
         dev_col = f"{prefix}_deviation"
 
-        # Frozen: GLOBAL ONLY.
-        # The 1st percentile of nonzero consec_diff is determined
-        # by Open-Meteo's reporting precision, not station climate.
-        _calibrate(
-            "frozen",
-            lambda g: g[consec_col][g[consec_col] > 0],
-            0.01,
-            per_station=False,
-        )
-
-        # Drift: keep per-station calibration.
-        _calibrate(
-            "drift",
-            lambda g: g[delta_col].abs(),
-            0.99,
-        )
-
-        # Small ROC: keep per-station calibration.
+        # Small ROC: keep per-station calibration (flagged above).
         _calibrate(
             "roc_small",
             lambda g: g[roc_col].abs(),
@@ -399,89 +437,11 @@ def calibrate_rule_thresholds(featured_clean: pd.DataFrame) -> dict:
         _calibrate(
             "spike",
             lambda g: g[dev_col].abs(),
-            0.999,
+            0.99999,
             per_station=False,
         )
 
     return thresholds
-
-
-def add_spatial_features(df: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
-    """
-    Cluster-based spatial consistency -- "neighboring stations show
-    normal conditions." Only ever compares a station against the OTHER
-    stations in its own cluster, never across clusters.
-
-    Mechanism: spatial_*_inconsistency is this station's own
-    *_deviation minus the MEDIAN deviation of its cluster neighbors AT
-    THE SAME TIMESTAMP. Near 0 = the whole neighborhood is moving
-    together (a real, shared weather event). Large = this station
-    alone is doing something its neighbors aren't.
-
-    Median, not mean, deliberately -- robust to a single outlier in a
-    small cluster, so one bad station distorts only its own score, not
-    the neighbors it's being compared against.
-
-    REQUIRES df to contain enough of a cluster's stations in the SAME
-    call to compute anything real. With fewer than 2 present stations
-    in a cluster, this silently produces NaN for that cluster (see the
-    `len(present) < 2` guard below), which callers then typically
-    fill with a neutral 0.0. THIS IS EXACTLY THE BUG THAT WAS FOUND IN
-    evaluate.py: processing one labeled file (one station) at a time
-    means every cluster only ever has 1 station present, so spatial
-    features were ALWAYS falling back to the neutral 0.0 for every row
-    of every evaluation run -- a genuine mismatch against train.py,
-    which computes real non-zero spatial values because it runs on the
-    full multi-station file. See evaluate.py's module docstring.
-    """
-    df = df.merge(metadata[["station_id", "cluster_id"]], on="station_id", how="left")
-
-    for param in ["temp_deviation", "pressure_deviation", "humidity_deviation"]:
-        out_name = "spatial_" + param.replace("_deviation", "_inconsistency")
-        wide = df.pivot_table(index="timestamp", columns="station_id", values=param)
-
-        result = pd.Series(index=df.index, dtype=float)
-        for cluster_id, group in metadata.groupby("cluster_id"):
-            cluster_stations = group["station_id"].tolist()
-            present = [s for s in cluster_stations if s in wide.columns]
-            if len(present) < 2:
-                continue  # can't compute "neighbors" with fewer than 2 stations
-            cluster_wide = wide[present]
-
-            for station in present:
-                own = cluster_wide[station]
-                others = [s for s in present if s != station]
-                neighbor_median = cluster_wide[others].median(axis=1, skipna=True)
-                spatial_dev = own - neighbor_median
-
-                 # Exclude known-anomalous rows from the baseline/spread
-                # denominator -- same exclude_mask principle as
-                # _rolling_baseline. Without this, a fault station's own
-                # historical fault period inflates ITS OWN spread,
-                # diluting the z-score for every future row scored
-                # against it, including genuine anomalies (this is what
-                # dropped drift/spike recall last round).
-                if "is_anomaly" in df.columns:
-                    station_rows = df["station_id"] == station
-                    station_exclude = (
-                        df.loc[station_rows].set_index("timestamp")["is_anomaly"]
-                        .fillna(False).astype(bool)
-                        .reindex(spatial_dev.index).fillna(False)
-                    )
-                    clean_spatial_dev = spatial_dev.mask(station_exclude)
-                else:
-                    clean_spatial_dev = spatial_dev
-
-                baseline = clean_spatial_dev.shift(1).rolling(VOLATILITY_BASELINE_WINDOW_HOURS, min_periods=ROLLING_WINDOW_HOURS).median()
-                spread = clean_spatial_dev.shift(1).rolling(VOLATILITY_BASELINE_WINDOW_HOURS, min_periods=ROLLING_WINDOW_HOURS).std()
-                spatial_dev_z = (spatial_dev - baseline) / spread.replace(0, np.nan)
-
-                mask = df["station_id"] == station
-                result.loc[mask] = df.loc[mask, "timestamp"].map(spatial_dev_z).values
-
-        df[out_name] = result
-
-    return df
 
 
 def build_features_for_latest(history_df: pd.DataFrame) -> pd.Series:
@@ -491,18 +451,18 @@ def build_features_for_latest(history_df: pd.DataFrame) -> pd.Series:
     Takes one station's recent history buffer (kept in-memory by
     state.py, no CSV involved at all) and returns just the feature
     vector for the LATEST reading in it. Includes rule-only signals too
-    (consec_diff / Nh_delta), since detect.py's rule layer needs them
-    from the same computation path as the model features -- same math,
-    so training/serving/rule-checking never quietly drift apart.
+    (consec_diff / Nh_delta / floor_frozen_match / normalized_roc_1h),
+    since detect.py's rule layer needs them from the same computation
+    path as the model features -- same math, so training/serving/
+    rule-checking never quietly drift apart.
 
     `history_df` should NOT include an is_anomaly column in live mode.
 
-    Spatial features are intentionally NOT computed here -- they need
-    every station in a cluster in view simultaneously; detect.py
-    handles that separately via cluster_neighbor_buffers.
+    No spatial handling here or anywhere else in this file -- spatial
+    features were removed entirely (§9, see module docstring), not just
+    skipped in live mode.
     """
     df = add_temporal_features(history_df)
-    df = add_cross_parameter_features(df)
     df = add_time_features(df)
     df = add_rule_only_signals(df)
     return df.iloc[-1]
@@ -510,35 +470,34 @@ def build_features_for_latest(history_df: pd.DataFrame) -> pd.Series:
 
 def build_rule_signals_recent(history_df: pd.DataFrame, n: int = 2) -> pd.DataFrame:
     """
-    LIVE-MODE helper for the rule layer's PERSISTENCE requirement (see
-    detect.py's frozen-value check): returns the last `n` rows with
-    consec_diff/Nh_delta computed, so detect.py can check "did this
-    condition hold for the last N consecutive readings of THIS
-    station" without re-deriving the heavier rolling temporal features
-    (which persistence doesn't need) or duplicating
-    add_rule_only_signals' logic separately.
+    LIVE-MODE helper for rule checks that need more than just the
+    latest row. Returns the last `n` rows with rule-only signals
+    computed, so detect.py can inspect recent history without
+    re-deriving add_rule_only_signals' logic separately.
 
-    n=2 by default: a single very-still reading alone doesn't reliably
-    separate "frozen sensor" from "genuinely calm weather" -- diagnosed
-    empirically (see calibrate_rule_thresholds' PROVISIONAL note) --
-    but two consecutive readings both under threshold is a much
-    stronger signal, at the cost of one extra reading's worth of
-    detection latency.
+    NOTE for the frozen check specifically: {prefix}_floor_frozen_match
+    already encodes its own full 3-reading persistence requirement
+    internally (see add_rule_only_signals) -- a caller only needs n=1
+    (the latest row) to know whether frozen fires right now. n=2+ is for
+    other rule checks that need to compare across multiple recent rows
+    themselves (e.g. a rule built directly on roc_small persistence,
+    if that calibration turns out to still be wanted -- see module
+    docstring).
     """
     df = history_df.sort_values("timestamp").reset_index(drop=True)
     df = add_rule_only_signals(df)
     return df.tail(n)
 
 
-def build_feature_matrix(df: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
+def build_feature_matrix(df: pd.DataFrame) -> pd.DataFrame:
     """
     Main entry point. Takes the combined multi-station dataframe (the
     shape of all_stations.csv, optionally with is_anomaly/fault_type
     ground-truth columns already attached from anomaly_injector.py) and
-    the stations_metadata.csv cluster/role table, returns a dataframe
-    with every column in FEATURE_COLUMNS added (plus the rule-only
-    signal columns), ready for train.py to select FEATURE_COLUMNS as X
-    and calibrate_rule_thresholds to calibrate against.
+    returns a dataframe with every column in FEATURE_COLUMNS added
+    (plus the rule-only signal columns), ready for train.py to select
+    FEATURE_COLUMNS as X and calibrate_rule_thresholds to calibrate
+    against.
 
     Ground-truth columns (is_anomaly, fault_type), station_id, and
     timestamp all pass through untouched. See the module-level CALLER
@@ -550,10 +509,12 @@ def build_feature_matrix(df: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFra
     Callers that need to reattach any side-channel data after the fact
     must join on (station_id, timestamp), never on row position/index.
 
-    SPATIAL FEATURE NOTE: pass in df containing every station whose
-    cluster context you actually want -- calling this once per station
-    silently degrades every spatial_*_inconsistency feature to a
-    neutral fallback. See add_spatial_features' docstring.
+    SIGNATURE CHANGE: no longer takes a `metadata` argument -- that was
+    only ever used to look up cluster_id for the now-removed spatial
+    features (§9). Any caller (train.py, evaluate.py) still passing a
+    second positional argument will need updating when we get to those
+    files, per the locked build order -- this isn't a surprise, just
+    flagging where the break is so it's not mysterious when it shows up.
     """
     if "timestamp" not in df.columns:
         raise ValueError("Expected a 'timestamp' column -- did you pass the raw fetched/validated CSV?")
@@ -568,35 +529,30 @@ def build_feature_matrix(df: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFra
     per_station_frames = []
     for station_id, group in df.groupby("station_id", sort=False):
         group = add_temporal_features(group)
-        group = add_cross_parameter_features(group)
         group = add_time_features(group)
         group = add_rule_only_signals(group)
         per_station_frames.append(group)
     df = pd.concat(per_station_frames, ignore_index=True)
-
-    df = add_spatial_features(df, metadata)
 
     return df
 
 
 def main():
     stations_path = DATA_DIR / "all_stations.csv"
-    metadata_path = DATA_DIR / "stations_metadata.csv"
 
-    if not stations_path.exists() or not metadata_path.exists():
-        print(f"Expected {stations_path.name} and {metadata_path.name} in {DATA_DIR} "
-              f"(outputs of data_fetch.py -> validate_data.py). Run those first.")
+    if not stations_path.exists():
+        print(f"Expected {stations_path.name} in {DATA_DIR} "
+              f"(output of data_fetch.py -> validate_data.py). Run that first.")
         return
 
     df = pd.read_csv(stations_path, parse_dates=["timestamp"])
-    metadata = pd.read_csv(metadata_path)
 
     if "is_anomaly" in df.columns:
         print("NOTE: input already has is_anomaly/fault_type columns (looks like a "
               "_labeled.csv). That's fine for testing detect.py against known faults, "
               "but train.py must fit only on a RAW un-injected file.\n")
 
-    featured = build_feature_matrix(df, metadata)
+    featured = build_feature_matrix(df)
 
     n_total = len(featured)
     n_ready = featured[FEATURE_COLUMNS].notna().all(axis=1).sum()
@@ -606,8 +562,9 @@ def main():
           f"rolling-window warm-up); the rest are the first ~{ROLLING_WINDOW_HOURS}h "
           f"of each station's history and should be dropped before training.\n")
 
-    sample_cols = ["station_id", "timestamp", "temp_deviation", "pressure_inconsistency",
-                   "spatial_temp_inconsistency", "temp_consec_diff", f"temp_{DRIFT_LOOKBACK_HOURS}h_delta"]
+    sample_cols = ["station_id", "timestamp", "temperature_c", "temp_deviation",
+                   "temp_floor_frozen_match",
+                   "temp_normalized_roc_1h", "temp_consec_diff"]
     print("Sample rows:")
     print(featured[sample_cols].dropna().head(5).to_string(index=False))
 

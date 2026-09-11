@@ -1,0 +1,392 @@
+import React, { useState, useId } from 'react';
+import { LineChart, Clock } from 'lucide-react';
+import { Card } from '../common/Card';
+import { Skeleton } from '../common/Skeleton';
+import { TrendPoint } from '../../types';
+import './TrendChart.css';
+
+export type MetricType = 'temperature' | 'pressure' | 'humidity';
+
+export interface TrendChartProps {
+  points?: TrendPoint[];
+  hours?: number;
+  onHoursChange?: (hours: number) => void;
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+  className?: string;
+}
+
+const METRIC_CONFIG = {
+  temperature: {
+    label: 'Temperature',
+    unit: '°C',
+    color: '#3b82f6', // Accent blue
+    key: 'temperature_c' as const,
+    normalMin: 18,
+    normalMax: 35,
+  },
+  pressure: {
+    label: 'Pressure',
+    unit: 'hPa',
+    color: '#06b6d4', // Accent cyan
+    key: 'pressure_hpa' as const,
+    normalMin: 990,
+    normalMax: 1025,
+  },
+  humidity: {
+    label: 'Humidity',
+    unit: '%',
+    color: '#10b981', // Emerald green
+    key: 'humidity_pct' as const,
+    normalMin: 30,
+    normalMax: 80,
+  },
+};
+
+/** Uses only mutually compatible Intl options (dateStyle cannot be mixed
+ * with hour/minute options in several Chromium/Windows combinations). */
+const formatChartTime = (timestamp: string, includeDate = false): string => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return 'Unknown time';
+  return new Intl.DateTimeFormat(undefined, includeDate
+    ? { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }
+    : { hour: '2-digit', minute: '2-digit' }
+  ).format(date);
+};
+
+export const TrendChart: React.FC<TrendChartProps> = ({
+  points = [],
+  hours = 6,
+  onHoursChange,
+  isLoading = false,
+  error = null,
+  onRetry,
+  className = '',
+}) => {
+  const [selectedMetric, setSelectedMetric] = useState<MetricType>('temperature');
+  const [hoveredPoint, setHoveredPoint] = useState<{
+    point: TrendPoint;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const chartId = useId();
+  const activeCfg = METRIC_CONFIG[selectedMetric];
+
+  if (isLoading) {
+    return (
+      <Card variant="glass" className={`sg-trend-card ${className}`}>
+        <div className="sg-trend-header">
+          <Skeleton width="200px" height="1.5rem" />
+          <Skeleton width="180px" height="2rem" />
+        </div>
+        <div style={{ padding: '2rem 0' }}>
+          <Skeleton width="100%" height="240px" borderRadius="var(--radius-md)" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card variant="glass" className={`sg-trend-card sg-trend-card--error ${className}`}>
+        <div className="sg-trend-header">
+          <h3>Real-Time Telemetry Trends</h3>
+        </div>
+        <div className="sg-trend-error">
+          <p>{error}</p>
+          {onRetry && (
+            <button type="button" className="sg-trend-retry-btn" onClick={onRetry}>
+              Retry Trends
+            </button>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
+  if (!points || points.length === 0) {
+    return (
+      <Card variant="glass" className={`sg-trend-card ${className}`}>
+        <div className="sg-trend-header">
+          <h3>Real-Time Telemetry Trends</h3>
+        </div>
+        <div className="sg-trend-empty">
+          <p>No trend data available for this station.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Calculate SVG scales
+  const values = points.map((p) => p[activeCfg.key]);
+  const minVal = Math.floor(Math.min(...values) - 1);
+  const maxVal = Math.ceil(Math.max(...values) + 1);
+  const valRange = maxVal - minVal || 1;
+
+  const width = 800;
+  const height = 240;
+  const padLeft = 48;
+  const padRight = 20;
+  const padTop = 20;
+  const padBottom = 30;
+
+  const plotWidth = width - padLeft - padRight;
+  const plotHeight = height - padTop - padBottom;
+
+  // Timestamp is the only chart-time authority. Array position is not
+  // meaningful after replay, delayed polls, or historical queries.
+  const timestamps = points.map((point) => new Date(point.timestamp).getTime());
+  const minTime = Math.min(...timestamps);
+  const maxTime = Math.max(...timestamps);
+  const getX = (timestamp: string) => {
+    if (maxTime === minTime) return padLeft + plotWidth / 2;
+    return padLeft + ((new Date(timestamp).getTime() - minTime) / (maxTime - minTime)) * plotWidth;
+  };
+
+  const getY = (val: number) => {
+    return padTop + plotHeight - ((val - minVal) / valRange) * plotHeight;
+  };
+
+  // Generate SVG path commands
+  const pathD = points.reduce((acc, point, i) => {
+    const x = getX(point.timestamp);
+    const y = getY(point[activeCfg.key]);
+    return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
+  }, '');
+
+  // Fill area under line
+  const areaD = `${pathD} L ${getX(points[points.length - 1].timestamp)} ${padTop + plotHeight} L ${getX(points[0].timestamp)} ${padTop + plotHeight} Z`;
+
+  // Horizontal Grid Lines & Y Labels (4 steps)
+  const yTicks = [0, 0.33, 0.66, 1].map((ratio) => {
+    const val = minVal + ratio * valRange;
+    const y = getY(val);
+    return { val: Number(val.toFixed(1)), y };
+  });
+
+  // These labels make the chart's time basis visible. They are calculated
+  // from the same real timestamps used for the plotted x coordinates.
+  const xTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+    const time = minTime + ratio * (maxTime - minTime);
+    return { x: padLeft + ratio * plotWidth, label: formatChartTime(new Date(time).toISOString(), ratio === 0) };
+  });
+
+  return (
+    <Card variant="glass" className={`sg-trend-card ${className}`}>
+      {/* Chart Controls Header */}
+      <div className="sg-trend-header">
+        <div className="sg-trend-title-group">
+          <div className="sg-trend-title">
+            <LineChart size={18} className="text-accent" aria-hidden="true" />
+            <h3 id={chartId}>Sensor Telemetry Trends</h3>
+          </div>
+          <span className="sg-trend-notice">
+            ● LIVE BACKEND
+          </span>
+        </div>
+
+        <div className="sg-trend-actions">
+          {/* Metric Selector Tabs */}
+          <div className="sg-metric-tabs" role="tablist" aria-label="Select telemetry metric to graph">
+            {(Object.keys(METRIC_CONFIG) as MetricType[]).map((metricKey) => {
+              const cfg = METRIC_CONFIG[metricKey];
+              const isSelected = selectedMetric === metricKey;
+              return (
+                <button
+                  key={metricKey}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  className={`sg-metric-tab ${isSelected ? 'sg-metric-tab--active' : ''}`}
+                  onClick={() => setSelectedMetric(metricKey)}
+                >
+                  <span
+                    className="sg-metric-tab-dot"
+                    style={{ backgroundColor: cfg.color }}
+                    aria-hidden="true"
+                  />
+                  <span>{cfg.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Time Range Selector */}
+          {onHoursChange && (
+            <div className="sg-range-select" aria-label="Time window selection">
+              <Clock size={13} className="text-muted" aria-hidden="true" />
+              {[10, 24, 72].map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  className={`sg-range-btn ${hours === h ? 'sg-range-btn--active' : ''}`}
+                  onClick={() => onHoursChange(h)}
+                >
+                  {h}h
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* SVG Interactive Chart Canvas */}
+      <div className="sg-chart-wrapper">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="sg-chart-svg"
+          aria-labelledby={chartId}
+          role="img"
+        >
+          {/* Grid lines */}
+          {yTicks.map((tick, idx) => (
+            <g key={idx}>
+              <line
+                x1={padLeft}
+                y1={tick.y}
+                x2={width - padRight}
+                y2={tick.y}
+                className="sg-chart-grid-line"
+              />
+              <text
+                x={padLeft - 8}
+                y={tick.y + 4}
+                textAnchor="end"
+                className="sg-chart-axis-text"
+              >
+                {tick.val}
+              </text>
+            </g>
+          ))}
+
+          {/* Real timestamp x-axis; replay is one historical hour per point. */}
+          <line
+            x1={padLeft}
+            y1={padTop + plotHeight}
+            x2={width - padRight}
+            y2={padTop + plotHeight}
+            className="sg-chart-grid-line"
+          />
+          {xTicks.map((tick, idx) => (
+            <text
+              key={`x-${idx}`}
+              x={tick.x}
+              y={height - 8}
+              textAnchor={idx === 0 ? 'start' : idx === xTicks.length - 1 ? 'end' : 'middle'}
+              className="sg-chart-axis-text"
+            >
+              {tick.label}
+            </text>
+          ))}
+
+          {/* Gradient Fill under curve */}
+          <defs>
+            <linearGradient id={`grad-${selectedMetric}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={activeCfg.color} stopOpacity="0.25" />
+              <stop offset="100%" stopColor={activeCfg.color} stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          <path d={areaD} fill={`url(#grad-${selectedMetric})`} />
+
+          {/* Line stroke */}
+          <path
+            d={pathD}
+            fill="none"
+            stroke={activeCfg.color}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Points & Interactive Tooltip Anchors */}
+          {points.map((pt, i) => {
+            const cx = getX(pt.timestamp);
+            const cy = getY(pt[activeCfg.key]);
+            const isAnomaly = pt.is_anomaly === true;
+
+            return (
+              <circle
+                key={i}
+                cx={cx}
+                cy={cy}
+                r={isAnomaly ? 5 : 3.5}
+                className={`sg-chart-point ${isAnomaly ? 'sg-chart-point--anomaly' : ''}`}
+                fill={isAnomaly ? 'var(--status-critical-text)' : activeCfg.color}
+                stroke="var(--bg-surface)"
+                strokeWidth="1.5"
+                onMouseEnter={() => setHoveredPoint({ point: pt, x: cx, y: cy })}
+                onMouseLeave={() => setHoveredPoint(null)}
+                tabIndex={0}
+                role="button"
+                aria-label={`${activeCfg.label}: ${pt[activeCfg.key]} ${activeCfg.unit} at ${new Date(
+                  pt.timestamp
+                ).toLocaleTimeString()}`}
+              />
+            );
+          })}
+        </svg>
+
+        {/* Hover Tooltip Overlay */}
+        {hoveredPoint && (
+          <div
+            className="sg-chart-tooltip"
+            style={{
+              left: `${(hoveredPoint.x / width) * 100}%`,
+              top: `${(hoveredPoint.y / height) * 100}%`,
+            }}
+          >
+            <div className="sg-tooltip-time">
+              {formatChartTime(hoveredPoint.point.timestamp, true)}
+            </div>
+            <div className="sg-tooltip-value">
+              <span className="sg-tooltip-label">{activeCfg.label}:</span>
+              <strong>
+                {hoveredPoint.point[activeCfg.key]} {activeCfg.unit}
+              </strong>
+            </div>
+            {typeof hoveredPoint.point.anomaly_score_pct === 'number' && (
+              <div className="sg-tooltip-score">
+                Risk Score: {hoveredPoint.point.anomaly_score_pct}%
+              </div>
+            )}
+            {hoveredPoint.point.is_anomaly && (
+              <>
+                <div className="sg-tooltip-score">Fault: {hoveredPoint.point.fault_type?.replace(/_/g, ' ') || 'anomaly'}</div>
+                {typeof hoveredPoint.point[`suggested_${activeCfg.key}` as const] === 'number' && (
+                  <div className="sg-tooltip-value">Suggested: {hoveredPoint.point[`suggested_${activeCfg.key}` as const]} {activeCfg.unit}</div>
+                )}
+                {hoveredPoint.point.health_status && <div className="sg-tooltip-time">Sensor: {hoveredPoint.point.health_status}</div>}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Accessible Textual Summary for Screen Readers */}
+      <details className="sg-chart-accessible-summary">
+        <summary>View {activeCfg.label} data points table</summary>
+        <div className="sg-accessible-table-wrapper">
+          <table className="sg-accessible-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>{activeCfg.label} ({activeCfg.unit})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {points.map((pt, i) => (
+                <tr key={i}>
+                  <td>{formatChartTime(pt.timestamp)}</td>
+                  <td>{pt[activeCfg.key]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </Card>
+  );
+};

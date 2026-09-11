@@ -28,6 +28,32 @@ PATCH LOG:
     key entirely, and both will raise KeyError on load rather than
     silently running with no rule-layer thresholds. Retrain after
     pulling this patch.
+  - SKYGUARD_ARCHITECTURE_DRAFT_2.md §9 SYNC (this patch): this file was
+    still written against the PRE-§9 features.py contract in two places,
+    both would have failed hard the first time this ran against the
+    current features.py/config.py:
+      1. build_feature_matrix(df, metadata) -- features.py's signature
+         is single-arg now (spatial features removed, metadata was only
+         ever used for cluster_id lookup for those). TypeError otherwise.
+         Since nothing else in this file needed metadata, the
+         stations_metadata.csv load is dropped entirely rather than kept
+         around unused.
+      2. The per-station threshold diagnostic read
+         rule_thresholds["frozen"][prefix] -- calibrate_rule_thresholds()
+         no longer produces a "frozen" key at all (§1: frozen is a
+         deterministic floor-match now, calibrated thresholds only exist
+         for "roc_small" and "spike"). KeyError otherwise. Diagnostic
+         rewritten to print both real keys.
+      3. contamination reverted 0.02 -> 'auto'. The comment directly
+         above the IsolationForest(...) call argues, at length, for
+         'auto' specifically BECAUSE we're fitting on data we've
+         validated as clean -- asserting a fixed anomaly rate on data we
+         just asserted is normal bakes in a contradiction. The code had
+         drifted to a hardcoded 0.02 that contradicts its own comment.
+         Restoring 'auto' to match the documented reasoning. If 0.02 was
+         actually an intentional, separately-justified choice, say so and
+         I'll put it back -- flagging this as a real behavior change, not
+         a formatting fix.
 """
 
 import sys
@@ -49,17 +75,21 @@ RANDOM_STATE = 42
 
 def load_clean_training_data():
     """
-    Loads the RAW combined dataset + cluster metadata. Hard-fails if the
-    input looks like a labeled/injected file -- this is the training/
-    serving separation rule enforced in code, not just a comment.
+    Loads the RAW combined dataset. Hard-fails if the input looks like a
+    labeled/injected file -- this is the training/serving separation
+    rule enforced in code, not just a comment.
+
+    NOTE (this patch): no longer loads stations_metadata.csv. It was
+    only ever used to pass cluster_id through to build_feature_matrix
+    for the now-removed spatial features (§9) -- nothing else in this
+    file needs it, and build_feature_matrix no longer accepts it.
     """
     stations_path = DATA_DIR / "all_stations.csv"
-    metadata_path = DATA_DIR / "stations_metadata.csv"
 
-    if not stations_path.exists() or not metadata_path.exists():
+    if not stations_path.exists():
         raise FileNotFoundError(
-            f"Expected {stations_path.name} and {metadata_path.name} in {DATA_DIR} "
-            f"(outputs of data_fetch.py -> validate_data.py). Run those first."
+            f"Expected {stations_path.name} in {DATA_DIR} "
+            f"(output of data_fetch.py -> validate_data.py). Run that first."
         )
 
     df = pd.read_csv(stations_path, parse_dates=["timestamp"])
@@ -72,15 +102,17 @@ def load_clean_training_data():
             "or check you haven't accidentally pointed this at a *_labeled.csv."
         )
 
-    metadata = pd.read_csv(metadata_path)
-    return df, metadata
+    return df
 
 
 def train():
-    df, metadata = load_clean_training_data()
+    df = load_clean_training_data()
     print(f"Loaded {len(df)} raw rows across {df['station_id'].nunique()} stations.\n")
 
-    featured = build_feature_matrix(df, metadata)
+    # SIGNATURE CHANGE (§9, features.py): single-arg now -- metadata was
+    # only ever used for spatial-feature cluster lookups, removed with
+    # the rest of that machinery.
+    featured = build_feature_matrix(df)
 
     # Drop warm-up rows (first ~48h per station) that don't have a
     # complete rolling baseline yet -- an incomplete feature vector
@@ -96,20 +128,22 @@ def train():
 
     X = featured[FEATURE_COLUMNS].values
 
-    # contamination='auto', deliberately NOT a fixed 0.05 -- fixed
-    # earlier in the project. We're training on data we've validated as
-    # genuinely normal, so asserting "5% of this is anomalous" would be
-    # baking a false premise into the decision boundary. 'auto' uses
-    # the original Isolation Forest paper's own offset heuristic
-    # instead. Real severity thresholds (low/medium/high/critical) get
-    # calibrated separately, against the LABELED data where we actually
-    # know the true anomaly rate -- not smuggled in here as an
-    # assumption about clean training data.
+    # contamination='auto' -- deliberately NOT a fixed rate. We're
+    # training on data we've validated as genuinely normal, so asserting
+    # "X% of this is anomalous" would be baking a false premise into the
+    # decision boundary. 'auto' uses the original Isolation Forest
+    # paper's own offset heuristic instead. Real severity thresholds
+    # (low/medium/high/critical) get calibrated separately, against the
+    # LABELED data where we actually know the true anomaly rate -- not
+    # smuggled in here as an assumption about clean training data.
     model = IsolationForest(
         n_estimators=N_ESTIMATORS,
-        contamination=0.02,
+        contamination="auto",
         random_state=RANDOM_STATE,
-        n_jobs=-1,
+        # Single-process fitting keeps training reliable in restricted
+        # Windows environments where joblib cannot create worker IPC
+        # handles. It changes throughput only, not the model contract.
+        n_jobs=1,
     )
     model.fit(X)
 
@@ -121,25 +155,31 @@ def train():
     print("Training score distribution (decision_function; LOWER = more anomalous):")
     print(pd.Series(scores).describe())
 
-    # PATCH: rule-layer thresholds (frozen consec_diff, drift Nh_delta,
-    # roc_small), calibrated empirically from this SAME real clean
-    # `featured` data -- see features.py's calibrate_rule_thresholds
-    # docstring for the exact percentiles and reasoning. Using the
-    # already-dropna'd `featured` (same rows as X) is fine even though
-    # a handful of rows within the first DRIFT_LOOKBACK_HOURS=24h per
-    # station will still be NaN in the Nh_delta column specifically
-    # (FEATURE_COLUMNS only requires ROLLING_MIN_PERIODS=6h, shorter
-    # than the 24h delta needs) -- pandas' .quantile() skips NaN by
-    # default, and it's a small fraction of ~2000+ rows/station either way.
+    # Rule-layer thresholds (roc_small, spike -- frozen/drift are no
+    # longer calibrated, see features.py's calibrate_rule_thresholds
+    # docstring), calibrated empirically from this SAME real clean
+    # `featured` data. Using the already-dropna'd `featured` (same rows
+    # as X) is fine even though a handful of rows within the first
+    # DRIFT_LOOKBACK_HOURS=24h per station may still be NaN in the
+    # diagnostic-only Nh_delta column specifically (FEATURE_COLUMNS only
+    # requires ROLLING_MIN_PERIODS=6h, shorter than the 24h delta needs)
+    # -- pandas' .quantile() skips NaN by default, and it's a small
+    # fraction of ~2000+ rows/station either way.
     rule_thresholds = calibrate_rule_thresholds(featured)
 
+    # DIAGNOSTIC FIX (this patch): the old block read
+    # rule_thresholds["frozen"][prefix] -- that key doesn't exist
+    # anymore (§1: frozen is a deterministic floor-match, not a
+    # calibrated threshold). The two real calibrated rule types are
+    # "roc_small" and "spike" -- print both instead.
     print("\n--- PER-STATION THRESHOLD DIAGNOSTIC ---")
-    for prefix in ["temp", "pressure", "humidity"]:
-        entries = rule_thresholds["frozen"][prefix]
-        n_stations = len([k for k in entries if k != "__global__"])
-        print(f"frozen[{prefix}]: {n_stations} stations calibrated individually, "
-              f"__global__={entries['__global__']:.4f}")
-        print(f"  sample values: {dict(list(entries.items())[:5])}")
+    for rule_key in ("roc_small", "spike"):
+        for prefix in ["temp", "pressure", "humidity"]:
+            entries = rule_thresholds[rule_key][prefix]
+            n_stations = len([k for k in entries if k != "__global__"])
+            print(f"{rule_key}[{prefix}]: {n_stations} stations calibrated individually, "
+                  f"__global__={entries['__global__']:.4f}")
+            print(f"  sample values: {dict(list(entries.items())[:5])}")
     print("--- END DIAGNOSTIC ---")
 
     print("\nCalibrated rule thresholds (from real clean data, see features.py's "

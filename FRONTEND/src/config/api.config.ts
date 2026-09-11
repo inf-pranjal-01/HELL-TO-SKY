@@ -1,0 +1,98 @@
+/**
+ * SkyGuard AI — Centralized API Configuration & Endpoints Registry
+ * 
+ * [BACKEND INTEGRATED — Steps 13A–13K Complete]
+ * Backend Maturity: LEVEL 3 — REAL FastAPI backend live at http://127.0.0.1:8000
+ * 
+ * The frontend operates against isolated mock adapters by default (API_MODE = 'mock').
+ * Set VITE_API_MODE=real to route all 10 service calls through the real FastAPI backend.
+ */
+
+export type ApiMode = 'mock' | 'real';
+
+export interface ApiEndpoints {
+  // 1. GET /api/stations
+  stations: string;
+  // 2. GET /api/current-reading?station_id=...
+  currentReading: string;
+  // 3. GET /api/trends?station_id=...&hours=6
+  trends: string;
+  // 4. GET /api/anomalies/latest?station_id=...
+  latestAnomaly: string;
+  // 5. GET /api/anomalies/recent?station_id=...&limit=5
+  recentAnomalies: string;
+  // 6. GET /api/explain/{anomaly_id}
+  explainAnomaly: (anomalyId: string) => string;
+  // 7. GET /api/sensor-health?station_id=...
+  sensorHealth: string;
+  // 8. POST /api/inject-anomaly
+  injectAnomaly: string;
+  // 9. POST /api/maintenance-ticket
+  maintenanceTicket: string;
+  // 10. POST /api/repair-sensor
+  repairSensor: string;
+  systemStatus: string;
+  systemMode: string;
+  refreshLive: string;
+}
+
+export interface ApiConfig {
+  mode: ApiMode;
+  baseUrl: string;
+  timeoutMs: number;
+  realtime: {
+    strategy: 'polling';
+    pollingIntervalMs: number;
+    enabled: boolean;
+  };
+  endpoints: ApiEndpoints;
+}
+
+const rawApiMode = (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_MODE) || 'mock'
+).toLowerCase();
+const resolvedMode: ApiMode = rawApiMode === 'real' ? 'real' : 'mock';
+
+export const API_CONFIG: ApiConfig = {
+  // Mode switch: 'mock' (default for Level 0) or 'real' (for future FastAPI backend)
+  mode: resolvedMode,
+  
+  // Base URL for backend requests (only used when mode === 'real')
+  baseUrl: (
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:8000'
+  ).replace(/\/+$/, ''),
+  
+  // Default network request timeout (10 seconds)
+  timeoutMs: 10000,
+  
+  // Real-time telemetry polling configuration
+  realtime: {
+    strategy: 'polling',
+    pollingIntervalMs: 30 * 60 * 1000,
+    enabled: true,
+  },
+  
+  // Approved 10 API Endpoints Contract
+  endpoints: {
+    stations: '/api/stations',
+    currentReading: '/api/current-reading',
+    trends: '/api/trends',
+    latestAnomaly: '/api/anomalies/latest',
+    recentAnomalies: '/api/anomalies/recent',
+    explainAnomaly: (anomalyId: string) => `/api/explain/${encodeURIComponent(anomalyId)}`,
+    sensorHealth: '/api/sensor-health',
+    injectAnomaly: '/api/inject-anomaly',
+    maintenanceTicket: '/api/maintenance-ticket',
+    repairSensor: '/api/repair-sensor',
+    systemStatus: '/api/system-status',
+    systemMode: '/api/system-mode',
+    refreshLive: '/api/refresh-live',
+  },
+};
+
+/**
+ * Helper to check if the application is currently running in mock mode.
+ */
+export function isMockMode(): boolean {
+  return API_CONFIG.mode === 'mock';
+}

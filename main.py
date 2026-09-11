@@ -17,21 +17,42 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
+import pandas as pd
 
 sys.path.append(str(Path(__file__).parent))
 from model.simulator import create_simulator_state, run_simulation_loop
-from config import score_to_severity
+
+
+def _json_nullable(value):
+    """Convert CSV/pandas NaN values to valid JSON nulls for API payloads."""
+    if value is None:
+        return None
+    try:
+        return None if bool(pd.isna(value)) else value
+    except (TypeError, ValueError):
+        return value
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.sim = create_simulator_state()
+    # Fetch/ingest the first live snapshot before HTTP routes become
+    # available. This prevents normal dashboard startup from racing the
+    # first Open-Meteo request and receiving misleading 404 responses.
+    await app.state.sim.tick()
     app.state.sim_task = asyncio.create_task(run_simulation_loop(app.state.sim))
-    yield
-    app.state.sim_task.cancel()
+    try:
+        yield
+    finally:
+        app.state.sim_task.cancel()
+        try:
+            await app.state.sim_task
+        except asyncio.CancelledError:
+            pass
+        await app.state.sim.close()
 
 
 app = FastAPI(title="SkyGuard AI", lifespan=lifespan)
@@ -46,8 +67,32 @@ app.add_middleware(
 )
 
 
-def _get_sim(request_app: FastAPI = None):
-    return app.state.sim
+@app.get("/api/system-status")
+def get_system_status():
+    """Small control-plane endpoint: frontend cadence follows backend mode."""
+    sim = app.state.sim
+    return {
+        "mode": sim.mode,
+        "replay_step_seconds": 2 if sim.mode == "replay" else None,
+        "live_poll_interval_seconds": 30 * 60,
+    }
+
+
+@app.post("/api/system-mode")
+def set_system_mode(body: dict):
+    """Switch safely back to live when the dashboard replay toggle is off."""
+    if body.get("mode") != "live":
+        raise HTTPException(status_code=400, detail="Only mode='live' is supported by this endpoint.")
+    app.state.sim.stop_replay()
+    return {"mode": "live", "message": "Replay stopped; live buffers and view were reset."}
+
+
+@app.post("/api/refresh-live")
+async def refresh_live_snapshot():
+    """Explicit, user-triggered Open-Meteo refresh; does not alter cadence."""
+    sim = app.state.sim
+    await sim.refresh_live_now()
+    return {"mode": sim.mode, "message": "Live provider snapshot refreshed."}
 
 
 # ---------------- GET /api/stations ----------------
@@ -88,6 +133,8 @@ def get_current_reading(station_id: str):
     # constant names aren't in view here -- if config.py already
     # defines per-parameter normal ranges, swap these literals for
     # that import instead of duplicating the values.
+    station_health = sim.manager.get_station_status(station_id)
+    parameter_status = sim.manager.buffers[station_id].health.param_status
     return {
         "station_id": station_id,
         "timestamp": entry["timestamp"].isoformat(),
@@ -95,9 +142,17 @@ def get_current_reading(station_id: str):
         "pressure_hpa": {"value": raw.get("pressure_hpa"), "normal_min": 950.0, "normal_max": 1050.0},
         "humidity_pct": {"value": raw.get("humidity_pct"), "normal_min": 10.0, "normal_max": 100.0},
         "anomaly_score_pct": verdict["anomaly_score_pct"],
+        "is_anomaly": bool(verdict.get("is_anomaly", False)),
+        "fault_type": verdict.get("fault_type"),
+        "severity": verdict.get("severity"),
+        "model_confidence_pct": verdict.get("model_confidence_pct"),
+        "rule_confidence_pct": verdict.get("rule_confidence_pct"),
         "risk_level": verdict["severity"],
-        "sensor_health_pct": 100 if not verdict["is_anomaly"] else max(0, 100 - int(verdict["anomaly_score_pct"])),
-        "sensor_health_status": sim.manager.get_station_status(station_id)["status"],
+        "sensor_health_pct": _health_pct(parameter_status),
+        "sensor_health_status": station_health["status"],
+        "sensor_parameters": parameter_status,
+        "suggested_values": verdict.get("suggested_values", {}),
+        "source": sim.manager.mode,
     }
 
 
@@ -106,24 +161,33 @@ def get_current_reading(station_id: str):
 @app.get("/api/trends")
 def get_trends(station_id: str, hours: int = 6):
     sim = app.state.sim
-    history = sim.trend_history.get(station_id)
-    if history is None:
+    if station_id not in sim.manager.buffers:
         raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
+    if not 1 <= hours <= 24 * 30:
+        raise HTTPException(status_code=400, detail="hours must be between 1 and 720")
 
-    points = list(history)
-    # Points-per-hour is mode-dependent (live: 1/min via
-    # LIVE_FETCH_INTERVAL_SECONDS refresh cadence; replay: 1 every
-    # TICK_SECONDS=2s), so slicing by a fixed row-count-per-hour
-    # assumption would be wrong in one mode or the other. Simple,
-    # honest approach: just return everything currently buffered,
-    # capped by TREND_HISTORY_MAXLEN in simulator.py -- frontend's
-    # chart already handles arbitrary point counts.
+    # HistoryStore is the durable frontend source. It preserves raw
+    # values, fault labels, suggested values, and status at the time of
+    # every reading; the simulator deque is only a short UI cache.
+    points = sim.manager.get_station_history(station_id, hours=hours)
+    if not points:
+        points = list(sim.trend_history[station_id])
+
     trend_points = [
         {
             "timestamp": p["timestamp"].isoformat(),
-            "temperature_c": p["temperature_c"],
-            "pressure_hpa": p["pressure_hpa"],
-            "humidity_pct": p["humidity_pct"],
+            "temperature_c": _json_nullable(p["temperature_c"]),
+            "pressure_hpa": _json_nullable(p["pressure_hpa"]),
+            "humidity_pct": _json_nullable(p["humidity_pct"]),
+            "is_anomaly": bool(p.get("is_anomaly", False)),
+            "fault_type": _json_nullable(p.get("fault_type")),
+            "severity": _json_nullable(p.get("severity")),
+            "anomaly_score_pct": _json_nullable(p.get("anomaly_score_pct")),
+            "suggested_temperature_c": _json_nullable(p.get("suggested_temperature_c")),
+            "suggested_pressure_hpa": _json_nullable(p.get("suggested_pressure_hpa")),
+            "suggested_humidity_pct": _json_nullable(p.get("suggested_humidity_pct")),
+            "health_status": _json_nullable(p.get("health_status")),
+            "source": p.get("source", sim.manager.mode),
         }
         for p in points
     ]
@@ -148,7 +212,23 @@ def get_trends(station_id: str, hours: int = 6):
             "label": "Anomaly Detected",
         })
 
-    return {"station_id": station_id, "points": trend_points, "anomaly_windows": anomaly_windows}
+    return {"station_id": station_id, "hours": hours, "points": trend_points, "anomaly_windows": anomaly_windows}
+
+
+@app.get("/api/history.csv")
+def download_station_history(station_id: str):
+    """Operator export of the complete retained (up to 30-day) station CSV."""
+    sim = app.state.sim
+    if station_id not in sim.manager.buffers:
+        raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
+    df = sim.manager.history.get_all(station_id)
+    csv_text = df.sort_values("timestamp").to_csv(index=False) if not df.empty else \
+        "timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_type,severity,anomaly_score_pct,suggested_temperature_c,suggested_pressure_hpa,suggested_humidity_pct,health_status,source\n"
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{station_id}_history.csv"'},
+    )
 
 
 # ---------------- GET /api/anomalies/latest ----------------
@@ -169,7 +249,10 @@ def get_latest_anomaly(station_id: str):
                 "description": f"{a['root_cause']} detected at {a['station_id']}.",
                 "suggested_values": a.get("suggested_values"),
             }
-    raise HTTPException(status_code=404, detail=f"No anomalies recorded for {station_id}")
+    # No recent anomaly is a healthy, expected state—not a missing resource.
+    # Returning JSON null keeps the dashboard nominal and avoids a noisy 404
+    # in the browser console for stations without an incident.
+    return None
 
 
 # ---------------- GET /api/anomalies/recent ----------------
@@ -223,11 +306,19 @@ def get_explanation(anomaly_id: str):
 @app.get("/api/sensor-health")
 def get_sensor_health(station_id: str):
     sim = app.state.sim
+    if station_id not in sim.manager.buffers:
+        raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
     status = sim.manager.get_station_status(station_id)
     mapped = {"HEALTHY": "HEALTHY", "WARNING": "WARNING", "OFFLINE": "OFFLINE"}.get(status["status"], "HEALTHY")
-    entry = sim.latest.get(station_id)
-    score = entry["verdict"]["anomaly_score_pct"] if entry else 0
-    return {"station_id": station_id, "health_pct": max(0, 100 - int(score)), "status": mapped}
+    parameter_status = sim.manager.buffers[station_id].health.param_status
+    return {
+        "station_id": station_id,
+        "health_pct": _health_pct(parameter_status),
+        "status": mapped,
+        "parameters": parameter_status,
+        "offline_reason": status["offline_reason"],
+        "recovery_active": status["recovery_active"],
+    }
 
 # ---------------- POST /api/repair-sensor ----------------
 
@@ -252,10 +343,17 @@ def repair_sensor(body: dict):
 
     timestamp = datetime.now(timezone.utc)
 
-    sim.manager.mark_station_repaired(
-        station_id,
-        timestamp
-    )
+    if body.get("force_recovery", False):
+        sim.manager.force_recover_station(station_id)
+        return {
+            "success": True,
+            "station_id": station_id,
+            "status": "HEALTHY",
+            "recovery_active": False,
+            "message": "Sensor force-recovered and health counters reset.",
+        }
+
+    sim.manager.mark_station_repaired(station_id, timestamp)
 
     return {
         "success": True,
@@ -311,3 +409,11 @@ def create_maintenance_ticket(body: dict):
         "priority": "high" if match["severity"] in ("high", "critical") else "medium",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _health_pct(parameter_status: dict[str, str]) -> int:
+    """Stable health summary from actual per-parameter circuit breakers."""
+    if not parameter_status:
+        return 100
+    score_by_status = {"HEALTHY": 100, "WARNING": 50, "OFFLINE": 0}
+    return round(sum(score_by_status.get(value, 0) for value in parameter_status.values()) / len(parameter_status))
