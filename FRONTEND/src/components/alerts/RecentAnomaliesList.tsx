@@ -6,6 +6,7 @@ import { Skeleton } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
 import { ErrorState } from '../common/ErrorState';
 import { RecentAnomalyItem } from '../../types';
+import { formatSuggestedList, suggestedFromRecord } from '../../utils/suggestedValues';
 import './RecentAnomaliesList.css';
 
 export interface RecentAnomaliesListProps {
@@ -97,6 +98,7 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                 <th scope="col">Classification Type</th>
                 <th scope="col">Anomaly Score</th>
                 <th scope="col">Root Cause</th>
+                <th scope="col">Affected Sensor / Raw Reading</th>
                 <th scope="col">Suggested Replacement</th>
                 <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
               </tr>
@@ -117,6 +119,8 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                   month: 'short',
                   day: 'numeric',
                 });
+                const observed = suggestedFromRecord(anom.observed_values);
+                const suggested = suggestedFromRecord(anom.suggested_values);
 
                 return (
                   <tr key={anom.anomaly_id}>
@@ -139,9 +143,12 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                       {anom.root_cause}
                     </td>
                     <td className="sg-alerts-table-cause">
-                      {Object.entries(anom.suggested_values ?? {}).map(([parameter, value]) => (
-                        <div key={parameter}>{parameter.replace(/_/g, ' ')}: {value.toFixed(2)}</div>
-                      )) || '—'}
+                      {anom.affected_parameters?.length
+                        ? <><strong>{anom.affected_parameters.map((parameter) => parameter.replace(/_/g, ' ')).join(', ')}</strong><br />{observed.length ? formatSuggestedList(observed) : 'Raw value unavailable'}</>
+                        : 'Not available for earlier incident'}
+                    </td>
+                    <td className="sg-alerts-table-cause">
+                      {suggested.length ? formatSuggestedList(suggested) : 'Unavailable during baseline warm-up'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button

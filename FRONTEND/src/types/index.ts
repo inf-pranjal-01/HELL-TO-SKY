@@ -148,6 +148,9 @@ export interface LatestAnomaly {
   description: string;
   /** Optional sensor correction hints provided by the backend model */
   suggested_values?: Record<string, number>;
+  /** Parameters implicated by the detector and their original readings. */
+  affected_parameters?: string[];
+  observed_values?: Record<string, number | null>;
 }
 
 /**
@@ -165,6 +168,9 @@ export interface RecentAnomalyItem {
   description: string;
   /** Optional sensor correction hints provided by the backend model */
   suggested_values?: Record<string, number>;
+  /** Parameters implicated by the detector and their original readings. */
+  affected_parameters?: string[];
+  observed_values?: Record<string, number | null>;
 }
 
 /**
@@ -181,6 +187,13 @@ export interface AnomalyExplanation {
   features: ExplanationFeature[];
   /** Optional list of sensor IDs most likely responsible for the anomaly */
   likely_faulty_sensors?: string[];
+  affected_parameters?: string[];
+  observed_values?: Record<string, number | null>;
+  suggested_values?: Record<string, number>;
+  model_confidence_pct?: number | null;
+  rule_confidence_pct?: number;
+  anomaly_score_pct?: number;
+  fault_type?: AnomalyType;
 }
 
 /**

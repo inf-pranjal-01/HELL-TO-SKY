@@ -1,4 +1,5 @@
-import React, { useState, useId } from 'react';
+import React, { useState, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { LineChart, Clock } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
@@ -73,6 +74,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     x: number;
     y: number;
   } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const chartId = useId();
   const activeCfg = METRIC_CONFIG[selectedMetric];
@@ -224,6 +226,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
       {/* SVG Interactive Chart Canvas */}
       <div className="sg-chart-wrapper">
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${width} ${height}`}
           className="sg-chart-svg"
           aria-labelledby={chartId}
@@ -318,13 +321,14 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           })}
         </svg>
 
-        {/* Hover Tooltip Overlay */}
-        {hoveredPoint && (
+        {/* This portal prevents the chart card or adjacent sections from
+            clipping a tooltip at its boundary. */}
+        {hoveredPoint && svgRef.current && createPortal(
           <div
             className="sg-chart-tooltip"
             style={{
-              left: `${(hoveredPoint.x / width) * 100}%`,
-              top: `${(hoveredPoint.y / height) * 100}%`,
+              left: svgRef.current.getBoundingClientRect().left + (hoveredPoint.x / width) * svgRef.current.getBoundingClientRect().width,
+              top: svgRef.current.getBoundingClientRect().top + (hoveredPoint.y / height) * svgRef.current.getBoundingClientRect().height,
             }}
           >
             <div className="sg-tooltip-time">
@@ -347,11 +351,17 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 {hoveredPoint.point.severity && (
                   <div className="sg-tooltip-score">Severity: {hoveredPoint.point.severity}</div>
                 )}
-                <SuggestedValues items={suggestedFromTrendPoint(hoveredPoint.point)} compact />
+                <SuggestedValues
+                  items={suggestedFromTrendPoint(hoveredPoint.point)}
+                  compact
+                  showHeading
+                  emptyLabel="Suggested replacement unavailable during baseline warm-up"
+                />
                 {hoveredPoint.point.health_status && <div className="sg-tooltip-time">Sensor: {hoveredPoint.point.health_status}</div>}
               </>
             )}
-          </div>
+          </div>,
+          document.body
         )}
       </div>
 

@@ -65,6 +65,22 @@ CLUSTERS = {
             {"station_id": "AWS-BHO-103", "name": "Raisen", "lat": 23.3315, "lon": 77.7899},
         ],
     },
+    "VAR": {
+        "center": {"station_id": "AWS-VAR-052", "name": "Varanasi", "lat": 25.3176, "lon": 82.9739},
+        "neighbors": [
+            {"station_id": "AWS-VAR-101", "name": "Ramnagar", "lat": 25.2708, "lon": 83.0281},
+            {"station_id": "AWS-VAR-102", "name": "Chandauli", "lat": 25.2585, "lon": 83.2648},
+            {"station_id": "AWS-VAR-103", "name": "Bhadohi", "lat": 25.3919, "lon": 82.5686},
+        ],
+    },
+    "RAN": {
+        "center": {"station_id": "AWS-RAN-067", "name": "Ranchi", "lat": 23.3441, "lon": 85.3096},
+        "neighbors": [
+            {"station_id": "AWS-RAN-101", "name": "Khunti", "lat": 23.0725, "lon": 85.2789},
+            {"station_id": "AWS-RAN-102", "name": "Ramgarh", "lat": 23.6307, "lon": 85.5121},
+            {"station_id": "AWS-RAN-103", "name": "Bundu", "lat": 23.1667, "lon": 85.5833},
+        ],
+    },
 }
 
 # Date range: 3 months of hourly data is plenty for training + demo,

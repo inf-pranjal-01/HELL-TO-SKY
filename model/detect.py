@@ -433,6 +433,7 @@ def _confirmed_spikes(featured_buffer: pd.DataFrame, thresholds: dict, station_i
         confirmed.append({
             "parameter": param,
             "timestamp": pd.Timestamp(candidate["timestamp"]),
+            "observed_value": float(values[1]),
             "suggested_value": round(float((values[0] + values[2]) / 2), 2),
         })
     return confirmed

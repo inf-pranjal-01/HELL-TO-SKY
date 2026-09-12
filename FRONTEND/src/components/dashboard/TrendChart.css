@@ -168,7 +168,7 @@
 
 /* Tooltip Overlay */
 .sg-chart-tooltip {
-  position: absolute;
+  position: fixed;
   transform: translate(-50%, -120%);
   background-color: var(--bg-surface);
   border: 1px solid var(--border-medium);
@@ -180,7 +180,7 @@
   line-height: 1.45;
   max-width: min(250px, 78vw);
   white-space: normal;
-  z-index: 10;
+  z-index: 3000;
 }
 
 .sg-tooltip-time {

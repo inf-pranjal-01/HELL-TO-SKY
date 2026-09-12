@@ -44,12 +44,12 @@ INJECTION_RATE = 0.05
 #   1.0 = normal density, 2.0 = roughly double normal density.
 # It scales both the row target and the per-fault minimum, preserving the
 # realistic fault-type mix instead of turning one type up in isolation.
-ANOMALY_DENSITY_MULTIPLIER = 3.0
+ANOMALY_DENSITY_MULTIPLIER = 2.5
 
 # Held-out replay seed: distinct placements and fault directions from
 # the initial calibration replay. Change deliberately and record it in
 # evaluation output; train.py never consumes these labelled files.
-RANDOM_SEED = 20260911
+RANDOM_SEED = 42
 
 # Fixed (not randomized) fail-low window length. §5b's detector rule
 # triggers reclassification at 2-3 consecutive hours -- 3 sits right at

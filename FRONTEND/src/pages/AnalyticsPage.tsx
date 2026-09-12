@@ -10,6 +10,7 @@ import {
   AnomalyTimeline,
   SensorHealthTrend,
   AnalyticsInsights,
+  ExplainabilityCommandCenter,
 } from '../components/analytics';
 import { EmptyState } from '../components/common/EmptyState';
 import './AnalyticsPage.css';
@@ -114,6 +115,8 @@ const AnalyticsPage: React.FC = () => {
         onSelectMetric={setSelectedMetric}
         isLoading={isLoading}
       />
+
+      <ExplainabilityCommandCenter anomalies={anomalies} isLoading={isLoading} />
 
       {/* ── Anomaly Distribution Cards ── */}
       <p className="sg-analytics-page__section-label" aria-hidden="true">

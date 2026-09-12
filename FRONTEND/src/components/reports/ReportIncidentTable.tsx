@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ClipboardList, ExternalLink } from 'lucide-react';
 import { RecentAnomalyItem } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
+import { formatSuggestedList, suggestedFromRecord } from '../../utils/suggestedValues';
 import './ReportIncidentTable.css';
 
 export interface ReportIncidentTableProps {
@@ -44,6 +45,7 @@ export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incide
                 <th scope="col">Anomaly Type</th>
                 <th scope="col">Anomaly Score</th>
                 <th scope="col">Root Cause Analysis</th>
+                <th scope="col">Affected Sensor / Raw Reading</th>
                 <th scope="col">Suggested Replacement</th>
                 <th scope="col" className="no-print">
                   <span className="sg-sr-only">Actions</span>
@@ -51,8 +53,10 @@ export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incide
               </tr>
             </thead>
             <tbody>
-              {incidents.map((item) => (
-                <tr key={item.anomaly_id}>
+              {incidents.map((item) => {
+                const observed = suggestedFromRecord(item.observed_values);
+                const suggested = suggestedFromRecord(item.suggested_values);
+                return <tr key={item.anomaly_id}>
                   {/* ID */}
                   <td className="sg-font-mono text-muted">{item.anomaly_id}</td>
 
@@ -98,9 +102,13 @@ export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incide
                   <td className="sg-report-cause-cell">{item.root_cause || 'Not available'}</td>
 
                   <td className="sg-report-cause-cell">
-                    {Object.entries(item.suggested_values ?? {}).map(([parameter, value]) => (
-                      <div key={parameter}>{parameter.replace(/_/g, ' ')}: {value.toFixed(2)}</div>
-                    )) || '—'}
+                    {item.affected_parameters?.length
+                      ? <><strong>{item.affected_parameters.map((parameter) => parameter.replace(/_/g, ' ')).join(', ')}</strong><br />{observed.length ? formatSuggestedList(observed) : 'Raw value unavailable'}</>
+                      : 'Not available for earlier incident'}
+                  </td>
+
+                  <td className="sg-report-cause-cell">
+                    {suggested.length ? formatSuggestedList(suggested) : 'Unavailable during baseline warm-up'}
                   </td>
 
                   {/* Action (no-print) */}
@@ -115,8 +123,8 @@ export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incide
                       <ExternalLink size={12} aria-hidden="true" />
                     </button>
                   </td>
-                </tr>
-              ))}
+                </tr>;
+              })}
             </tbody>
           </table>
         </div>

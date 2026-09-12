@@ -282,6 +282,8 @@ def get_latest_anomaly(station_id: str):
                 "root_cause": a["root_cause"],
                 "description": f"{a['root_cause']} detected at {a['station_id']}.",
                 "suggested_values": a.get("suggested_values"),
+                "observed_values": a.get("observed_values"),
+                "affected_parameters": a.get("affected_parameters", []),
             }
     # No recent anomaly is a healthy, expected state—not a missing resource.
     # Returning JSON null keeps the dashboard nominal and avoids a noisy 404
@@ -305,6 +307,8 @@ def get_recent_anomalies(station_id: str, limit: int = 5):
             "score_pct": a["anomaly_score_pct"],
             "severity": a["severity"],
             "suggested_values": a.get("suggested_values"),
+            "observed_values": a.get("observed_values"),
+            "affected_parameters": a.get("affected_parameters", []),
         }
         for a in matches
     ]
@@ -331,6 +335,13 @@ def get_explanation(anomaly_id: str):
         "anomaly_id": anomaly_id,
         "features": match.get("shap_features", []),
         "likely_faulty_sensors": match.get("likely_faulty_sensors", []),
+        "affected_parameters": match.get("affected_parameters", []),
+        "observed_values": match.get("observed_values", {}),
+        "suggested_values": match.get("suggested_values", {}),
+        "model_confidence_pct": match.get("model_confidence_pct"),
+        "rule_confidence_pct": match.get("rule_confidence_pct"),
+        "anomaly_score_pct": match.get("anomaly_score_pct"),
+        "fault_type": match.get("type"),
     }
 
 

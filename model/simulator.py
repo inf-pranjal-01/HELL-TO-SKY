@@ -451,7 +451,11 @@ class SimulatorState:
                     "timestamp": spike["timestamp"],
                     "station_id": station_id,
                     "anomaly_score_pct": RULE_BASE_CONFIDENCE["spike"],
+                    "model_confidence_pct": None,
+                    "rule_confidence_pct": RULE_BASE_CONFIDENCE["spike"],
                     "suggested_values": {spike["parameter"]: spike["suggested_value"]},
+                    "observed_values": {spike["parameter"]: spike["observed_value"]},
+                    "affected_parameters": [spike["parameter"]],
                     "shap_features": [],
                     "likely_faulty_sensors": [spike["parameter"]],
                     "severity": "medium",
@@ -462,13 +466,30 @@ class SimulatorState:
             # Only create a new anomaly event when a new reading
             # was actually processed.
             if should_ingest and verdict["is_anomaly"]:
+                # Preserve the actual evidence with each incident.  Reports
+                # must say which parameter was abnormal and what it read,
+                # not merely name a fault category.
+                affected_parameters = list(dict.fromkeys(
+                    verdict.get("likely_faulty_sensors", [])
+                    or [param for _rule, param, _confidence in verdict.get("rules_fired", [])]
+                    or list((verdict.get("suggested_values") or {}).keys())
+                ))
+                observed_values = {
+                    param: raw_reading.get(param)
+                    for param in affected_parameters
+                    if param in raw_reading
+                }
                 self._anomaly_counter += 1
                 self.recent_anomalies.appendleft({
                     "anomaly_id": f"anom_{self._anomaly_counter:05d}",
                     "timestamp": reading_timestamp,
                     "station_id": station_id,
                     "anomaly_score_pct": verdict["anomaly_score_pct"],
+                    "model_confidence_pct": verdict.get("model_confidence_pct"),
+                    "rule_confidence_pct": verdict.get("rule_confidence_pct"),
                     "suggested_values": verdict.get("suggested_values"),
+                    "observed_values": observed_values,
+                    "affected_parameters": affected_parameters,
                     "shap_features": verdict.get("shap_features", []),
                     "likely_faulty_sensors": verdict.get("likely_faulty_sensors", []),
                     "severity": verdict["severity"],

@@ -22,3 +22,6 @@ export type { SensorHealthTrendProps } from './SensorHealthTrend';
 
 export { AnalyticsInsights } from './AnalyticsInsights';
 export type { AnalyticsInsightsProps } from './AnalyticsInsights';
+
+export { ExplainabilityCommandCenter } from './ExplainabilityCommandCenter';
+export type { ExplainabilityCommandCenterProps } from './ExplainabilityCommandCenter';

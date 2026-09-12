@@ -41,6 +41,7 @@ const VALID_ANOMALY_TYPES: readonly AnomalyType[] = [
   'frozen_value',
   'drift',
   'dropout',
+  'sensor_fail_low',
   'multivariate_inconsistency',
 ];
 
@@ -50,6 +51,20 @@ const VALID_ANOMALY_TYPES: readonly AnomalyType[] = [
 
 function isObject(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
+}
+
+function optionalObservedValues(value: unknown): Record<string, number | null> | undefined {
+  if (!isObject(value)) return undefined;
+  const readings: Record<string, number | null> = {};
+  for (const [key, reading] of Object.entries(value)) {
+    if (typeof reading === 'number' || reading === null) readings[key] = reading;
+  }
+  return readings;
+}
+
+function optionalAffectedParameters(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((parameter): parameter is string => typeof parameter === 'string');
 }
 
 // ---------------------------------------------------------------------------
@@ -360,6 +375,8 @@ export function validateLatestAnomaly(data: unknown, expectedStationId?: string)
       }
     }
   }
+  const observed_values = optionalObservedValues(data.observed_values);
+  const affected_parameters = optionalAffectedParameters(data.affected_parameters);
 
   return {
     anomaly_id: String(data.anomaly_id),
@@ -371,6 +388,8 @@ export function validateLatestAnomaly(data: unknown, expectedStationId?: string)
     root_cause: String(data.root_cause),
     description,
     ...(suggested_values !== undefined ? { suggested_values } : {}),
+    ...(observed_values !== undefined ? { observed_values } : {}),
+    ...(affected_parameters !== undefined ? { affected_parameters } : {}),
   };
 }
 
@@ -466,6 +485,8 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
         }
       }
     }
+    const observed_values = optionalObservedValues(item.observed_values);
+    const affected_parameters = optionalAffectedParameters(item.affected_parameters);
 
     return {
       anomaly_id: String(item.anomaly_id),
@@ -477,6 +498,8 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
       root_cause,
       description,
       ...(suggested_values !== undefined ? { suggested_values } : {}),
+      ...(observed_values !== undefined ? { observed_values } : {}),
+      ...(affected_parameters !== undefined ? { affected_parameters } : {}),
     };
   });
 }
@@ -541,11 +564,33 @@ export function validateAnomalyExplanation(
       return String(s);
     });
   }
+  const affected_parameters = optionalAffectedParameters(data.affected_parameters);
+  const observed_values = optionalObservedValues(data.observed_values);
+  let suggested_values: Record<string, number> | undefined;
+  if (isObject(data.suggested_values)) {
+    suggested_values = {};
+    for (const [key, value] of Object.entries(data.suggested_values)) {
+      if (typeof value === 'number') suggested_values[key] = value;
+    }
+  }
+  const numericField = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  const model_confidence_pct = data.model_confidence_pct === null ? null : numericField(data.model_confidence_pct);
+  const rule_confidence_pct = numericField(data.rule_confidence_pct);
+  const anomaly_score_pct = numericField(data.anomaly_score_pct);
+  const fault_type = typeof data.fault_type === 'string' && (VALID_ANOMALY_TYPES as readonly string[]).includes(data.fault_type)
+    ? data.fault_type as AnomalyType : undefined;
 
   return {
     anomaly_id: String(data.anomaly_id),
     features,
     ...(likely_faulty_sensors !== undefined ? { likely_faulty_sensors } : {}),
+    ...(affected_parameters !== undefined ? { affected_parameters } : {}),
+    ...(observed_values !== undefined ? { observed_values } : {}),
+    ...(suggested_values !== undefined ? { suggested_values } : {}),
+    ...(model_confidence_pct !== undefined ? { model_confidence_pct } : {}),
+    ...(rule_confidence_pct !== undefined ? { rule_confidence_pct } : {}),
+    ...(anomaly_score_pct !== undefined ? { anomaly_score_pct } : {}),
+    ...(fault_type !== undefined ? { fault_type } : {}),
   };
 }
 

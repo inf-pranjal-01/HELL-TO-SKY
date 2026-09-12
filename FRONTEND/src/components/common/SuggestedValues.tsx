@@ -5,6 +5,7 @@ import './SuggestedValues.css';
 export interface SuggestedValuesProps {
   items: SuggestedReading[];
   compact?: boolean;
+  showHeading?: boolean;
   emptyLabel?: string;
   className?: string;
 }
@@ -12,6 +13,7 @@ export interface SuggestedValuesProps {
 export const SuggestedValues: React.FC<SuggestedValuesProps> = ({
   items,
   compact = false,
+  showHeading = false,
   emptyLabel,
   className = '',
 }) => {
@@ -22,7 +24,7 @@ export const SuggestedValues: React.FC<SuggestedValuesProps> = ({
 
   return (
     <div className={`sg-suggested ${compact ? 'sg-suggested--compact' : ''} ${className}`}>
-      {!compact && <span className="sg-suggested__heading">Suggested replacement</span>}
+      {(!compact || showHeading) && <span className="sg-suggested__heading">Suggested replacement</span>}
       <div className="sg-suggested__chips">
         {items.map((item) => (
           <span key={item.key} className="sg-suggested__chip">

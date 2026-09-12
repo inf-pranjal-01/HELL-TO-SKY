@@ -88,10 +88,7 @@ button {
 }
 
 .tooltip-bubble {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
   background-color: #0f172a;
   color: #f8fafc;
   border: 1px solid var(--border-medium);
@@ -101,17 +98,19 @@ button {
   border-radius: var(--radius-sm);
   white-space: nowrap;
   pointer-events: none;
-  z-index: 1000;
-  box-shadow: var(--shadow-md);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+  z-index: 3000;
+  box-shadow: var(--shadow-lg);
+  animation: tooltip-fade-in var(--transition-fast) ease-out;
 }
 
-.tooltip-wrapper:hover .tooltip-bubble,
-.tooltip-wrapper:focus-within .tooltip-bubble {
-  opacity: 1;
-  visibility: visible;
+.tooltip-bubble--top { transform: translate(-50%, calc(-50% - 1.5rem)); }
+.tooltip-bubble--bottom { transform: translate(-50%, calc(-50% + 1.5rem)); }
+.tooltip-bubble--left { transform: translate(calc(-50% - 2rem), -50%); }
+.tooltip-bubble--right { transform: translate(calc(-50% + 2rem), -50%); }
+
+@keyframes tooltip-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Responsive Container Grid */
