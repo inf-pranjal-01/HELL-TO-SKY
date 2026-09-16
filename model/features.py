@@ -42,17 +42,27 @@ timestamp merge (never by row position -- see build_feature_matrix's
 ROW ORDER NOTE). See evaluate.py's module docstring for the bug this
 caused when it wasn't done.
 
-THREE MODEL FEATURE GROUPS (all in FEATURE_COLUMNS, all seen by
-train.py -- changing any of these requires a retrain), plus cyclical
-time encodings:
+FOUR MODEL FEATURE GROUPS (all in FEATURE_COLUMNS, all seen by
+train.py -- changing any of these requires a retrain):
 
   1. Raw values              -- the baseline signal itself.
   2. Temporal features       -- rate-of-change + deviation from each
                                  station's own recent rolling baseline
                                  (ROLLING_WINDOW_HOURS=48, one diurnal
                                  cycle).
-  3. Cross-parameter features -- "multivariate consistency analysis",
-                                 a named PS objective.
+  3. Cross-parameter features -- thermodynamic T/RH consistency (dew-
+                                 point depression, vapor pressure
+                                 deficit, and a direct Clausius-Clapeyron
+                                 consistency check), computed in
+                                 add_cross_parameter_features. This group
+                                 was named in an earlier revision of this
+                                 docstring but not actually implemented
+                                 anywhere in the file -- now fixed, and
+                                 added specifically to match
+                                 anomaly_injector.py's inject_multivariate,
+                                 which manufactures faults as a real
+                                 vapor-pressure-conservation violation
+                                 rather than two independent sigma bumps.
   4. Cyclical time            -- hour-of-day / day-of-year encodings.
 
 SPATIAL FEATURES REMOVED (locked, SKYGUARD_ARCHITECTURE_DRAFT_2.md §9):
@@ -171,6 +181,15 @@ FEATURE_COLUMNS = [
     "temp_roc_1h", "pressure_roc_1h", "humidity_roc_1h",
     "temp_roc_3h", "pressure_roc_3h", "humidity_roc_3h",
     "temp_volatility_z", "pressure_volatility_z", "humidity_volatility_z",
+    # cross-parameter (thermodynamic consistency -- see
+    # add_cross_parameter_features; this group was promised in this
+    # docstring and referenced from add_temporal_features' docstring in
+    # a previous revision without actually being implemented anywhere
+    # in the file. Added now to match anomaly_injector.py's
+    # inject_multivariate, which manufactures faults as a real
+    # Clausius-Clapeyron violation, not two independent sigma bumps.)
+    "dewpoint_depression_c", "vapor_pressure_deficit_kpa",
+    "vapor_pressure_consistency_dev",
     # cyclical time
     "hour_sin", "hour_cos", "doy_sin", "doy_cos",
 ]
@@ -240,12 +259,17 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     add_rule_only_signals -- it needs {prefix}_rolling_std, which only
     exists at this point in the pipeline. It reuses that SAME causal,
     shifted rolling std that {prefix}_deviation is built from, rather
-    than a second independent rolling-std computation -- this is what
-    add_cross_parameter_features consumes for its z-scored roc products,
-    and it's also CUSUM's "normalized_change" input (§2) in detect.py.
-    One source of truth for "how big is this station's normal step size
-    right now" feeding three different downstream consumers, instead of
-    three separate derivations that could quietly drift apart.
+    than a second independent rolling-std computation. This is CUSUM's
+    "normalized_change" input (§2) in detect.py. One source of truth for
+    "how big is this station's normal step size right now" instead of
+    a second derivation that could quietly drift apart from the first.
+
+    NOTE: add_cross_parameter_features (below) does NOT consume this --
+    it's a direct instant-to-instant vapor-pressure check, not a
+    z-scored step size. An earlier revision of this docstring claimed
+    otherwise before that function existed at all; correcting it here
+    rather than leaving a stale claim about a function this file didn't
+    yet implement.
     """
     df = df.sort_values("timestamp").reset_index(drop=True)
     exclude_mask = df["is_anomaly"].fillna(False).astype(bool) if "is_anomaly" in df.columns else None
@@ -272,6 +296,86 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"{prefix}_roc_1h"] = values.diff(ROC_SHORT_HOURS)
         df[f"{prefix}_roc_3h"] = values.diff(ROC_LONG_HOURS)
         df[f"{prefix}_normalized_roc_1h"] = df[f"{prefix}_roc_1h"] / safe_std
+
+    return df
+
+
+def saturation_vapor_pressure_kpa(temp_c):
+    """
+    Tetens approximation of saturation vapor pressure (kPa). Same
+    formula as anomaly_injector.py's function of the same name --
+    duplicated rather than imported (features.py and the injector are
+    deliberately independent modules with no import dependency between
+    them), but the math must stay identical, since
+    vapor_pressure_consistency_dev below is meant to directly mirror
+    what inject_multivariate() violates. If this formula ever changes,
+    check the injector's copy too.
+    """
+    return 0.6112 * np.exp((17.67 * temp_c) / (temp_c + 243.5))
+
+
+def add_cross_parameter_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Cross-parameter thermodynamic features -- the model feature group
+    promised at the top of this file under "THREE MODEL FEATURE GROUPS"
+    (and referenced from add_temporal_features' docstring) that did not
+    actually exist anywhere in a previous revision of this file. Same
+    "documented but silently missing" pattern already caught once for
+    spatial features (§9) -- closing it here instead of leaving it.
+
+    Added specifically because anomaly_injector.py's inject_multivariate
+    no longer injects two independent sigma bumps on temperature and
+    humidity -- it manufactures a real, checkable Clausius-Clapeyron
+    violation: holding actual vapor pressure e constant, relative
+    humidity MUST fall as temperature rises (es(T) rises exponentially);
+    the injected fault instead makes humidity RISE with temperature.
+    Without a feature that measures that specific relationship, neither
+    the model nor a magnitude-only rule can tell "T and RH both moved a
+    lot" (which can be genuine weather -- incoming rain, a front) apart
+    from "T and RH moved in a way real weather physically cannot."
+
+    `vapor_pressure_consistency_dev` is the key one -- it directly
+    mirrors inject_multivariate's own construction, one step at a time:
+
+        es(T)          = Tetens saturation vapor pressure
+        rh_expected[t] = rh[t-1] * es(T[t-1]) / es(T[t])   (const. e)
+        vapor_pressure_consistency_dev = rh_actual[t] - rh_expected[t]
+
+    A genuine heat event drives this toward zero (RH tracks the
+    physically-consistent drop). The injected fault drives it strongly
+    POSITIVE (RH rises instead of falling as required). This compares
+    t-1 -> t directly, like {prefix}_roc_1h -- it's an instantaneous
+    physical-consistency check between two consecutive readings, not a
+    "what's normal for this station over 48h" comparison, so it does
+    NOT use _rolling_baseline / the is_anomaly exclusion mask the way
+    add_temporal_features' deviation columns do.
+
+    `dewpoint_depression_c` and `vapor_pressure_deficit_kpa` are general
+    thermodynamic state variables (both in the PDF audit's own Tier-2
+    feature list) added alongside it as broader context, not tied to
+    any one fault type.
+    """
+    df = df.sort_values("timestamp").reset_index(drop=True)
+
+    temp_c = pd.to_numeric(df["temperature_c"], errors="coerce")
+    # Guard log(0)/div-by-0 for a 0% or negative/garbage humidity
+    # reading -- a dropout or fail-low event can legitimately produce
+    # one; NaN propagates through cleanly rather than raising.
+    humidity_pct = pd.to_numeric(df["humidity_pct"], errors="coerce").clip(lower=0.01, upper=100.0)
+
+    # Magnus-Tetens dew point (deg C).
+    gamma = (17.67 * temp_c) / (243.5 + temp_c) + np.log(humidity_pct / 100.0)
+    dew_point_c = (243.5 * gamma) / (17.67 - gamma)
+    df["dewpoint_depression_c"] = temp_c - dew_point_c
+
+    es_now = saturation_vapor_pressure_kpa(temp_c)
+    df["vapor_pressure_deficit_kpa"] = es_now * (1 - humidity_pct / 100.0)
+
+    temp_prev = temp_c.shift(1)
+    humidity_prev = pd.to_numeric(df["humidity_pct"], errors="coerce").shift(1)
+    es_prev = saturation_vapor_pressure_kpa(temp_prev)
+    rh_expected = (humidity_prev * (es_prev / es_now)).clip(0.0, 100.0)
+    df["vapor_pressure_consistency_dev"] = humidity_pct - rh_expected
 
     return df
 
@@ -463,6 +567,7 @@ def build_features_for_latest(history_df: pd.DataFrame) -> pd.Series:
     skipped in live mode.
     """
     df = add_temporal_features(history_df)
+    df = add_cross_parameter_features(df)
     df = add_time_features(df)
     df = add_rule_only_signals(df)
     return df.iloc[-1]
@@ -529,6 +634,7 @@ def build_feature_matrix(df: pd.DataFrame) -> pd.DataFrame:
     per_station_frames = []
     for station_id, group in df.groupby("station_id", sort=False):
         group = add_temporal_features(group)
+        group = add_cross_parameter_features(group)
         group = add_time_features(group)
         group = add_rule_only_signals(group)
         per_station_frames.append(group)
@@ -564,7 +670,8 @@ def main():
 
     sample_cols = ["station_id", "timestamp", "temperature_c", "temp_deviation",
                    "temp_floor_frozen_match",
-                   "temp_normalized_roc_1h", "temp_consec_diff"]
+                   "temp_normalized_roc_1h", "temp_consec_diff",
+                   "vapor_pressure_consistency_dev", "dewpoint_depression_c"]
     print("Sample rows:")
     print(featured[sample_cols].dropna().head(5).to_string(index=False))
 

@@ -72,7 +72,26 @@ WHAT CHANGED FROM THE OLD detect.py, AND WHY
    this reading is `rule_confidence_pct`, and:
 
        overall = 0.6 * model_pct + 0.4 * rule_confidence_pct
-       is_anomaly = overall > 50  OR  model_pct > 70
+       is_anomaly = overall > 55  OR  model_pct > 80  OR  rule_confidence_pct > 90
+
+   REBALANCED (config.py, this pass): the constants previously in place
+   here (FUSION_ANOMALY_THRESHOLD=90, MODEL_ALONE_OVERRIDE_THRESHOLD=100)
+   reproduced Phase 1's exact deadlock under a different name --
+   MODEL_ALONE_OVERRIDE_THRESHOLD=100 meant the (0-100 clipped) model
+   could NEVER independently flag anything, and FUSION_ANOMALY_THRESHOLD
+   =90 meant no rule below RULE_CONFIDENCE_BYPASS could clear the
+   blended threshold even with a maximal model score -- so in practice
+   `is_anomaly` reduced to `rule_confidence_pct > 90`, i.e. whichever
+   rules happened to sit above that line (frozen/fail-low/drift/spike/
+   multivariate_confirmed, all 95) fired unconditionally, exactly the
+   retired hard-gate pattern. Confirmed independently by both the
+   context-pass math and the technical-assessment audit. Fixed by
+   lowering FUSION_ANOMALY_THRESHOLD to 55 and MODEL_ALONE_OVERRIDE_
+   THRESHOLD to 80, and by moving multivariate_confirmed's own
+   confidence below RULE_CONFIDENCE_BYPASS (95 -> 82) since its trigger
+   shape is the one most directly built around anomaly_injector.py's
+   specific implementation (see _multivariate_evidence's docstring) --
+   see config.py for the full reasoning per constant.
 
    `anomaly_score_pct` / severity (90/70/55) keep their exact existing
    scale and meaning -- this changes what feeds the score, not the
@@ -146,6 +165,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from model.features import (
     build_features_for_latest,
     add_temporal_features,
+    add_cross_parameter_features,
     RULE_ONLY_PREFIXES,
     get_threshold,
 )
@@ -169,6 +189,7 @@ from config import (
     MULTIVARIATE_TEMP_DEVIATION_THRESHOLD,
     MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD,
     MULTIVARIATE_PRESSURE_FLAT_THRESHOLD,
+    MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD,
     MULTIVARIATE_TEMP_ATTRIBUTION_WEIGHT,
     MULTIVARIATE_ATTRIBUTION_DOMINANCE,
     FAIL_LOW_FLOOR,
@@ -261,9 +282,18 @@ def _featurize_buffer(history_df: pd.DataFrame) -> pd.DataFrame:
     featured buffer instead of just the last row, computed ONCE per
     score_reading() call and shared by both checks rather than each
     re-deriving it separately.
+
+    FIXED: this previously called add_temporal_features only, despite
+    the docstring above already claiming otherwise -- add_
+    cross_parameter_features didn't exist in features.py yet at the
+    time this was written. It exists now (dewpoint_depression_c,
+    vapor_pressure_deficit_kpa, vapor_pressure_consistency_dev); wiring
+    it in here is what _multivariate_evidence's new physics-based path
+    below actually needs.
     """
     df = history_df.sort_values("timestamp").reset_index(drop=True)
     df = add_temporal_features(df)
+    df = add_cross_parameter_features(df)
     return df
 
 
@@ -315,11 +345,26 @@ def _cusum_evidence(featured_buffer: pd.DataFrame, prefix: str, param: str):
 
 def _multivariate_evidence(featured_buffer: pd.DataFrame):
     """
-    §4/§8's reference implementation, LEVEL-based (see the
-    MULTIVARIATE_* constants' comment for why roc-based didn't work).
-    A single qualifying reading is suspicious only (does not force
-    OFFLINE); 2 CONSECUTIVE qualifying readings is confirmed (forces
-    OFFLINE via the fast-path set).
+    §4/§8's reference implementation. TWO independent trigger paths
+    (see config.py's MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD comment
+    for why there are now two, not one):
+
+      (a) LEVEL-based co-occurrence (original): temp+humidity both
+          deviate from baseline, same direction, pressure stays flat.
+      (b) NEW -- direct vapor-pressure-conservation violation, via
+          features.py's vapor_pressure_consistency_dev. This is the
+          general case: (a) additionally requires pressure to stay
+          flat, which is true of THIS injector's implementation but
+          not a fact about real cross-talk/short-circuit faults in
+          general (a real fault could move pressure too, and (a) alone
+          would then miss it). (b) looks only at whether the observed
+          T/RH pair is consistent with itself one reading back, so it
+          doesn't inherit that injector-specific assumption.
+
+    A single qualifying reading (either path) is suspicious only (does
+    not force OFFLINE); 2 CONSECUTIVE qualifying readings (either path,
+    not necessarily the same one on both readings) is confirmed
+    (forces OFFLINE via the fast-path set).
 
     ATTRIBUTION FIX: this used to blanket-mark BOTH temperature_c and
     humidity_pct on every confirmed hit, with no magnitude comparison
@@ -338,18 +383,18 @@ def _multivariate_evidence(featured_buffer: pd.DataFrame):
     One deliberate difference from evaluate.py, not an oversight:
     evaluate.py computes this ratio from {prefix}_normalized_roc_1h
     (its own multivariate TRIGGER is roc-based, via the coupling/
-    pressure_inconsistency features). THIS file's trigger is
-    LEVEL-based (temp_deviation/humidity_deviation, see the class
-    docstring above and the MULTIVARIATE_* constants' comment for why
-    roc-based didn't work here) -- attribution below reads the SAME
-    level signals that drove the trigger firing, not a second,
-    independently-chosen signal family. Using roc here instead would
-    reintroduce exactly the kind of "two derivations of the same idea
-    that can drift apart" bug this project has hit before (see
-    RULE_ONLY_PREFIXES's own comment in features.py).
+    pressure_inconsistency features). THIS file's level-based path (a)
+    reads the SAME level signals that drove path (a)'s own trigger, not
+    a second, independently-chosen signal family -- using roc here
+    instead would reintroduce exactly the kind of "two derivations of
+    the same idea that can drift apart" bug this project has hit before
+    (see RULE_ONLY_PREFIXES's own comment in features.py). Attribution
+    for path (b)-only hits falls back to the same temp/humidity_dev
+    comparison, since vapor_pressure_consistency_dev doesn't itself
+    say which sensor is "wrong" -- only that the pair, together, is.
 
     Pressure is the "should have moved but didn't" reference signal
-    used only to help the rule FIRE -- it is never itself implicated
+    used only to help path (a) FIRE -- it is never itself implicated
     (§4).
     """
     if len(featured_buffer) == 0:
@@ -359,14 +404,16 @@ def _multivariate_evidence(featured_buffer: pd.DataFrame):
         temp_dev = row.get("temp_deviation")
         humidity_dev = row.get("humidity_deviation")
         pressure_dev = row.get("pressure_deviation")
-        if pd.isna(temp_dev) or pd.isna(humidity_dev) or pd.isna(pressure_dev):
-            return False
-        return (
-            abs(temp_dev) > MULTIVARIATE_TEMP_DEVIATION_THRESHOLD
+        level_fires = (
+            pd.notna(temp_dev) and pd.notna(humidity_dev) and pd.notna(pressure_dev)
+            and abs(temp_dev) > MULTIVARIATE_TEMP_DEVIATION_THRESHOLD
             and abs(humidity_dev) > MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD
             and (temp_dev * humidity_dev) > 0  # same direction -- §4's "temp up, humidity ALSO up"
             and abs(pressure_dev) < MULTIVARIATE_PRESSURE_FLAT_THRESHOLD
         )
+        vapor_dev = row.get("vapor_pressure_consistency_dev")
+        physics_fires = pd.notna(vapor_dev) and abs(vapor_dev) > MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD
+        return level_fires or physics_fires
 
     latest = featured_buffer.iloc[-1]
     if not _fires(latest):

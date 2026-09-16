@@ -1,88 +1,76 @@
 """
-SkyGuard AI — config.py (SKYGUARD_ARCHITECTURE_DRAFT_2.md §11, file #5).
+SkyGuard AI — config.py.
 
 SINGLE SOURCE OF TRUTH for every rule-engine constant used by BOTH
-detect.py (live scoring) and evaluate.py (offline eval). Before this
-file, each carried its own local placeholder copies -- and, confirmed
-by direct comparison, had drifted apart on three mechanisms plus one
-threshold. This file resolves that drift. detect.py and evaluate.py
-both import from here now; neither defines its own copies anymore.
+detect.py (live scoring) and evaluate.py (offline eval). Neither file
+defines its own local copies -- everything rule-related lives here.
+
+This file reflects the current architecture: per-rule confidence values
+(RULE_BASE_CONFIDENCE) blended with the model score via MODEL_WEIGHT/
+RULE_WEIGHT, with RULE_CONFIDENCE_BYPASS/MODEL_ALONE_OVERRIDE_THRESHOLD
+as escape hatches for near-certain evidence a pure blend would otherwise
+under-weight. The old hard/soft rule-floor cascade is retired (kept
+below for the paper trail only, not imported by anything).
 
 ===========================================================================
-RESOLUTION OF THE DETECT.PY vs EVALUATE.PY MISMATCH
+KEEP THIS IN SYNC WITH THE ACTUAL anomaly_injector.py -- READ BEFORE
+CHANGING FAIL_LOW_FLOOR / FROZEN_CONSECUTIVE_REQUIRED
 ===========================================================================
+The injector was rewritten to match real transducer physics (bounded
+random-walk frozen values, drift superimposed on the real signal, dual
+instant/decay spikes, TRUE hardware-rail fail-low values, and a
+Clausius-Clapeyron-grounded multivariate fault). The values below are
+calibrated against THAT injector, not an earlier draft:
 
-1. MULTIVARIATE MECHANISM -- LEVEL-based (z-scored deviation), NOT
-   roc-based. Confirmed against anomaly_injector.py's actual
-   inject_multivariate(): it adds a constant offset across the WHOLE
-   idx:end_idx window (2-5 rows), so the injected fault's raw values
-   sit at an elevated LEVEL for the fault's full duration. A roc-based
-   signal (evaluate.py's old version, temp_humidity_coupling_signal /
-   pressure_inconsistency) only spikes at the window's entry/exit
-   edges and goes quiet in between -- it would systematically miss the
-   middle of every injected multivariate event, directly threatening
-   recall. detect.py's level-based version (temp_deviation /
-   humidity_deviation / pressure_deviation, already z-scored against
-   each station's own causal baseline) is adopted as final.
-
-2. FAIL-LOW MECHANISM -- ABSOLUTE per-parameter floor, NOT z-scored
-   deviation. §5b's own wording is "a sudden drop to a 0/near-zero
-   value" -- a relative-deviation threshold (evaluate.py's old
-   version, dev < -4.0) doesn't actually check for near-zero, it only
-   checks "far below this station's own baseline," which a real
-   extreme-but-plausible cold snap could also trigger, threatening
-   precision. detect.py's absolute-floor version is adopted as final,
-   with margins kept deliberately generous ABOVE anomaly_injector.py's
-   actual failure floors (-15.0 / 50.0 / 0.5) for exactly that reason.
-
-3. CONFIDENCE SCALE -- detect.py's RULE_BASE_CONFIDENCE dict +
-   RULE_CONFIDENCE_BYPASS is adopted as final. Reasoning: §7's fusion
-   (0.6*model + 0.4*rule) mathematically cannot let even a max-
-   confidence rule (100) clear the 50-point fusion threshold alone if
-   the model scores that same reading low (0.4*100=40) -- but a
-   physically impossible reading, a deterministic frozen floor-match,
-   or a persistence-confirmed fail-low/multivariate event are not
-   probabilistic judgments to blend once each rule's OWN bar is
-   cleared; they are facts or near-facts. Without a bypass, fusion can
-   systematically under-recall on exactly the rules §1/§4/§5b treat as
-   near-certain -- directly threatening the 80% recall target this
-   phase is aimed at. evaluate.py's old ad hoc numbers (100/70/65/50/
-   45/35, no bypass for frozen/fail-low/multivariate) are retired.
-
-4. CUSUM_THRESHOLD -- locked at 7.0, the midpoint of detect.py's 6.0
-   and evaluate.py's 8.0. Flagged, not blindly averaged for any deeper
-   reason: NEITHER value has been run against real drift-labeled data
-   yet -- CUSUM's own core assumption (direction-consistent drift, §2)
-   isn't even testable until anomaly_injector.py's drift generator is
-   rewritten (§11 file #1) to stop letting a spike-shaped run bleed
-   into a drift-labeled window (the exact bug §2 documents in the
-   pasted MUM-101 sample). 7.0 is as much a placeholder as either
-   original value -- MUST be revisited from evaluate.py's actual
-   per-fault-type drift recall once that injector fix lands.
-   CUSUM_DRIFT_ALLOWANCE was already 0.5 in both files -- no conflict.
+  - inject_fail_low now writes at FAIL_LOW_RAIL_VALUE (temp=-40.0C,
+    pressure=0.0 hPa, humidity=0.0%) plus small fixed jitter -- true
+    electrical-rail values, not the old intermediate sentinels
+    (-15.0 / 50.0 / 0.5). FAIL_LOW_FLOOR below is a REAL-WORLD
+    plausibility boundary (how low a genuine reading could ever get),
+    not a "margin above the injector's fault value" -- so it does NOT
+    need to track the injector's exact numbers, and the current
+    thresholds (-8.0 / 150.0 / 3.0) still correctly catch the new,
+    more-extreme rail values with room to spare.
+  - inject_frozen holds a value for freeze_length+1 = 7-9 readings
+    (rng.integers(6,9) exclusive upper, plus the transition row), but
+    the value WANDERS within that window (bounded random-walk ADC
+    noise, not a bit-exact hold) -- so window length alone doesn't
+    guarantee a long run of identical rounded readings.
+    FROZEN_CONSECUTIVE_REQUIRED is 3, not a value close to that 7-9
+    window (see its own comment below for the simulation showing why
+    6 was actually failing on ~85% of the injector's own frozen
+    events, not just hypothetical real ones).
+  - inject_multivariate's humidity-side fault magnitude is now anchored
+    to the physically-correct RH drop implied by the injected temp
+    delta (Tetens/Clausius-Clapeyron), not a flat humidity-sigma guess.
+    MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD below is UNVALIDATED
+    against this new magnitude -- flagged, not yet re-tuned; this is
+    exactly what Checkpoint evaluation against the rewritten injector
+    needs to confirm before this placeholder is trusted.
 
 ===========================================================================
-Everything below aims at the 80% precision/recall target for this
-phase, but is a DOMAIN-ESTIMATED STARTING POINT, not a value already
-validated against real evaluate.py output on the rewritten pipeline.
-Once evaluate.py runs end-to-end (rewritten injector -> rewritten
-features -> this config -> detect.py/evaluate.py both reading it),
-THIS FILE is what gets tuned to close any precision/recall gap -- never
-detect.py or evaluate.py directly, so they can't drift apart again.
+Everything below aims at the 80% precision/recall target, but is a
+DOMAIN-ESTIMATED STARTING POINT, not a value already validated against
+real evaluate.py output on the rewritten pipeline. Once evaluate.py runs
+end-to-end (rewritten injector -> features.py -> this config ->
+detect.py/evaluate.py both reading it), THIS FILE is what gets tuned to
+close any precision/recall gap -- never detect.py or evaluate.py
+directly, so they can't drift apart again.
 ===========================================================================
 """
 
 # ---------------------------------------------------------------------
-# RETIRED / DEAD constants -- kept for the paper trail (§0 Postmortem),
-# NOT deleted, NOT imported by anything below or by detect.py/
-# evaluate.py anymore.
+# RETIRED / DEAD constants -- kept for the paper trail only. NOT
+# imported by detect.py/evaluate.py. Original values were per-parameter
+# dicts; these are sentinel placeholders marking "no longer meaningful,"
+# not a claim about what the old dict values were.
 # ---------------------------------------------------------------------
-FROZEN_VARIANCE_FLOOR = 75.0   # DEAD -- retired, §0/§1. Do not import.
-FROZEN_RANGE_FLOOR = 75.0      # DEAD -- retired, §0/§1. Do not import.
-IS_ANOMALY_THRESHOLD = 75.0    # DEAD -- was numerically == SOFT_RULE_FLOOR, the confirmed root cause (§0). Replaced by FUSION_ANOMALY_THRESHOLD.
-SOFT_RULE_FLOOR = 75.0         # DEAD -- see §0 Postmortem. Do not import.
-HARD_RULE_FLOOR = 75.0         # DEAD -- superseded by RULE_CONFIDENCE_BYPASS.
-MODEL_ONLY_THRESHOLD = 70.0    # DEAD -- superseded by MODEL_ALONE_OVERRIDE_THRESHOLD (same value, new name/home).
+FROZEN_VARIANCE_FLOOR = None   # DEAD -- retired variance/range-floor frozen check.
+FROZEN_RANGE_FLOOR = None      # DEAD -- retired variance/range-floor frozen check.
+IS_ANOMALY_THRESHOLD = None    # DEAD -- replaced by FUSION_ANOMALY_THRESHOLD.
+SOFT_RULE_FLOOR = None         # DEAD -- replaced by RULE_BASE_CONFIDENCE + fusion.
+HARD_RULE_FLOOR = None         # DEAD -- replaced by RULE_BASE_CONFIDENCE + fusion.
+MODEL_ONLY_THRESHOLD = None    # DEAD -- replaced by MODEL_ALONE_OVERRIDE_THRESHOLD.
 
 # ---------------------------------------------------------------------
 # §11.1 -- Recovery streak, FINAL.
@@ -94,19 +82,35 @@ RECOVERY_CLEAN_STREAK_REQUIRED = 3
 # ---------------------------------------------------------------------
 MODEL_WEIGHT = 0.6
 RULE_WEIGHT = 0.4
-FUSION_ANOMALY_THRESHOLD = 90.0
-# Calibrated pass: model scores remain part of the returned evidence,
-# but the raw Isolation Forest scale is not yet calibrated enough for a
-# standalone live verdict. Deterministic confirmed rules remain active.
-MODEL_ALONE_OVERRIDE_THRESHOLD = 100.0
+# REBALANCED (was 90.0). At 90, the math worked out to a deadlock
+# functionally identical to Phase 1's retired bug: with RULE_WEIGHT=0.4,
+# no rule below RULE_CONFIDENCE_BYPASS can ever push `overall` past 90
+# even with a maximal model score (0.6*100 + 0.4*89 = 95.6 is the only
+# way in, i.e. only near-bypass-confidence rules could ever clear this
+# with model help; anything at multivariate_single's old 55 needed
+# model_pct > 113, impossible). Lowered to 55 so genuine model
+# corroboration of a moderate-confidence rule can actually register --
+# see the worked numbers next to RULE_CONFIDENCE_BYPASS below.
+FUSION_ANOMALY_THRESHOLD = 55.0
+# REBALANCED (was 100.0, i.e. literally unreachable since model_pct is
+# clipped to [0,100] -- the model could never independently flag
+# anything no matter how confident). Lowered to 80: a very high model
+# score alone (no rule agreement at all) can still surface an anomaly
+# the rule layer has no explicit check for -- which is the whole point
+# of keeping a trained model in the loop instead of it being a rule
+# nobody asked for a second opinion from.
+MODEL_ALONE_OVERRIDE_THRESHOLD = 80.0
 
 # Bypass: once a rule's own confidence is >= this, is_anomaly is forced
-# regardless of the blended score (see resolution #3 above). Facts
-# (100) and persistence-confirmed rules (90/95) clear this; a lone
-# spike (60) or a single suspicious multivariate reading (55) do not
-# -- they still have to earn model support through the blend, which is
-# intentional (§3/§4: a single reading alone is never enough on its
-# own to mark a sensor faulty).
+# regardless of the blended score. UNCHANGED at 90 -- this is still the
+# right escape hatch for TRUE facts (physical_bounds/dropout, 100) and
+# for mechanisms that are near-certain once their own persistence bar
+# is cleared (frozen_value/sensor_fail_low/drift/spike, still 95, see
+# RULE_BASE_CONFIDENCE below). What changed is which rules are ALLOWED
+# to sit above this line: multivariate_confirmed is deliberately moved
+# BELOW it now (82, not 95) -- see that constant's own comment for why
+# multivariate specifically, not the others, needed to lose its
+# automatic-override status.
 RULE_CONFIDENCE_BYPASS = 90.0
 
 # A candidate spike is confirmed only when the next reading returns to
@@ -120,6 +124,23 @@ SPIKE_DEVIATION_MULTIPLIER = 2.0
 # Per-rule base confidence (0-100) -- "how sure is this ONE piece of
 # evidence, on its own." Single source of truth for detect.py (live)
 # and evaluate.py (offline).
+#
+# multivariate_single/multivariate_confirmed LOWERED from 55/95 to
+# 45/82 (audit-recommended rebalancing). Multivariate's own trigger
+# condition (temp+humidity deviate together, same direction, pressure
+# stays flat) is the rule in this file most directly shaped around
+# anomaly_injector.py's specific implementation choices -- "pressure
+# barely moves" is literally what inject_multivariate does, not a
+# general fact about real sensor cross-talk or short circuits, which
+# could easily move pressure too. Keeping multivariate_confirmed above
+# RULE_CONFIDENCE_BYPASS meant a co-occurrence matching that exact
+# shape got an automatic verdict with zero model corroboration required
+# -- the same failure pattern as Phase 1, just relocated to a different
+# rule. 82 sits below RULE_CONFIDENCE_BYPASS (90) so a confirmed
+# multivariate hit now has to clear FUSION_ANOMALY_THRESHOLD (55) via
+# the blend -- in practice a real co-occurring deviation this large
+# should still score well on the model too, so this is not expected to
+# meaningfully cost real recall, just remove the unconditional pass.
 RULE_BASE_CONFIDENCE = {
     "physical_bounds": 100.0,
     "dropout": 100.0,
@@ -129,8 +150,8 @@ RULE_BASE_CONFIDENCE = {
     # A spike reaches this confidence only after the next reading
     # confirms its return-to-baseline shape.
     "spike": 95.0,
-    "multivariate_single": 55.0,
-    "multivariate_confirmed": 95.0,
+    "multivariate_single": 45.0,
+    "multivariate_confirmed": 82.0,
 }
 
 # ---------------------------------------------------------------------
@@ -141,37 +162,80 @@ CUSUM_DRIFT_ALLOWANCE = 0.05
 CUSUM_THRESHOLD = 7.0
 CUSUM_DIRECTION_STREAK_REQUIRED = 8
 
-# Ordinary hourly humidity can repeat at one-decimal reporting
-# precision. Confirm a frozen fault only after a longer run.
-# Natural humidity and pressure frequently repeat at a 0.1 display
-# resolution. Six consecutive identical reported readings retains the
-# intended persistence rule while avoiding false OFFLINE events; the
-# replay injector holds frozen faults for 7--9 readings to match it.
-FROZEN_CONSECUTIVE_REQUIRED = 6
+# CORRECTED (was 6). That value assumed a run of readings staying
+# EXACTLY (to 0.1 precision) identical for most of the injector's
+# 7-9-reading freeze window -- true for the old bit-exact injector, not
+# for the current one. inject_frozen's random walk uses
+# ADC_NOISE_FLOOR_STD of 0.05 (temp/humidity) or 0.03 (pressure) per
+# step, which is comparable to the 0.1 rounding bin features.py's
+# floor_frozen_match uses -- simulating 20,000 injected freeze events
+# at these exact parameters, a run of >=6 identical rounded readings
+# occurred in only ~15% of temp/humidity events (median max streak: 4)
+# and ~41% of pressure events (median max streak: 5). Requiring 6 was
+# failing on the great majority of the injector's OWN frozen faults,
+# not just hypothetical real ones -- an under-fitting bug, not an
+# overfitting one. Lowered to 3, which is also the value Draft 2 §1
+# originally locked before this drifted upward against a different
+# injector assumption. A real stuck sensor at this noise level clears
+# 3 far more reliably, and 3 identical-to-0.1 readings in a row is
+# still well outside what real (non-frozen) atmospheric noise produces
+# except during genuinely calm, stable conditions -- which is exactly
+# why this rule ALSO no longer auto-bypasses model corroboration for
+# borderline cases (see RULE_CONFIDENCE_BYPASS): a lowered threshold
+# widens the net, but fusion still requires the model to agree except
+# when frozen_value's own 95 confidence clears the bypass line, which
+# a 3-reading match at real noise levels should still do reliably once
+# combined with the near-zero rolling_std that accompanies it.
+FROZEN_CONSECUTIVE_REQUIRED = 3
 
 # ---------------------------------------------------------------------
-# §4 -- Multivariate inconsistency. LEVEL-based (z-scored deviation),
-# per resolution #1 above. PLACEHOLDER thresholds.
+# §4 -- Multivariate inconsistency. TWO independent trigger paths now
+# (see detect.py's _multivariate_evidence), not one:
+#
+#   (a) LEVEL-based co-occurrence (original): temp+humidity both
+#       deviate from baseline, same direction, pressure stays flat.
+#       PLACEHOLDER thresholds, unchanged below.
+#   (b) NEW -- direct physics violation: features.py's
+#       vapor_pressure_consistency_dev measures the actual gap between
+#       observed humidity and what Clausius-Clapeyron/vapor-pressure
+#       conservation implies given the temperature change. This is the
+#       general case (a); (a) additionally requires pressure to stay
+#       flat, which is true of THIS injector's implementation but not
+#       a fact about real cross-talk/short-circuit faults in general --
+#       a real fault could move pressure too and (a) would miss it,
+#       while (b) still catches it since it only looks at T/RH.
+#
+# Either path firing counts as multivariate evidence; MULTIVARIATE_
+# VAPOR_CONSISTENCY_THRESHOLD is a NEW placeholder (not yet validated
+# against real evaluate.py output, same status as CUSUM_THRESHOLD) --
+# picked as "well beyond the RH noise a real, physically-consistent
+# reading should show against its own conservation-implied value,"
+# not tuned against this injector's specific sigma choices.
 # ---------------------------------------------------------------------
 MULTIVARIATE_TEMP_DEVIATION_THRESHOLD = 3.0        # temp: |z| must clear this
 MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD = 1.5    # humidity: more lenient -- naturally noisier day to day
 MULTIVARIATE_PRESSURE_FLAT_THRESHOLD = 1.5         # pressure: must STAY under this while temp/humidity are both far outside it
+MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD = 8.0     # NEW, placeholder: |RH_actual - RH_physically_expected| percentage points
 MULTIVARIATE_PERSISTENCE_REQUIRED = 2              # §4, final: 2 consecutive readings = confirmed
 MULTIVARIATE_TEMP_ATTRIBUTION_WEIGHT = 1.5
 MULTIVARIATE_ATTRIBUTION_DOMINANCE = 0.7
 
 # ---------------------------------------------------------------------
-# §5b -- Sensor fail-low. ABSOLUTE per-parameter floor, per resolution
-# #2 above -- deliberately generous margin ABOVE anomaly_injector.py's
-# actual failure floors (-15.0 / 50.0 / 0.5) so a real cold snap or a
-# genuinely dry day doesn't false-trigger.
+# §5b -- Sensor fail-low. ABSOLUTE per-parameter floor: "how low could a
+# genuine reading plausibly ever get at these stations" -- NOT a margin
+# pinned to the injector's exact fault value (see the file-level note
+# above). anomaly_injector.py's inject_fail_low now writes true hardware
+# rail values (-40.0C / 0.0 hPa / 0.0%), which sit comfortably below
+# every floor here, so these thresholds still fire correctly. The floors
+# themselves are picked from real-climate plausibility so a genuine cold
+# snap or dry day doesn't false-trigger.
 # ---------------------------------------------------------------------
 FAIL_LOW_FLOOR = {
     "temp": -8.0,
     "pressure": 150.0,
     "humidity": 3.0,
 }
-FAIL_LOW_CONSECUTIVE_REQUIRED = 2  # lower bound of §5b's "2-3" -- the faster-triggering choice, matches evaluate.py's existing convention for other "X-Y" ranges in the doc
+FAIL_LOW_CONSECUTIVE_REQUIRED = 2  # lower bound of §5b's "2-3" -- the faster-triggering choice. anomaly_injector.py's FAIL_LOW_LENGTH=3 (4 rows held) comfortably clears this.
 
 # ---------------------------------------------------------------------
 # §6 -- Unified 10h/24h, mixed-fault-type, per-parameter counters.

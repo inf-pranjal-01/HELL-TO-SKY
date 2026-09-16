@@ -10,12 +10,52 @@ real AWS anomaly data.
 Fault types implemented, each tied to a real AWS failure mode named in
 the problem statement:
   - spike           : sensor malfunction -> reading jumps far outside
-                       physically plausible range for a single instant
-  - frozen_value    : communication/sensor fault -> same value repeats
-                       for several consecutive readings (Day 42/43 logic:
-                       zero variance over a window is itself anomalous)
-  - drift           : calibration drift -> slow, growing offset over time
+                       physically plausible range, either as a single
+                       instant (digital bit-flip / transmission garble)
+                       or with a short RC/thermal-mass decay tail back
+                       toward normal (voltage transient / ESD) -- see
+                       inject_spike / inject_spike_decay. Both report
+                       fault_type="spike"; still six ground-truth fault
+                       types total, per the locked spec.
+  - frozen_value    : communication/sensor fault -> value stops tracking
+                       real atmospheric variation for several consecutive
+                       readings. Modeled as a bounded random walk around
+                       the freeze point (ADC thermal noise / quantization
+                       jitter), NOT a bit-exact repeat -- a real stuck
+                       sensor still has electronic noise on top of a
+                       static physical signal (Day 42/43 logic still
+                       applies: near-zero *variance*, not zero variance,
+                       is the anomalous signature).
+  - drift           : calibration drift -> a slow, growing offset
+                       SUPERIMPOSED on the station's own real recorded
+                       readings (which already carry the true diurnal
+                       cycle), not a monotonic ramp that overwrites and
+                       erases that natural signal.
   - dropout         : communication failure -> missing/null reading
+  - sensor_fail_low : hardware rail failure -> reading pinned at the
+                       sensor's electrical floor (a ground short/cable
+                       break pulls the ADC to 0 counts), not an arbitrary
+                       intermediate low value.
+  - multivariate_inconsistency : sensor cross-talk / local heating ->
+                       temperature and humidity move in a way that
+                       violates the Clausius-Clapeyron relation between
+                       temperature and saturation vapor pressure (see
+                       inject_multivariate).
+
+FIVE FIXES applied to align injected faults with real transducer/
+atmospheric physics instead of arbitrary mathematical mutations (each
+noted at its function below):
+  1. Column-aware overlap tracking (claimed_spans is now {column: [...]}
+     instead of one global list) -- the docstring on inject_anomalies
+     already claimed independent per-column faults were possible; the
+     old flat list didn't actually allow it. Now it does.
+  2. Frozen -> bounded random walk (ADC noise floor), not bit-exact.
+  3. Spike -> dual-mode: instant (unchanged) + a new decay-tail variant.
+  4. Drift -> superimposed on the real underlying signal, not overwritten.
+  5. Fail-low -> true hardware rail limits, not arbitrary mid-range values.
+  6. Multivariate -> grounded in the Tetens/Clausius-Clapeyron saturation
+     vapor pressure curve instead of two independent, uncalibrated sigma
+     bumps.
 
 Ground truth (is_injected, fault_type) is stored alongside the data so
 Phase 3 can compute real accuracy metrics.
@@ -83,6 +123,53 @@ HARD_PHYSICAL_LIMITS = {
     "pressure_hpa": (800.0, 1100.0),
 }
 
+# FIX 2/3/5: real transducers never sit at a bit-exact repeated value or
+# an arbitrary intermediate failure value -- they have a noise floor
+# (frozen) or fail all the way to the electrical rail (fail-low). One
+# entry per parameter, since each lives on its own physical scale.
+ADC_NOISE_FLOOR_STD = {
+    # Small enough that it never crosses a floor()-boundary the way the
+    # old bit-exact approach was calibrated to avoid, but large enough
+    # to be real quantization/thermal jitter, not zero.
+    "temperature_c": 0.05,
+    "pressure_hpa": 0.03,
+    "humidity_pct": 0.05,
+}
+
+# How far a frozen random walk is allowed to wander from its starting
+# point before being clamped back -- a stuck sensor's noise floor does
+# NOT accumulate into a real drift; it's a stationary process.
+FROZEN_MAX_DEVIATION = {
+    "temperature_c": 0.3,
+    "pressure_hpa": 0.2,
+    "humidity_pct": 0.4,
+}
+
+# FIX 5: true hardware rail limits (0 ADC counts / max ADC counts pulled
+# to ground or supply), not an arbitrary "somewhat low" sentinel. These
+# are deliberately OUTSIDE HARD_PHYSICAL_LIMITS -- a real ground short
+# reads a value no real atmosphere could ever produce, and clip_to_
+# physical_limits is intentionally never applied to this fault (see its
+# docstring below).
+FAIL_LOW_RAIL_VALUE = {
+    "temperature_c": -40.0,
+    "pressure_hpa": 0.0,
+    "humidity_pct": 0.0,
+}
+# Small, fixed (not floor-proportional -- a proportional formula breaks
+# at a 0.0 rail) noise representing residual ADC jitter even at the rail.
+FAIL_LOW_NOISE_STD = 0.05
+
+
+def saturation_vapor_pressure_kpa(temp_c):
+    """
+    Tetens approximation of saturation vapor pressure (kPa), used to
+    ground inject_multivariate() in real Clausius-Clapeyron thermodynamics
+    instead of two independently-chosen sigma magnitudes. Vectorized --
+    accepts a scalar or a numpy array/Series.
+    """
+    return 0.6112 * np.exp((17.67 * temp_c) / (temp_c + 243.5))
+
 
 def clip_to_physical_limits(df: pd.DataFrame, column: str, start_idx: int, end_idx: int):
     """Clamps an injected window back within hard physical limits, if the column has any."""
@@ -96,16 +183,26 @@ def spans_overlap(a_start, a_end, b_start, b_end):
     return not (a_end < b_start or a_start > b_end)
 
 
-def has_overlap(claimed_spans, _cols, start, end):
-    """True if a proposed event intersects *any* existing fault event.
+def has_overlap(claimed_spans, cols, start, end):
+    """True if a proposed event intersects an existing fault event ON
+    ANY OF THE SAME COLUMNS.
 
-    Ground truth has one row-level ``fault_type`` field. Allowing two
-    different sensor faults at the same timestamp would overwrite that
-    label and make both evaluation and operator diagnosis ambiguous.
-    Reserve timestamps globally, including all multivariate spans.
+    FIX 1: `claimed_spans` is now {column: [(start, end), ...]}, checked
+    per column, instead of one global list checked regardless of which
+    parameter was touched. Ground truth has one row-level `fault_type`
+    field PER COLUMN'S worth of conflict potential -- two single-column
+    faults on DIFFERENT parameters at the same timestamp (e.g. a frozen
+    pressure sensor while temperature spikes normally) are independent,
+    real, and exactly the kind of event §1 of the module docstring
+    already claimed was supported. A multivariate fault (which touches
+    all three columns) still reserves all three, so it can't silently
+    collide with a single-column fault on any of them.
     """
-    return any(spans_overlap(start, end, claimed_start, claimed_end)
-               for claimed_start, claimed_end in claimed_spans)
+    return any(
+        spans_overlap(start, end, claimed_start, claimed_end)
+        for col in cols
+        for claimed_start, claimed_end in claimed_spans.get(col, [])
+    )
 
 
 def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
@@ -138,23 +235,77 @@ def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
     return "spike"
 
 
+def inject_spike_decay(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
+    """
+    FIX 3: second spike SUBTYPE (same fault_type="spike", still six
+    ground-truth types total) representing a real voltage transient /
+    ESD event rather than a discrete bit-flip: an instantaneous jump
+    followed by an exponential decay back toward the natural signal,
+    reflecting RC input-filter and thermal-mass dissipation kinetics --
+    T(t) = T_natural(t) + delta_T0 * exp(-(t - t0) / tau).
+
+    inject_spike (the bit-flip/transmission-garble variant, single
+    reading, instant full reversion) is kept as-is and NOT replaced --
+    real AWS networks see both signatures, so both stay in the pool
+    (see FAULT_WEIGHTS) rather than one replacing the other.
+    """
+    mean, std, upper, lower = compute_bounds(df[column])
+    low, high = HARD_PHYSICAL_LIMITS.get(column, (-np.inf, np.inf))
+
+    tail_len = int(rng.integers(2, 5))
+    end_idx = min(idx + tail_len, len(df) - 1)
+    n_steps = end_idx - idx + 1
+
+    magnitude = rng.uniform(3.0, 5.0)
+    tau = rng.uniform(0.5, 1.5)  # decay time constant, in readings
+    sign = float(rng.choice([-1.0, 1.0]))
+    delta0 = sign * magnitude * std
+
+    baseline = df.loc[idx:end_idx, column].to_numpy(dtype=float)
+    t = np.arange(n_steps)
+    decayed = baseline + delta0 * np.exp(-t / tau)
+
+    peak_value = decayed[0]
+    if not (low <= peak_value <= high):
+        return None  # would clip to nothing distinctive -- try elsewhere
+    if abs(peak_value - baseline[0]) < max(std * 4.0, 0.5):
+        return None  # not distinct enough from the natural reading
+
+    df.loc[idx:end_idx, column] = decayed
+    clip_to_physical_limits(df, column, idx, end_idx)
+    return "spike", idx, end_idx
+
+
 def inject_frozen(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
     """
-    Repeat the value at idx for the next few rows -- a comms/sensor
-    fault where the station keeps reporting stale data. Day 42/43:
-    zero variance in a rolling window is itself a strong outlier signal.
+    Hold the value at idx roughly constant for the next few rows -- a
+    comms/sensor fault where the station stops tracking real atmospheric
+    variation. Day 42/43: near-zero variance in a rolling window is
+    itself a strong outlier signal.
 
-    NOTE: bit-exact repeat, no jitter, for now. Sub-integer jitter that
-    provably can't cross a floor() boundary is a later optimization --
-    doing it now risks the ground truth silently breaking the detector's
-    "same integer part across 3 readings" rule (§1) if a frozen value
-    happens to sit near a .0 boundary. Correctness over realism until
-    that's built properly.
+    FIX 2: bit-exact repeat replaced with a bounded stationary random
+    walk (x_t = x_{t-1} + N(0, ADC_NOISE_FLOOR_STD^2), clamped to stay
+    within FROZEN_MAX_DEVIATION of the freeze point). A genuinely stuck
+    sensor still has real ADC thermal noise on top of its static
+    physical signal -- a plain equality check on real field data would
+    never fire. The clamp keeps this a stationary process (variance
+    near zero, per Day 42/43) rather than letting the walk accidentally
+    accumulate into something that looks like drift instead.
     """
     freeze_length = rng.integers(6, 9)
-    frozen_value = df.loc[idx, column]
     end_idx = min(idx + freeze_length, len(df) - 1)
-    df.loc[idx:end_idx, column] = frozen_value
+    n_steps = end_idx - idx + 1
+
+    anchor = float(df.loc[idx, column])
+    noise_std = ADC_NOISE_FLOOR_STD[column]
+    max_dev = FROZEN_MAX_DEVIATION[column]
+
+    walk = np.cumsum(rng.normal(0, noise_std, n_steps))
+    walk = np.clip(walk, -max_dev, max_dev)  # stays stationary, doesn't drift away
+    walk[0] = 0.0  # first frozen row anchors exactly at the transition value
+
+    df.loc[idx:end_idx, column] = anchor + walk
+    clip_to_physical_limits(df, column, idx, end_idx)
     return "frozen_value", idx, end_idx
 
 
@@ -164,12 +315,25 @@ def inject_drift(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
     continuing to the end of the window. Unlike a spike, no single
     point looks extreme; only the trend over time reveals it.
 
-    The generated fault is direction-consistent for its whole labeled
+    FIX 4: the offset is now SUPERIMPOSED on the station's own real,
+    already-recorded readings for this span (T_natural(t) + delta(t)),
+    not written over them starting from a single anchor value. The old
+    `start_value + direction * ramp` approach discarded the real
+    diurnal cycle (and any genuine weather movement) for the entire
+    fault window and replaced it with a synthetic curve anchored at one
+    point -- exactly the "suppresses natural nighttime cooling / daytime
+    heating" failure mode. Adding the ramp on top keeps the real
+    underlying signal intact; the fault is genuinely just the
+    accumulating calibration offset, which is what a real drifting
+    sensor actually looks like superimposed on true weather.
+
+    The generated offset is direction-consistent for its whole labeled
     span. This is essential: Draft 2's CUSUM detector is expressly
-    designed for accumulating one-directional bias, so labels that
-    reverse due to copied weather noise would make its ground truth
-    invalid. Curvature is allowed, but every successive fault value
-    moves in the same direction.
+    designed for accumulating one-directional bias, so an offset that
+    reversed direction mid-span would make its ground truth invalid.
+    Curvature is allowed, but the OFFSET itself (not the resulting raw
+    value, which still moves with real weather on top of it) moves
+    monotonically in one direction.
     """
     drift_length = rng.integers(20, 50)
     end_idx = min(idx + drift_length, len(df) - 1)
@@ -177,19 +341,18 @@ def inject_drift(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
     max_offset = df[column].std() * rng.uniform(20.0, 30.0)
     steps = end_idx - idx + 1
 
-    # Linear or curved, but strictly monotonic. Replacing the span from
-    # its start point prevents ordinary hour-to-hour weather movement
-    # from reversing the intended injected fault direction.
+    # Linear or curved, but strictly monotonic offset.
     if rng.choice([True, False]):
         ramp = np.linspace(0, max_offset, steps)
     else:
         ramp = max_offset * (np.linspace(0, 1, steps) ** rng.uniform(1.3, 2.0))
-    # A tiny positive increment prevents equal adjacent values in a
+    # A tiny positive increment prevents equal adjacent offsets in a
     # shallow curved ramp, while keeping the fault physically smooth.
     min_step = max(df[column].std() * 1e-4, 1e-6)
     ramp = np.maximum.accumulate(ramp + np.arange(steps) * min_step)
-    start_value = float(df.loc[idx, column])
-    df.loc[idx:end_idx, column] = start_value + direction * ramp
+
+    natural_values = df.loc[idx:end_idx, column].to_numpy(dtype=float)
+    df.loc[idx:end_idx, column] = natural_values + direction * ramp
     clip_to_physical_limits(df, column, idx, end_idx)
     return "drift", idx, end_idx
 
@@ -202,15 +365,26 @@ def inject_dropout(df: pd.DataFrame, idx: int, column: str, rng: np.random.Gener
 
 def inject_fail_low(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
     """
-    Hardware fail-low -- distinct from a spike. Real sensors often fail
-    by clamping to a fixed physical floor or error sentinel rather than
-    a random statistical outlier: a humidity sensor stuck reading ~0%,
-    a pressure transducer that lost power reading near 0 hPa, a
-    temperature probe reporting a fixed out-of-range error value. This
-    is a flatline at an implausible LOW bound, held for a short window
-    -- different from `frozen` (which freezes at whatever the last real
-    reading happened to be) and different from `spike` (a brief
-    statistical extreme in either direction).
+    Hardware fail-low -- distinct from a spike. Real sensors fail this
+    way when a ground short, severed cable, or fully detached element
+    pulls the analog input pin straight to 0 ADC counts, mapping to the
+    scale's electrical floor -- not to some plausible-sounding low
+    weather value. This is a flatline at the hardware RAIL, held for a
+    short window -- different from `frozen` (which freezes at whatever
+    the last real reading happened to be) and different from `spike`
+    (a brief statistical extreme in either direction).
+
+    FIX 5: floors changed from arbitrary intermediate sentinels
+    (e.g. -15.0C, 50.0 hPa -- physically plausible-ish, cold-snap-ish
+    values that undersell how a real ground short actually reads) to
+    FAIL_LOW_RAIL_VALUE's true 0-ADC-count rail floors. Noise is now a
+    small FIXED std (FAIL_LOW_NOISE_STD), not proportional to the floor
+    magnitude -- a proportional formula divides to ~zero jitter at a
+    0.0 hPa / 0.0% rail, which would silently reintroduce a bit-exact
+    repeat exactly like the frozen-value bug this project already fixed
+    once. clip_to_physical_limits is deliberately NOT called here (see
+    HARD_PHYSICAL_LIMITS' module-level note) -- these values are
+    supposed to sit outside any plausible atmospheric range.
 
     Window length is FIXED (FAIL_LOW_LENGTH), not randomized -- §5b's
     detector rule reclassifies fail-low at 2-3 consecutive hours, so a
@@ -218,17 +392,11 @@ def inject_fail_low(df: pd.DataFrame, idx: int, column: str, rng: np.random.Gene
     that bar, with no per-event variance to account for at eval time.
     """
     end_idx = min(idx + FAIL_LOW_LENGTH, len(df) - 1)
+    n_steps = end_idx - idx + 1
 
-    # Physically-motivated failure floors per parameter, with a little
-    # jitter so it's not a bit-exact repeated constant.
-    floors = {
-        "temperature_c": -15.0,   # implausible cold snap for tropical/plains stations
-        "pressure_hpa": 50.0,     # near-total transducer failure reading
-        "humidity_pct": 0.5,      # sensor stuck near-zero
-    }
-    floor_value = floors[column]
-    noise = rng.normal(0, abs(floor_value) * 0.02 + 0.1, end_idx - idx + 1)
-    df.loc[idx:end_idx, column] = floor_value + noise
+    rail_value = FAIL_LOW_RAIL_VALUE[column]
+    noise = rng.normal(0, FAIL_LOW_NOISE_STD, n_steps)
+    df.loc[idx:end_idx, column] = rail_value + noise
     return "sensor_fail_low", idx, end_idx
 
 
@@ -236,28 +404,63 @@ def inject_multivariate(df: pd.DataFrame, idx: int, column: str, rng: np.random.
     """
     Multivariate inconsistency -- the PS's own example scenario: a
     station reports a temperature spike while pressure/humidity move
-    in directions that don't physically make sense together (e.g. temp
-    sharply up but humidity ALSO up and pressure barely reacting, which
-    real weather physics wouldn't produce together). `column` is ignored
-    here since this fault always touches all three parameters at once --
-    it's the multivariate case the single-column fault functions can't
-    represent.
+    in directions that don't physically make sense together. `column`
+    is ignored here since this fault always touches all three
+    parameters at once -- it's the multivariate case the single-column
+    fault functions can't represent.
+
+    FIX 6: grounded in the Tetens/Clausius-Clapeyron saturation vapor
+    pressure curve (see saturation_vapor_pressure_kpa) instead of two
+    independently-chosen sigma magnitudes for temp and humidity. If
+    ambient temperature rises with no real moisture transport, actual
+    vapor pressure e = (RH/100)*es(T) stays constant, so relative
+    humidity MUST fall as es(T) rises -- that's the real physically-
+    consistent behavior, computed below as `rh_physically_consistent`.
+    The FAULT is that the sensor instead reports humidity moving IN
+    THE SAME DIRECTION as temperature (rising, not falling) -- the
+    genuinely unphysical signature a real weather event (which follows
+    the curve) would never produce. This makes the injected magnitude
+    a real, checkable violation of the physics (a large, calibrated gap
+    from rh_physically_consistent) rather than an arbitrary "+2 to
+    3.5 sigma" guess, while pressure barely moving is still the third
+    leg of the signature (a real event this size usually shows up in
+    pressure too).
     """
     window = rng.integers(2, 5)
     end_idx = min(idx + window, len(df) - 1)
+    n_steps = end_idx - idx + 1
 
     temp_std = df["temperature_c"].std()
     pressure_std = df["pressure_hpa"].std()
-    humidity_std = df["humidity_pct"].std()
 
-    # Temperature spikes up sharply (sensor fault)...
-    df.loc[idx:end_idx, "temperature_c"] += rng.uniform(4.0, 6.0) * temp_std
-    # ...while humidity ALSO rises (physically, a real heat spike should
-    # usually correlate with humidity dropping, not rising)...
-    df.loc[idx:end_idx, "humidity_pct"] += rng.uniform(2.0, 3.5) * humidity_std
-    # ...and pressure barely moves, when a real weather event of this
+    temp_before = df.loc[idx:end_idx, "temperature_c"].to_numpy(dtype=float)
+    rh_before = df.loc[idx:end_idx, "humidity_pct"].to_numpy(dtype=float)
+
+    temp_delta = rng.uniform(4.0, 6.0) * temp_std
+    temp_after = temp_before + temp_delta
+
+    # What a REAL heat event would do to humidity, holding actual vapor
+    # pressure constant (the physically-consistent case this fault must
+    # violate, not reproduce).
+    es_before = saturation_vapor_pressure_kpa(temp_before)
+    es_after = saturation_vapor_pressure_kpa(temp_after)
+    rh_physically_consistent = np.clip(rh_before * (es_before / es_after), 0.0, 100.0)
+
+    # The FAULT: humidity instead rises, moving away from (not toward)
+    # the physically-consistent value -- same-direction-as-temperature,
+    # which real vapor-pressure physics forbids without real moisture
+    # advection. Magnitude is anchored to how far the physically-honest
+    # value would have dropped, so the violation is calibrated to this
+    # specific temperature delta rather than a flat sigma guess.
+    physically_expected_drop = rh_before - rh_physically_consistent
+    fault_rh_rise = np.maximum(physically_expected_drop, 0.5) * rng.uniform(1.5, 2.5)
+    rh_after = rh_before + fault_rh_rise
+
+    df.loc[idx:end_idx, "temperature_c"] = temp_after
+    df.loc[idx:end_idx, "humidity_pct"] = rh_after
+    # Pressure barely moves, when a real weather event of this
     # magnitude would typically show a pressure change too.
-    df.loc[idx:end_idx, "pressure_hpa"] += rng.normal(0, pressure_std * 0.1, end_idx - idx + 1)
+    df.loc[idx:end_idx, "pressure_hpa"] += rng.normal(0, pressure_std * 0.1, n_steps)
 
     clip_to_physical_limits(df, "humidity_pct", idx, end_idx)
     clip_to_physical_limits(df, "pressure_hpa", idx, end_idx)
@@ -270,6 +473,7 @@ def inject_multivariate(df: pd.DataFrame, idx: int, column: str, rng: np.random.
 # own rng.integers(...) upper bound (exclusive), or its fixed length.
 FAULT_MAX_LEN = {
     inject_spike: 1,
+    inject_spike_decay: 4,  # rng.integers(2, 5) exclusive upper bound
     inject_frozen: 8,
     inject_drift: 49,
     inject_dropout: 1,
@@ -291,7 +495,12 @@ MULTI_COLUMN_FAULTS = {inject_multivariate}
 # are rarer in practice. Numbers don't need to sum to 1 -- normalized
 # at draw time.
 FAULT_WEIGHTS = {
-    inject_spike: 3.0,
+    # inject_spike + inject_spike_decay together keep "spike" at roughly
+    # its old combined relative frequency (3.0), split across the two
+    # real-world subtypes (instant bit-flip vs. decaying transient)
+    # rather than adding a net-new fault category's worth of weight.
+    inject_spike: 1.8,
+    inject_spike_decay: 1.2,
     inject_dropout: 3.0,
     inject_frozen: 2.0,
     inject_fail_low: 1.5,
@@ -341,12 +550,18 @@ def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
     # count anymore; only a floor (MIN_EVENTS_PER_TYPE) and a ceiling
     # (this target, approximately) apply.
     target_anomalous_rows = int(n_rows * INJECTION_RATE * ANOMALY_DENSITY_MULTIPLIER)
-    fault_functions = [inject_spike, inject_frozen, inject_drift, inject_dropout, inject_multivariate, inject_fail_low]
+    fault_functions = [
+        inject_spike, inject_spike_decay, inject_frozen, inject_drift,
+        inject_dropout, inject_multivariate, inject_fail_low,
+    ]
 
-    # One global timeline: a reading belongs to at most one injected
-    # fault event. This deliberately prefers interpretable ground truth
-    # over synthetic compound-fault density.
-    claimed_spans = []
+    # FIX 1: per-column timelines instead of one global list -- a
+    # reading belongs to at most one injected fault event PER
+    # PARAMETER, so independent faults on different parameters can
+    # legitimately share a timestamp (see has_overlap's docstring).
+    # inject_multivariate claims all three columns since it touches
+    # all three at once.
+    claimed_spans = {col: [] for col in columns}
     fault_counts = {fn: 0 for fn in fault_functions}
     rows_injected = 0
 
@@ -382,7 +597,8 @@ def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
 
             df.loc[start:end, "is_anomaly"] = True
             df.loc[start:end, "fault_type"] = fault_type
-            claimed_spans.append((start, end))
+            for col in cols_needed:
+                claimed_spans[col].append((start, end))
             rows_injected += (end - start + 1)
             fault_counts[fault_fn] += 1
             return True
