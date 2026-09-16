@@ -288,8 +288,12 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         # into inf; treat as "no meaningful deviation info yet" instead.
         safe_std = std.replace(0, np.nan)
         df[f"{prefix}_deviation"] = (values - mean) / safe_std
+        clean_values = values.mask(exclude_mask) if exclude_mask is not None else values
+        
         df[f"{prefix}_rolling_std"] = std
         df[f"{prefix}_rolling_mean"] = mean
+        df[f"{prefix}_rolling_mean_3h"] = values.rolling(3, min_periods=1).mean()
+        df[f"{prefix}_rolling_mean_24h"] = clean_values.rolling(24, min_periods=6).mean()
         long_baseline = std.rolling(VOLATILITY_BASELINE_WINDOW_HOURS, min_periods=ROLLING_WINDOW_HOURS).median()
         long_spread = std.rolling(VOLATILITY_BASELINE_WINDOW_HOURS, min_periods=ROLLING_WINDOW_HOURS).std()
         df[f"{prefix}_volatility_z"] = (std - long_baseline) / long_spread.replace(0, np.nan)
@@ -441,7 +445,7 @@ def add_rule_only_signals(df: pd.DataFrame) -> pd.DataFrame:
         # only an integer part makes normal stable pressure look frozen;
         # matching the reported precision preserves the intended
         # persistence shape while eliminating that aliasing false positive.
-        floor_vals = df[col].round(1)
+        floor_vals = np.floor(df[col])
         df[f"{prefix}_floor_frozen_match"] = (
             (floor_vals == floor_vals.shift(1)) & (floor_vals == floor_vals.shift(2))
         )

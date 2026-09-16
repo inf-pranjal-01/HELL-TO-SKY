@@ -128,17 +128,20 @@ def train():
 
     X = featured[FEATURE_COLUMNS].values
 
-    # contamination='auto' -- deliberately NOT a fixed rate. We're
-    # training on data we've validated as genuinely normal, so asserting
-    # "X% of this is anomalous" would be baking a false premise into the
-    # decision boundary. 'auto' uses the original Isolation Forest
-    # paper's own offset heuristic instead. Real severity thresholds
-    # (low/medium/high/critical) get calibrated separately, against the
-    # LABELED data where we actually know the true anomaly rate -- not
-    # smuggled in here as an assumption about clean training data.
+    # contamination=0.01 (NOT 'auto'). 'auto' uses the original paper's
+    # offset_=-0.5 heuristic which flags ~11% of training data as anomalous
+    # even on a fully clean training set. Empirically: 4.4% of training rows
+    # score model_pct > 72, meaning ~93 clean readings per station will
+    # cross the fusion threshold when ANY rule (drift/spike) also fires.
+    # That directly drives the 85-226 clean-station FPs we measured.
+    # Setting contamination=0.01 makes the model's internal boundary
+    # conservative: only the most extreme 1% of training rows are flagged,
+    # substantially lowering model_pct on normal readings. Injected fault
+    # events (extreme rail values, sustained drifts, T/RH violations) will
+    # still score very high relative to the rescaled distribution.
     model = IsolationForest(
         n_estimators=N_ESTIMATORS,
-        contamination="auto",
+        contamination=0.01,
         random_state=RANDOM_STATE,
         # Single-process fitting keeps training reliable in restricted
         # Windows environments where joblib cannot create worker IPC

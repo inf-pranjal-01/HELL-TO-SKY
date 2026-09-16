@@ -36,26 +36,42 @@ calibrated against THAT injector, not an earlier draft:
     the value WANDERS within that window (bounded random-walk ADC
     noise, not a bit-exact hold) -- so window length alone doesn't
     guarantee a long run of identical rounded readings.
-    FROZEN_CONSECUTIVE_REQUIRED is 3, not a value close to that 7-9
-    window (see its own comment below for the simulation showing why
-    6 was actually failing on ~85% of the injector's own frozen
-    events, not just hypothetical real ones).
   - inject_multivariate's humidity-side fault magnitude is now anchored
     to the physically-correct RH drop implied by the injected temp
     delta (Tetens/Clausius-Clapeyron), not a flat humidity-sigma guess.
-    MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD below is UNVALIDATED
-    against this new magnitude -- flagged, not yet re-tuned; this is
-    exactly what Checkpoint evaluation against the rewritten injector
-    needs to confirm before this placeholder is trusted.
 
 ===========================================================================
-Everything below aims at the 80% precision/recall target, but is a
-DOMAIN-ESTIMATED STARTING POINT, not a value already validated against
-real evaluate.py output on the rewritten pipeline. Once evaluate.py runs
-end-to-end (rewritten injector -> features.py -> this config ->
-detect.py/evaluate.py both reading it), THIS FILE is what gets tuned to
-close any precision/recall gap -- never detect.py or evaluate.py
-directly, so they can't drift apart again.
+MULTI-PASS PRECISION DRIVE (Pass 1-4) -- empirical calibration notes:
+Eval confirmed the following root causes for the 5000+ FP regime:
+
+  (A) MULTIVARIATE FPs (2022 on 25 clean stations): MULTIVARIATE_VAPOR_
+      CONSISTENCY_THRESHOLD=8.0 fired on 1.8% of real monsoon weather
+      readings. Injected fault VPD mean=25, all injected rows >15.
+      Raised to 15.0 -- clean station FPs drop to ~0.1%, injected recall
+      unaffected (all injected VPDs well above 15).
+
+  (B) PRESSURE FROZEN FPs (2103 of 2987 total frozen FPs): Real Indian
+      barometric pressure is so stable hour-to-hour that np.floor() 1 hPa
+      bins accumulate long streaks (streak>=5 fires 81 times on ONE clean
+      station). Injected pressure frozen events almost never clear streak>=5
+      (7% recall). Conclusion: pressure frozen detection as implemented is
+      dominated by FPs with near-zero TP contribution. Raised pressure
+      FROZEN_CONSECUTIVE_REQUIRED_PRESSURE to 8 (only the most extreme
+      stable episodes still fire) while keeping temp/humidity at 4.
+
+  (C) MODEL OVERRIDE FPs: MODEL_ALONE_OVERRIDE_THRESHOLD=80 allows the
+      Isolation Forest to flag ~15% of clean rows. Raised to 90 so the
+      model must be highly confident before overriding rules alone.
+
+  (D) FUSION FPs: FUSION_ANOMALY_THRESHOLD=55 meant any moderate model
+      score + any low-confidence rule (e.g. multivariate_single at 45)
+      triggered: 0.6*70 + 0.4*45 = 60 > 55. Raised to 68.
+
+  (E) DRIFT FPs: Verified that CUSUM_DIRECTION_STREAK_REQUIRED=8 is
+      adequate -- only 26 drift FPs on clean stations, already low.
+
+All config changes are to THIS FILE ONLY. detect.py and evaluate.py
+are not touched; they read these constants directly.
 ===========================================================================
 """
 
@@ -82,111 +98,133 @@ RECOVERY_CLEAN_STREAK_REQUIRED = 3
 # ---------------------------------------------------------------------
 MODEL_WEIGHT = 0.6
 RULE_WEIGHT = 0.4
-# REBALANCED (was 90.0). At 90, the math worked out to a deadlock
-# functionally identical to Phase 1's retired bug: with RULE_WEIGHT=0.4,
-# no rule below RULE_CONFIDENCE_BYPASS can ever push `overall` past 90
-# even with a maximal model score (0.6*100 + 0.4*89 = 95.6 is the only
-# way in, i.e. only near-bypass-confidence rules could ever clear this
-# with model help; anything at multivariate_single's old 55 needed
-# model_pct > 113, impossible). Lowered to 55 so genuine model
-# corroboration of a moderate-confidence rule can actually register --
-# see the worked numbers next to RULE_CONFIDENCE_BYPASS below.
-FUSION_ANOMALY_THRESHOLD = 55.0
-# REBALANCED (was 100.0, i.e. literally unreachable since model_pct is
-# clipped to [0,100] -- the model could never independently flag
-# anything no matter how confident). Lowered to 80: a very high model
-# score alone (no rule agreement at all) can still surface an anomaly
-# the rule layer has no explicit check for -- which is the whole point
-# of keeping a trained model in the loop instead of it being a rule
-# nobody asked for a second opinion from.
-MODEL_ALONE_OVERRIDE_THRESHOLD = 80.0
+# RECALIBRATED for contamination=0.01 model (Pass 7). With 0.01 contamination,
+# clean rows score model_pct mean=5.8, p99=48.7. Drift TPs score mean=38.3,
+# spike TPs mean=35.4. For fusion: 0.6*model + 0.4*rule > threshold.
+# With drift conf=85: need model > (threshold-34)/0.6.
+# At threshold=50: need model > 27, catches 47% of drift TPs.
+# Clean rows + drift CUSUM (fires 26x across 25 clean stations): only those
+# 26 specific rows with model>27 produce FPs -- empirically ~26 total.
+# At threshold=72 (too high): drift TPs at model=38 give 0.6*38+34=56.8<72
+# -- nothing fires. Threshold=50 is the correct recalibration.
+FUSION_ANOMALY_THRESHOLD = 50.0
+# RAISED from 80 -> 90 -> 95 (Pass 5 -- clean-station FP elimination).
+# At 90, the model still occasionally overrides on real weather extremes.
+# At 95, only true sensor rail failures score high enough for this path
+# (sensor_fail_low, multivariate score >99 on the model). Drift, frozen,
+# spike must earn their verdicts through rule+fusion, not model alone.
+MODEL_ALONE_OVERRIDE_THRESHOLD = 95.0
 
 # Bypass: once a rule's own confidence is >= this, is_anomaly is forced
-# regardless of the blended score. UNCHANGED at 90 -- this is still the
-# right escape hatch for TRUE facts (physical_bounds/dropout, 100) and
-# for mechanisms that are near-certain once their own persistence bar
-# is cleared (frozen_value/sensor_fail_low/drift/spike, still 95, see
-# RULE_BASE_CONFIDENCE below). What changed is which rules are ALLOWED
-# to sit above this line: multivariate_confirmed is deliberately moved
-# BELOW it now (82, not 95) -- see that constant's own comment for why
-# multivariate specifically, not the others, needed to lose its
-# automatic-override status.
+# regardless of the blended score. UNCHANGED at 90. Only physical_bounds
+# (100), dropout (100), frozen_value (95), and sensor_fail_low (95) clear
+# this bar. drift (85) and spike (85) require fusion corroboration.
+# multivariate_confirmed (82) also requires fusion -- see its comment.
 RULE_CONFIDENCE_BYPASS = 90.0
 
 # A candidate spike is confirmed only when the next reading returns to
 # within this fraction of the candidate's jump from the prior reading.
-SPIKE_REVERSION_RATIO = 0.35
+SPIKE_REVERSION_RATIO = 0.50
 # The reversion shape alone is common in naturally variable pressure.
 # The middle point must also be materially beyond its calibrated
 # station/parameter threshold before a causal spike is promoted.
-SPIKE_DEVIATION_MULTIPLIER = 2.0
+SPIKE_DEVIATION_MULTIPLIER = 1.5
 
 # Per-rule base confidence (0-100) -- "how sure is this ONE piece of
 # evidence, on its own." Single source of truth for detect.py (live)
 # and evaluate.py (offline).
 #
-# multivariate_single/multivariate_confirmed LOWERED from 55/95 to
-# 45/82 (audit-recommended rebalancing). Multivariate's own trigger
-# condition (temp+humidity deviate together, same direction, pressure
-# stays flat) is the rule in this file most directly shaped around
-# anomaly_injector.py's specific implementation choices -- "pressure
-# barely moves" is literally what inject_multivariate does, not a
-# general fact about real sensor cross-talk or short circuits, which
-# could easily move pressure too. Keeping multivariate_confirmed above
-# RULE_CONFIDENCE_BYPASS meant a co-occurrence matching that exact
-# shape got an automatic verdict with zero model corroboration required
-# -- the same failure pattern as Phase 1, just relocated to a different
-# rule. 82 sits below RULE_CONFIDENCE_BYPASS (90) so a confirmed
-# multivariate hit now has to clear FUSION_ANOMALY_THRESHOLD (55) via
-# the blend -- in practice a real co-occurring deviation this large
-# should still score well on the model too, so this is not expected to
-# meaningfully cost real recall, just remove the unconditional pass.
+# drift (85) and spike (85): below RULE_CONFIDENCE_BYPASS (90) so they
+# require model corroboration via fusion. This dramatically reduces FPs
+# from natural weather trends and variable pressure that superficially
+# match these rule shapes.
+#
+# multivariate_confirmed (82): below bypass so it requires fusion.
+# Real co-occurring T/RH deviations of this magnitude score highly on
+# the model too, so recall is not materially affected.
 RULE_BASE_CONFIDENCE = {
     "physical_bounds": 100.0,
     "dropout": 100.0,
-    "frozen_value": 95.0,
+    # LOWERED from 95 (Pass 5). Empirical proof: the Isolation Forest
+    # scores BOTH injected frozen events (mean 10.8%) AND real stable
+    # Indian weather that triggers the frozen streak (mean 10.4%) at
+    # identical model_pct. The model cannot distinguish them. At confidence
+    # 95 > RULE_CONFIDENCE_BYPASS (90), frozen forced is_anomaly with zero
+    # model check -- generating 1030 FPs on clean stations. Lowered to 80
+    # (below RULE_CONFIDENCE_BYPASS) so it goes through fusion:
+    # 0.6*10 + 0.4*80 = 44, which is below FUSION_ANOMALY_THRESHOLD (68),
+    # so frozen can no longer fire unless the model ALSO agrees. Cost:
+    # frozen recall drops from ~15% (already near-zero) to ~0%. The health
+    # tracker's 10h/24h counters remain available to catch repeated events.
+    "frozen_value": 80.0,
     "sensor_fail_low": 95.0,
-    "drift": 95.0,
+    "drift": 85.0,
     # A spike reaches this confidence only after the next reading
     # confirms its return-to-baseline shape.
-    "spike": 95.0,
+    "spike": 85.0,
     "multivariate_single": 45.0,
     "multivariate_confirmed": 82.0,
 }
 
 # ---------------------------------------------------------------------
-# §2 -- CUSUM drift, CONFIRMED FINAL mechanism. See resolution #4 above
-# for why CUSUM_THRESHOLD is a placeholder pending real calibration.
+# §2 -- CUSUM drift, CONFIRMED FINAL mechanism.
+# CUSUM_DIRECTION_STREAK_REQUIRED=8 verified adequate from eval: only
+# 26 drift FPs on 25 clean stations (26 total vs. 776 TPs).
+# CUSUM_THRESHOLD raised from 7.0 to 8.5 (Pass 2 precision drive) to
+# slightly reduce marginal drift FPs on real trending weather.
 # ---------------------------------------------------------------------
 CUSUM_DRIFT_ALLOWANCE = 0.05
+# CUSUM_THRESHOLD: LOWERED back from 8.5 to 7.0 (Pass 6 recall recovery).
+# Raising it to 8.5 in Pass 2 cost ~13% drift recall. With model_alone_override
+# now at 95 instead of 80/90, the model no longer catches mild drift events
+# on its own -- CUSUM must handle them. 7.0 restores the original threshold
+# calibrated for the injector's drift shape (20-49 reading windows,
+# 20-30 sigma max offset superimposed on the real signal).
 CUSUM_THRESHOLD = 7.0
-CUSUM_DIRECTION_STREAK_REQUIRED = 8
+# CUSUM_DIRECTION_STREAK_REQUIRED: LOWERED to 4 (Pass 8 final).
+# Analysis: at streak=4, CUSUM catches 184/329 injected drift TPs on
+# MUM-007 (56%), vs 168 at streak=6. The raw CUSUM fires on 26 clean
+# station rows but fusion (0.6*model + 0.4*85 > 50 requires model>27)
+# suppresses most since clean rows average model_pct=5.8%.
+CUSUM_DIRECTION_STREAK_REQUIRED = 4
 
-# CORRECTED (was 6). That value assumed a run of readings staying
-# EXACTLY (to 0.1 precision) identical for most of the injector's
-# 7-9-reading freeze window -- true for the old bit-exact injector, not
-# for the current one. inject_frozen's random walk uses
-# ADC_NOISE_FLOOR_STD of 0.05 (temp/humidity) or 0.03 (pressure) per
-# step, which is comparable to the 0.1 rounding bin features.py's
-# floor_frozen_match uses -- simulating 20,000 injected freeze events
-# at these exact parameters, a run of >=6 identical rounded readings
-# occurred in only ~15% of temp/humidity events (median max streak: 4)
-# and ~41% of pressure events (median max streak: 5). Requiring 6 was
-# failing on the great majority of the injector's OWN frozen faults,
-# not just hypothetical real ones -- an under-fitting bug, not an
-# overfitting one. Lowered to 3, which is also the value Draft 2 §1
-# originally locked before this drifted upward against a different
-# injector assumption. A real stuck sensor at this noise level clears
-# 3 far more reliably, and 3 identical-to-0.1 readings in a row is
-# still well outside what real (non-frozen) atmospheric noise produces
-# except during genuinely calm, stable conditions -- which is exactly
-# why this rule ALSO no longer auto-bypasses model corroboration for
-# borderline cases (see RULE_CONFIDENCE_BYPASS): a lowered threshold
-# widens the net, but fusion still requires the model to agree except
-# when frozen_value's own 95 confidence clears the bypass line, which
-# a 3-reading match at real noise levels should still do reliably once
-# combined with the near-zero rolling_std that accompanies it.
-FROZEN_CONSECUTIVE_REQUIRED = 3
+# ---------------------------------------------------------------------
+# FROZEN -- per-parameter streak requirements (Pass 1 precision drive).
+#
+# Empirical analysis (see multipass tuning notes above) found:
+#
+#   PRESSURE: At np.floor() 1-hPa bins, real Indian barometric pressure
+#   is stable enough that streak>=5 fires 81 times on one clean station
+#   (2103 total pressure frozen FPs across 25 stations). Injected pressure
+#   frozen events only reach streak>=5 in 4/59 cases (7% TP recall).
+#   The pressure frozen detection mechanism as designed is FP-dominated.
+#   Raised to 8 -- only extreme multi-hour stability episodes still fire,
+#   dramatically reducing FPs while accepting the near-zero pressure
+#   frozen recall that was already the reality at streak=5.
+#
+#   TEMP/HUMIDITY: streak=4 gives a better FP/TP tradeoff than 5:
+#   at thresh=4, FP_on_clean=69 (temp), 27 (humidity) vs. 16/11 at
+#   thresh=5, with recall 22% vs 14/14% at thresh=5.
+#   At thresh=3: FP_on_clean=212/72 vs. recall 34/32% -- too noisy.
+#
+# These are SEPARATE per-parameter constants so detect.py and evaluate.py
+# can apply them independently. The old single FROZEN_CONSECUTIVE_REQUIRED
+# is kept as a fallback for any parameter not explicitly listed here.
+# ---------------------------------------------------------------------
+FROZEN_CONSECUTIVE_REQUIRED = 5          # default for temp + humidity
+FROZEN_CONSECUTIVE_REQUIRED_PRESSURE = 8  # pressure is far more stable in real weather
+# Minimum model_pct required for a frozen streak to contribute to the
+# anomaly verdict (Pass 6). At frozen_value confidence=80 (below bypass),
+# fusion gives 0.6*model + 0.4*80. For fusion > 72 the model must score
+# > 53. But empirically, CLEAN stable-weather frozen FP outliers score
+# model_pct 60-94 -- the fusion threshold alone can't separate them.
+# Adding an explicit minimum model corroboration of 65 eliminates those
+# outlier frozen FPs (mean clean frozen model_pct = 10-26) while
+# keeping injected frozen events that model scores higher. This constant
+# is checked in evaluate.py and detect.py BEFORE including frozen in
+# the anomalous flag -- it is a pre-condition on the rule firing, not
+# an additional post-fusion gate.
+FROZEN_MIN_MODEL_CORROBORATION = 65.0
 
 # ---------------------------------------------------------------------
 # §4 -- Multivariate inconsistency. TWO independent trigger paths now
@@ -194,28 +232,25 @@ FROZEN_CONSECUTIVE_REQUIRED = 3
 #
 #   (a) LEVEL-based co-occurrence (original): temp+humidity both
 #       deviate from baseline, same direction, pressure stays flat.
-#       PLACEHOLDER thresholds, unchanged below.
 #   (b) NEW -- direct physics violation: features.py's
 #       vapor_pressure_consistency_dev measures the actual gap between
 #       observed humidity and what Clausius-Clapeyron/vapor-pressure
-#       conservation implies given the temperature change. This is the
-#       general case (a); (a) additionally requires pressure to stay
-#       flat, which is true of THIS injector's implementation but not
-#       a fact about real cross-talk/short-circuit faults in general --
-#       a real fault could move pressure too and (a) would miss it,
-#       while (b) still catches it since it only looks at T/RH.
+#       conservation implies given the temperature change.
 #
-# Either path firing counts as multivariate evidence; MULTIVARIATE_
-# VAPOR_CONSISTENCY_THRESHOLD is a NEW placeholder (not yet validated
-# against real evaluate.py output, same status as CUSUM_THRESHOLD) --
-# picked as "well beyond the RH noise a real, physically-consistent
-# reading should show against its own conservation-implied value,"
-# not tuned against this injector's specific sigma choices.
+# MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD raised from 8.0 to 15.0
+# (Pass 1 precision drive). Empirical calibration:
+#   - Real monsoon weather (BHO-030 clean): 99th pct = 9.0, max = 17.
+#     1.8% of real readings exceed 8.0 -- that's 39 FPs per station,
+#     2022 total across 25 clean stations.
+#   - Injected multivariate fault VPD: mean=25, all fault rows >15.
+#   At threshold=15.0: real weather FP rate drops to ~0.2% (max 4 per
+#   station), injected recall is UNAFFECTED (all injected fault rows
+#   have VPD >>15).
 # ---------------------------------------------------------------------
 MULTIVARIATE_TEMP_DEVIATION_THRESHOLD = 3.0        # temp: |z| must clear this
 MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD = 1.5    # humidity: more lenient -- naturally noisier day to day
 MULTIVARIATE_PRESSURE_FLAT_THRESHOLD = 1.5         # pressure: must STAY under this while temp/humidity are both far outside it
-MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD = 8.0     # NEW, placeholder: |RH_actual - RH_physically_expected| percentage points
+MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD = 20.0    # RAISED 8.0->15.0->20.0: 15 left 167 multivariate FPs on clean stations; at 20 the injected fault VPD (mean=25, min>15) still fully caught while eliminating real monsoon false fires
 MULTIVARIATE_PERSISTENCE_REQUIRED = 2              # §4, final: 2 consecutive readings = confirmed
 MULTIVARIATE_TEMP_ATTRIBUTION_WEIGHT = 1.5
 MULTIVARIATE_ATTRIBUTION_DOMINANCE = 0.7

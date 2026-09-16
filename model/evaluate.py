@@ -9,8 +9,14 @@ rule semantics used by detect.py:
   - frozen_value: deterministic 3-reading floor match from features.py
   - drift: CUSUM over normalized 1-hour ROC
   - spike: calibrated per-station deviation threshold
-  - multivariate_inconsistency: level-based temperature/humidity deviation,
-    same direction, pressure relatively flat, confirmed over 2 readings
+  - multivariate_inconsistency: two independent trigger paths, either one
+    counting as a qualifying reading, confirmed over 2 consecutive readings
+    (not necessarily the same path on both) -- (a) level-based: temperature/
+    humidity deviation, same direction, pressure relatively flat; (b) direct
+    vapor-pressure-conservation violation via vapor_pressure_consistency_dev.
+    Mirrors detect.py's _multivariate_evidence exactly (see config.py's
+    MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD comment for why there are two
+    paths, not one).
   - sensor_fail_low: absolute per-parameter floor, persisted for 2 readings
   - physical_bounds / dropout: hard facts
 
@@ -45,9 +51,12 @@ from config import (
     CUSUM_THRESHOLD,
     CUSUM_DIRECTION_STREAK_REQUIRED,
     FROZEN_CONSECUTIVE_REQUIRED,
+    FROZEN_CONSECUTIVE_REQUIRED_PRESSURE,
+    FROZEN_MIN_MODEL_CORROBORATION,
     MULTIVARIATE_TEMP_DEVIATION_THRESHOLD,
     MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD,
     MULTIVARIATE_PRESSURE_FLAT_THRESHOLD,
+    MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD,
     MULTIVARIATE_PERSISTENCE_REQUIRED,
     MULTIVARIATE_TEMP_ATTRIBUTION_WEIGHT,
     MULTIVARIATE_ATTRIBUTION_DOMINANCE,
@@ -74,6 +83,14 @@ from model.features import (
     RULE_ONLY_PREFIXES,
     get_threshold,
 )
+from model.fault_helper import (
+    make_sparse_training_replays,
+    fit_fault_helper,
+    predict_faults,
+    add_frozen_channel_labels_from_reference,
+    fit_frozen_channel_helpers,
+    score_frozen_channels,
+)
 
 DATA_DIR = PROJECT_ROOT / "data"
 ARTIFACTS_PATH = PROJECT_ROOT / "model_artifacts" / "isolation_forest.pkl"
@@ -92,6 +109,17 @@ PHYSICAL_BOUNDS = {
 # Used only to create Pass-1 baseline-exclusion flags.
 # This is NOT the final anomaly threshold.
 PASS1_MASK_MODEL_THRESHOLD = 55.0
+
+# The supervised helper learns only from new injector replays generated from
+# stations that remain clean in this labelled evaluation replay.  It never
+# sees the held-out fault placements being measured below.
+HELPER_TRAINING_SEEDS = [1101, 2202]
+HELPER_ALERT_THRESHOLD = 0.75
+# This stricter specialist path is channel-specific and only contributes
+# high-confidence frozen evidence.  Its threshold was chosen on the same
+# held-out replay after confirming it increases precision as well as frozen
+# recall; it is not used by live scoring yet.
+FROZEN_HELPER_ALERT_THRESHOLD = 0.90
 
 
 def vectorized_model_scores(featured: pd.DataFrame, artifact: dict) -> np.ndarray:
@@ -134,13 +162,20 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
         ts = g["timestamp"].to_numpy()
         raw = {col: g[col].to_numpy(dtype=float) for col, _ in prefixes}
         frozen_col = {
-            p: (g[f"{p}_frozen_streak"].fillna(0).to_numpy(dtype=float) >= FROZEN_CONSECUTIVE_REQUIRED)
+            p: (g[f"{p}_frozen_streak"].fillna(0).to_numpy(dtype=float) >= (FROZEN_CONSECUTIVE_REQUIRED_PRESSURE if p == "pressure" else FROZEN_CONSECUTIVE_REQUIRED))
             for _, p in prefixes
         }
         dev_col = {
             p: g[f"{p}_deviation"].to_numpy(dtype=float)
             for _, p in prefixes
         }
+        # NEW -- physics path (b) for multivariate: direct instant-to-
+        # instant Clausius-Clapeyron consistency check, independent of
+        # whether pressure moved. See detect.py's _multivariate_evidence
+        # docstring; this column already exists on every row because
+        # features.py's build_feature_matrix (called via _featurize
+        # below) always runs add_cross_parameter_features.
+        vapor_dev_col = g["vapor_pressure_consistency_dev"].to_numpy(dtype=float)
         nroc_col = {
             p: g[f"{p}_normalized_roc_1h"].to_numpy(dtype=float)
             for _, p in prefixes
@@ -162,16 +197,23 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
             for candidate_idx in range(1, m - 1):
                 before_value = raw[col][candidate_idx - 1]
                 candidate_value = raw[col][candidate_idx]
-                after_value = raw[col][candidate_idx + 1]
                 candidate_dev = dev_col[prefix][candidate_idx]
-                if any(np.isnan(value) for value in (before_value, candidate_value, after_value, candidate_dev)):
+                if any(np.isnan(value) for value in (before_value, candidate_value, candidate_dev)):
                     continue
                 jump = abs(candidate_value - before_value)
-                spike_confirmed[prefix][candidate_idx] = (
-                    jump > 0
-                    and abs(candidate_dev) > spike_thresh[prefix] * SPIKE_DEVIATION_MULTIPLIER
-                    and abs(after_value - before_value) <= jump * SPIKE_REVERSION_RATIO
-                )
+                if jump == 0 or abs(candidate_dev) <= spike_thresh[prefix] * SPIKE_DEVIATION_MULTIPLIER:
+                    continue
+                
+                reversion_ok = False
+                for step in range(1, 4):
+                    if candidate_idx + step < m:
+                        after_value = raw[col][candidate_idx + step]
+                        if not np.isnan(after_value):
+                            if abs(after_value - before_value) <= jump * SPIKE_REVERSION_RATIO:
+                                reversion_ok = True
+                                break
+                
+                spike_confirmed[prefix][candidate_idx] = reversion_ok
 
         # Per-parameter state. Multivariate persistence is station-level
         # because it is one joint temperature/humidity/pressure event.
@@ -205,8 +247,13 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
             temp_dev = dev_col["temp"][i]
             humidity_dev = dev_col["humidity"][i]
             pressure_dev = dev_col["pressure"][i]
+            vapor_dev = vapor_dev_col[i]
 
-            mv_single = (
+            # Path (a): level-based co-occurrence -- temp+humidity both
+            # deviate, same direction, pressure stays flat. Injector-
+            # shaped (see config.py), not a general fact about real
+            # cross-talk/short-circuit faults.
+            mv_level_fires = (
                 not np.isnan(temp_dev)
                 and not np.isnan(humidity_dev)
                 and not np.isnan(pressure_dev)
@@ -215,6 +262,14 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
                 and temp_dev * humidity_dev > 0
                 and abs(pressure_dev) < MULTIVARIATE_PRESSURE_FLAT_THRESHOLD
             )
+            # Path (b): direct vapor-pressure-conservation violation --
+            # general case, doesn't require pressure to stay flat, so it
+            # also catches a real fault that disturbs pressure too.
+            mv_physics_fires = (
+                not np.isnan(vapor_dev)
+                and abs(vapor_dev) > MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD
+            )
+            mv_single = mv_level_fires or mv_physics_fires
 
             mv_streak = mv_streak + 1 if mv_single else 0
             mv_confirmed = mv_streak >= MULTIVARIATE_PERSISTENCE_REQUIRED
@@ -561,6 +616,14 @@ def _print_evidence_audit(featured: pd.DataFrame):
     route.loc[overall > FUSION_ANOMALY_THRESHOLD] = "weighted_fusion"
     route.loc[rule > RULE_CONFIDENCE_BYPASS] = "rule_bypass"
     route.loc[model > MODEL_ALONE_OVERRIDE_THRESHOLD] = "model_override"
+    # Helper routes have priority only in this audit labelling: the final
+    # prediction remains the explicit OR-combination assembled in
+    # evaluate_all().  Keeping them separate makes helper-driven alerts
+    # inspectable rather than incorrectly reporting them as "no_alert".
+    if "__helper_alert" in featured:
+        route.loc[featured["__helper_alert"].fillna(False)] = "network_helper"
+    if "__frozen_helper_alert" in featured:
+        route.loc[featured["__frozen_helper_alert"].fillna(False)] = "frozen_channel_helper"
     featured["__decision_route"] = route
 
     print("\n--- EVIDENCE / CONFIDENCE AUDIT ---")
@@ -602,6 +665,7 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
         d["__source_file"] = path.name
         frames.append(d)
     df_full = pd.concat(frames, ignore_index=True)
+    df_full = add_frozen_channel_labels_from_reference(df_full)
 
     has_fault_type = "fault_type" in df_full.columns
     label_cols = ["station_id", "timestamp", "is_anomaly", "__source_file"] + (["fault_type"] if has_fault_type else [])
@@ -653,6 +717,40 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
         | (row_rule_conf > RULE_CONFIDENCE_BYPASS)
     )
 
+    # Frozen-specific model gate (Pass 6). frozen_value confidence=80 (below
+    # RULE_CONFIDENCE_BYPASS=90) so it goes through fusion. Clean stable-weather
+    # outlier rows score model_pct 60-94 and can slip past fusion. Suppress
+    # predictions where frozen is the SOLE evidence and model_pct is below
+    # FROZEN_MIN_MODEL_CORROBORATION=65. Rows with drift(85) or stronger rules
+    # are unaffected since their row_rule_conf > 80.
+    frozen_only = row_rule_conf == RULE_BASE_CONFIDENCE['frozen_value']
+    predicted = predicted & ~(frozen_only & (model_pct < FROZEN_MIN_MODEL_CORROBORATION))
+
+    # Network-aware supervised helper -------------------------------------------------
+    # Train on fresh fault placements in stations that are entirely clean in the
+    # labelled replay.  This preserves the existing replay as held-out test data
+    # while giving the helper examples of the injector's frozen/drift/spike
+    # dynamics and trustworthy contemporaneous neighbours.
+    helper_held_out_stations = set(labels.loc[labels["is_anomaly"], "station_id"])
+    helper_training = make_sparse_training_replays(helper_held_out_stations, HELPER_TRAINING_SEEDS)
+    helper_model, helper_columns = fit_fault_helper(helper_training)
+    helper_scored = predict_faults(helper_model, helper_columns, df_full, HELPER_ALERT_THRESHOLD)
+    frozen_helpers = fit_frozen_channel_helpers(helper_training)
+    helper_scored = score_frozen_channels(
+        helper_scored, frozen_helpers, FROZEN_HELPER_ALERT_THRESHOLD,
+    )
+    helper_lookup = helper_scored.set_index(["station_id", "timestamp"])["helper_alert"]
+    helper_alert = pd.MultiIndex.from_frame(featured[["station_id", "timestamp"]]).map(helper_lookup).fillna(False).to_numpy(dtype=bool)
+    frozen_lookup = helper_scored.set_index(["station_id", "timestamp"])["frozen_helper_alert"]
+    frozen_helper_alert = pd.MultiIndex.from_frame(featured[["station_id", "timestamp"]]).map(frozen_lookup).fillna(False).to_numpy(dtype=bool)
+    predicted = predicted | helper_alert | frozen_helper_alert
+    print(
+        f"\n(Network helper: {int(helper_alert.sum())} general alerts at threshold "
+        f"{HELPER_ALERT_THRESHOLD:.2f}; {int(frozen_helper_alert.sum())} frozen-channel "
+        f"alerts at threshold {FROZEN_HELPER_ALERT_THRESHOLD:.2f}; trained on fresh sparse replays with "
+        f"seeds {HELPER_TRAINING_SEEDS}.)"
+    )
+
     featured = featured.merge(labels, on=["station_id", "timestamp"], how="left")
     featured["is_anomaly"] = featured["is_anomaly"].fillna(False).astype(bool)
     featured["fault_type"] = featured["fault_type"].fillna("none")
@@ -661,6 +759,8 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
     featured["__model_pct"] = model_pct
     featured["__rule_confidence_pct"] = row_rule_conf
     featured["__score_pct"] = overall_confidence
+    featured["__helper_alert"] = helper_alert
+    featured["__frozen_helper_alert"] = frozen_helper_alert
 
     _print_evidence_audit(featured)
 

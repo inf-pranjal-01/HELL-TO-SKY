@@ -186,6 +186,8 @@ from config import (
     CUSUM_THRESHOLD,
     CUSUM_DIRECTION_STREAK_REQUIRED,
     FROZEN_CONSECUTIVE_REQUIRED,
+    FROZEN_CONSECUTIVE_REQUIRED_PRESSURE,
+    FROZEN_MIN_MODEL_CORROBORATION,
     MULTIVARIATE_TEMP_DEVIATION_THRESHOLD,
     MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD,
     MULTIVARIATE_PRESSURE_FLAT_THRESHOLD,
@@ -451,38 +453,57 @@ def _multivariate_evidence(featured_buffer: pd.DataFrame):
 
 
 def _confirmed_spikes(featured_buffer: pd.DataFrame, thresholds: dict, station_id: str) -> list[dict]:
-    """Confirm the prior reading as a spike once the current reading reverts.
+    """Confirm the prior reading as a spike once a current reading reverts.
 
-    At time t+1 we can finally distinguish `normal -> extreme -> normal`
+    At time t+1, t+2, or t+3 we can finally distinguish `normal -> extreme(s) -> normal`
     from a real, sustained weather move. The returned event belongs to
-    t (the bad raw reading), not t+1 (the confirming reading).
+    the bad raw reading, not the confirming reading.
     """
-    if len(featured_buffer) < 3:
-        return []
-    before, candidate, current = featured_buffer.iloc[-3], featured_buffer.iloc[-2], featured_buffer.iloc[-1]
     confirmed = []
+    n = len(featured_buffer)
+    if n < 3:
+        return confirmed
+
+    current = featured_buffer.iloc[-1]
+    
     for param, prefix in PARAM_PREFIXES.items():
-        values = (before.get(param), candidate.get(param), current.get(param))
-        if any(pd.isna(value) for value in values):
-            continue
-        jump = abs(values[1] - values[0])
-        if jump == 0:
-            continue
-        candidate_dev = candidate.get(f"{prefix}_deviation")
         spike_threshold = get_threshold(thresholds, "spike", prefix, station_id)
-        if (
-            pd.isna(candidate_dev)
-            or abs(candidate_dev) <= spike_threshold * SPIKE_DEVIATION_MULTIPLIER
-        ):
+        current_val = current.get(param)
+        if pd.isna(current_val):
             continue
-        if abs(values[2] - values[0]) > jump * SPIKE_REVERSION_RATIO:
-            continue
-        confirmed.append({
-            "parameter": param,
-            "timestamp": pd.Timestamp(candidate["timestamp"]),
-            "observed_value": float(values[1]),
-            "suggested_value": round(float((values[0] + values[2]) / 2), 2),
-        })
+            
+        # Check if the current reading confirms a candidate spike from 1, 2, or 3 steps ago
+        for step in range(1, 4):
+            if n < step + 2:
+                break
+                
+            candidate = featured_buffer.iloc[-(step + 1)]
+            before = featured_buffer.iloc[-(step + 2)]
+            
+            before_val = before.get(param)
+            candidate_val = candidate.get(param)
+            
+            if pd.isna(before_val) or pd.isna(candidate_val):
+                continue
+                
+            jump = abs(candidate_val - before_val)
+            if jump == 0:
+                continue
+                
+            candidate_dev = candidate.get(f"{prefix}_deviation")
+            if pd.isna(candidate_dev) or abs(candidate_dev) <= spike_threshold * SPIKE_DEVIATION_MULTIPLIER:
+                continue
+                
+            # If it reverted to baseline NOW
+            if abs(current_val - before_val) <= jump * SPIKE_REVERSION_RATIO:
+                confirmed.append({
+                    "parameter": param,
+                    "timestamp": pd.Timestamp(candidate["timestamp"]),
+                    "observed_value": float(candidate_val),
+                    "suggested_value": round(float((before_val + current_val) / 2), 2),
+                })
+                break  # we confirmed a spike for this parameter, stop checking older steps
+                
     return confirmed
 
 
@@ -513,7 +534,8 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
     # frozen_value -- §1, deterministic floor-match computed once in
     # features.py; this file just reads the boolean off feature_row.
     for param, prefix in PARAM_PREFIXES.items():
-        if feature_row.get(f"{prefix}_frozen_streak", 0) >= FROZEN_CONSECUTIVE_REQUIRED:
+        req = FROZEN_CONSECUTIVE_REQUIRED_PRESSURE if param == "pressure_hpa" else FROZEN_CONSECUTIVE_REQUIRED
+        if feature_row.get(f"{prefix}_frozen_streak", 0) >= req:
             fired.append(("frozen_value", param, RULE_BASE_CONFIDENCE["frozen_value"]))
 
     # dropout -- unambiguous, unchanged.
@@ -642,7 +664,18 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     model_pct = _model_score_to_pct(raw_reading, feature_row, artifact)
     rules = _rule_checks(raw_reading, feature_row, history_df, artifact)
 
-    score_pct, is_anomaly, fault_type, rule_confidence = _fuse_and_score(model_pct, rules["fired"])
+    # Frozen-specific model gate: frozen_value fires at confidence=80 (below
+    # RULE_CONFIDENCE_BYPASS=90) and goes through fusion. When model_pct is
+    # below FROZEN_MIN_MODEL_CORROBORATION, real stable-weather streaks and
+    # actual frozen sensors are indistinguishable -- suppress frozen evidence
+    # so it cannot drive an anomaly verdict without model corroboration.
+    fired = rules["fired"]
+    if model_pct is None or model_pct < FROZEN_MIN_MODEL_CORROBORATION:
+        fired = [(rt, p, c) for (rt, p, c) in fired if rt != "frozen_value"]
+    else:
+        fired = fired  # model agrees -- frozen evidence kept
+
+    score_pct, is_anomaly, fault_type, rule_confidence = _fuse_and_score(model_pct, fired)
     severity = score_to_severity(score_pct)
 
     shap_features_public, likely_sensors = [], []
