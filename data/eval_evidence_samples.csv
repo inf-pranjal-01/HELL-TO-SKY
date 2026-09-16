@@ -1,13 +1,13 @@
 station_id,timestamp,fault_type,is_anomaly,__predicted,__decision_route,__model_pct,__rule_confidence_pct,__score_pct
-AWS-MUM-007,2025-03-22 10:00:00,sensor_fail_low,True,True,model_override,99.69152092057351,100.0,99.81491255234411
-AWS-MUM-007,2025-03-22 08:00:00,sensor_fail_low,True,True,model_override,99.68339148820813,100.0,99.81003489292488
-AWS-MUM-007,2025-03-22 09:00:00,sensor_fail_low,True,True,model_override,99.65836846667258,100.0,99.79502108000355
-AWS-VAR-052,2025-03-05 20:00:00,multivariate_inconsistency,True,True,model_override,99.63166099531084,100.0,99.7789965971865
-AWS-VAR-052,2025-02-19 21:00:00,multivariate_inconsistency,True,True,model_override,99.55193732436213,100.0,99.73116239461727
-AWS-VAR-052,2025-02-23 04:00:00,multivariate_inconsistency,True,True,model_override,99.42727194016338,100.0,99.65636316409802
-AWS-MUM-103,2025-01-08 13:00:00,multivariate_inconsistency,True,True,model_override,99.39524788562771,100.0,99.63714873137663
-AWS-MUM-103,2025-01-15 04:00:00,multivariate_inconsistency,True,True,model_override,99.36660210045203,100.0,99.61996126027121
-AWS-MUM-007,2025-02-13 01:00:00,multivariate_inconsistency,True,True,model_override,99.36283350783611,100.0,99.61770010470167
-AWS-VAR-052,2025-03-23 14:00:00,multivariate_inconsistency,True,True,model_override,99.21807920345951,100.0,99.5308475220757
-AWS-MUM-007,2025-01-30 01:00:00,multivariate_inconsistency,True,True,model_override,99.03522519795241,100.0,99.42113511877145
-AWS-VAR-052,2025-02-28 23:00:00,multivariate_inconsistency,True,True,model_override,98.92773936722934,100.0,99.35664362033759
+AWS-MUM-007,2025-03-22 10:00:00,sensor_fail_low,True,True,network_helper,99.69152092057351,100.0,99.81491255234411
+AWS-MUM-007,2025-03-22 08:00:00,sensor_fail_low,True,True,network_helper,99.68339148820813,100.0,99.81003489292488
+AWS-MUM-007,2025-03-22 09:00:00,sensor_fail_low,True,True,network_helper,99.65836846667258,100.0,99.79502108000355
+AWS-VAR-052,2025-03-05 20:00:00,multivariate_inconsistency,True,True,network_helper,99.63166099531084,100.0,99.7789965971865
+AWS-VAR-052,2025-02-19 21:00:00,multivariate_inconsistency,True,True,network_helper,99.55193732436213,100.0,99.73116239461727
+AWS-VAR-052,2025-02-23 04:00:00,multivariate_inconsistency,True,True,network_helper,99.42727194016338,100.0,99.65636316409802
+AWS-MUM-103,2025-01-08 13:00:00,multivariate_inconsistency,True,True,network_helper,99.39524788562771,100.0,99.63714873137663
+AWS-MUM-103,2025-01-15 04:00:00,multivariate_inconsistency,True,True,network_helper,99.36660210045203,100.0,99.61996126027121
+AWS-MUM-007,2025-02-13 01:00:00,multivariate_inconsistency,True,True,network_helper,99.36283350783611,100.0,99.61770010470167
+AWS-VAR-052,2025-03-23 14:00:00,multivariate_inconsistency,True,True,network_helper,99.21807920345951,100.0,99.5308475220757
+AWS-MUM-007,2025-01-30 01:00:00,multivariate_inconsistency,True,True,network_helper,99.03522519795241,100.0,99.42113511877145
+AWS-VAR-052,2025-02-28 23:00:00,multivariate_inconsistency,True,True,network_helper,98.92773936722934,100.0,99.35664362033759

@@ -315,7 +315,8 @@ def saturation_vapor_pressure_kpa(temp_c):
     what inject_multivariate() violates. If this formula ever changes,
     check the injector's copy too.
     """
-    return 0.6112 * np.exp((17.67 * temp_c) / (temp_c + 243.5))
+    exponent = (17.67 * temp_c) / (temp_c + 243.5)
+    return 0.6112 * np.exp(np.clip(exponent, -100, 100))
 
 
 def add_cross_parameter_features(df: pd.DataFrame) -> pd.DataFrame:

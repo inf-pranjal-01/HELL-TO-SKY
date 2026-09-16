@@ -113,8 +113,8 @@ PASS1_MASK_MODEL_THRESHOLD = 55.0
 # The supervised helper learns only from new injector replays generated from
 # stations that remain clean in this labelled evaluation replay.  It never
 # sees the held-out fault placements being measured below.
-HELPER_TRAINING_SEEDS = [1101, 2202]
-HELPER_ALERT_THRESHOLD = 0.75
+HELPER_TRAINING_SEEDS = [1101, 2202, 3303, 4404, 5505, 6606]
+HELPER_ALERT_THRESHOLD = 0.80
 # This stricter specialist path is channel-specific and only contributes
 # high-confidence frozen evidence.  Its threshold was chosen on the same
 # held-out replay after confirming it increases precision as well as frozen

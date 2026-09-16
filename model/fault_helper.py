@@ -32,6 +32,7 @@ BASE_FEATURES = [
 def feature_columns() -> list[str]:
     cols = list(BASE_FEATURES)
     for prefix in PREFIXES:
+        cols.append(f"{prefix}_was_missing")
         cols.extend([
             f"{prefix}_range_6h", f"{prefix}_peer_range_6h",
             f"{prefix}_peer_residual", f"{prefix}_peer_residual_6h_change",
@@ -44,16 +45,6 @@ def feature_columns() -> list[str]:
                 f"{prefix}_peer_change_lag_{lag}",
             ])
     return cols
-
-
-def _leave_one_out_median(values: pd.Series) -> pd.Series:
-    array = values.to_numpy(dtype=float)
-    result = np.full(len(array), np.nan)
-    for i in range(len(array)):
-        others = np.delete(array, i)
-        if np.isfinite(others).any():
-            result[i] = np.nanmedian(others)
-    return pd.Series(result, index=values.index)
 
 
 def build_network_features(frame: pd.DataFrame) -> pd.DataFrame:
@@ -80,12 +71,22 @@ def build_network_features(frame: pd.DataFrame) -> pd.DataFrame:
     featured = featured.copy()
 
     for raw_col, prefix in zip(RAW_COLUMNS, PREFIXES):
+        featured[f"{prefix}_was_missing"] = featured[raw_col].isna().astype(float)
+        
         by_station = featured.groupby("station_id", group_keys=False)[raw_col]
         featured[f"{prefix}_range_6h"] = by_station.transform(
             lambda s: s.rolling(6, min_periods=4).max() - s.rolling(6, min_periods=4).min()
         )
-        peers = featured.groupby(["__network", "cluster_id", "timestamp"], group_keys=False)[raw_col].apply(_leave_one_out_median)
-        featured[f"{prefix}_peer_value"] = peers.reindex(featured.index)
+        
+        lookup = featured[["__network", "cluster_id", "timestamp", "station_id", raw_col]]
+        merged = featured[["__network", "cluster_id", "timestamp", "station_id"]].merge(
+            lookup, on=["__network", "cluster_id", "timestamp"], suffixes=("", "_peer")
+        )
+        merged = merged[merged["station_id"] != merged["station_id_peer"]]
+        res = merged.groupby(["__network", "cluster_id", "timestamp", "station_id"])[raw_col].median()
+        df_idx = featured.set_index(["__network", "cluster_id", "timestamp", "station_id"])
+        featured[f"{prefix}_peer_value"] = res.reindex(df_idx.index).values
+        
         residual = featured[raw_col] - featured[f"{prefix}_peer_value"]
         featured[f"{prefix}_peer_residual"] = residual
         featured[f"{prefix}_peer_residual_6h_change"] = residual.groupby(featured["station_id"]).diff(6)
@@ -169,6 +170,8 @@ def frozen_channel_columns(prefix: str) -> list[str]:
         f"{prefix}_range_6h", f"{prefix}_peer_range_6h",
         f"{prefix}_peer_residual", f"{prefix}_peer_residual_6h_change",
         f"{prefix}_activity_gap",
+        f"{prefix}_floor_frozen_match", f"{prefix}_frozen_streak", 
+        f"{prefix}_normalized_roc_1h",
         *[f"{prefix}_peer_residual_lag_{lag}" for lag in range(1, 7)],
         *[f"{prefix}_own_change_lag_{lag}" for lag in range(1, 7)],
         *[f"{prefix}_peer_change_lag_{lag}" for lag in range(1, 7)],
@@ -232,8 +235,10 @@ def fit_fault_helper(training_networks: pd.DataFrame):
 def predict_faults(model, cols: list[str], network: pd.DataFrame, threshold: float) -> pd.DataFrame:
     result = build_network_features(network)
     probability = model.predict_proba(result[cols])[:, 1]
+    raw_nan_alert = network[["temperature_c", "pressure_hpa", "humidity_pct"]].isna().any(axis=1).values
     helper_columns = pd.DataFrame({
         "helper_probability": probability,
-        "helper_alert": probability >= threshold,
+        "helper_alert": (probability >= threshold) | raw_nan_alert,
+        "raw_nan_alert": raw_nan_alert,
     }, index=result.index)
     return pd.concat([result, helper_columns], axis=1)
