@@ -796,3 +796,4 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2026-09-13T09:00:00+00:00,AWS-MUM-007,27.0,1007.9,80.0,False,,low,0.0,27.1,1008.0,80.0,HEALTHY,live
 2026-09-13T09:15:00+00:00,AWS-MUM-007,27.0,1007.7,81.0,False,,low,0.0,27.0,1007.9,80.0,HEALTHY,live
 2026-09-13T16:15:00+00:00,AWS-MUM-007,25.9,1010.6,91.0,False,,low,0.0,27.0,1007.7,81.0,HEALTHY,live
+2026-09-17T16:15:00+00:00,AWS-MUM-007,27.8,1010.7,79.0,False,,low,0.0,,,,HEALTHY,live

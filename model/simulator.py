@@ -461,6 +461,8 @@ class SimulatorState:
                     "severity": "medium",
                     "type": "spike",
                     "root_cause": ROOT_CAUSE_BY_FAULT_TYPE["spike"],
+                    "regime": verdict.get("regime"),
+                    "network_corroboration": verdict.get("network_corroboration"),
                 })
 
             # Only create a new anomaly event when a new reading
@@ -498,6 +500,8 @@ class SimulatorState:
                         verdict["fault_type"],
                         "Unusual reading pattern flagged by model"
                     ),
+                    "regime": verdict.get("regime"),
+                    "network_corroboration": verdict.get("network_corroboration"),
                 })
 
         if current_mode == "replay":

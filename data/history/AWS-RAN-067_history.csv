@@ -412,3 +412,4 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2026-09-13T09:00:00+00:00,AWS-RAN-067,25.1,940.0,83.0,False,,low,0.0,25.8,940.2,80.0,HEALTHY,live
 2026-09-13T09:15:00+00:00,AWS-RAN-067,25.0,939.9,84.0,False,,low,0.0,25.1,940.0,83.0,HEALTHY,live
 2026-09-13T16:15:00+00:00,AWS-RAN-067,22.6,942.8,94.0,False,,low,0.0,25.0,939.9,84.0,HEALTHY,live
+2026-09-17T16:15:00+00:00,AWS-RAN-067,22.8,938.6,95.0,False,,low,0.0,,,,HEALTHY,live

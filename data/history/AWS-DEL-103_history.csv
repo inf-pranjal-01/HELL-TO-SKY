@@ -796,3 +796,4 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2026-09-13T09:00:00+00:00,AWS-DEL-103,32.4,984.1,61.0,False,,low,0.0,32.4,984.3,61.0,HEALTHY,live
 2026-09-13T09:15:00+00:00,AWS-DEL-103,32.3,983.9,61.0,False,,low,0.0,32.4,984.1,61.0,HEALTHY,live
 2026-09-13T16:15:00+00:00,AWS-DEL-103,27.8,986.7,84.0,False,,low,0.0,32.3,983.9,61.0,HEALTHY,live
+2026-09-17T16:15:00+00:00,AWS-DEL-103,28.2,983.1,71.0,False,,low,0.0,,,,HEALTHY,live

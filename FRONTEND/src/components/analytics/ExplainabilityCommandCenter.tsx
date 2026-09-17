@@ -55,7 +55,28 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
     <div className="sg-explain-card__selector" aria-label="Choose an anomaly to explain">{anomalies.slice(0, 5).map((anomaly) => <button key={anomaly.anomaly_id} type="button" onClick={() => setSelectedId(anomaly.anomaly_id)} className={anomaly.anomaly_id === selected.anomaly_id ? 'is-active' : ''}>{anomaly.type.replace(/_/g, ' ')} <span>{new Date(anomaly.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></button>)}</div>
     {loadingExplanation ? <Skeleton width="100%" height="180px" /> : error ? <p className="sg-explain-card__error">{error}</p> : <>
       <div className="sg-explain-card__hero"><div className="sg-explain-card__driver"><Sparkles size={18} /><div><span>Strongest evidence</span><strong>{top ? displayParameter(top.name) : 'Rule-based anomaly confirmation'}</strong><p>{top ? explainFeature(top.name) : 'The deterministic safety rules confirmed an unusual sensor pattern.'}</p></div></div><div className="sg-explain-card__split"><div><span>Model signal · 60% weight</span><strong>{explanation?.model_confidence_pct == null ? 'Warm-up / n.a.' : `${Math.round(explanation.model_confidence_pct)}%`}</strong></div><div><span>Safety rules · 40% weight</span><strong>{explanation?.rule_confidence_pct == null ? 'n.a.' : `${Math.round(explanation.rule_confidence_pct)}%`}</strong></div></div></div>
-      <div className="sg-explain-card__body"><section><h4><ShieldAlert size={15} /> What the model noticed</h4>{features.length ? <ol>{features.map((feature) => <li key={feature.name}><span className={feature.impact >= 0 ? 'risk' : 'normal'}>{feature.impact >= 0 ? 'Raises risk' : 'Offsets risk'}</span><div><strong>{displayParameter(feature.name)}</strong><p>{explainFeature(feature.name)}</p></div><b>{Math.round(Math.abs(feature.impact) * 100)}%</b></li>)}</ol> : <p className="sg-explain-card__muted">This event was confirmed by deterministic safety rules before a full SHAP feature vector was available.</p>}</section><section><h4><ChevronRight size={15} /> Operator-ready conclusion</h4><p className="sg-explain-card__conclusion">{implicated.length ? `${implicated.map(displayParameter).join(', ')} is the most likely affected sensor channel.` : 'The detector found a station-level pattern that requires review.'}</p>{observed.length > 0 && <p><strong>Observed:</strong> {formatSuggestedList(observed)}</p>}<SuggestedValues items={suggested} emptyLabel="Suggested replacement becomes available after the baseline warm-up." /><p className="sg-explain-card__action"><CheckCircle2 size={15} /> Keep raw telemetry visible; use the suggested reading for trusted downstream analysis while the sensor is investigated.</p></section></div>
+      <div className="sg-explain-card__body">
+        <section>
+          <h4><ShieldAlert size={15} /> Station Context</h4>
+          <p className="sg-explain-card__muted">Regime: <strong>{(explanation?.regime || selected?.regime || 'UNKNOWN').replace(/_/g, ' ')}</strong></p>
+        </section>
+        <section>
+          <h4><ShieldAlert size={15} /> Network Evidence</h4>
+          <p className="sg-explain-card__muted">Corroboration: <strong>{(explanation?.network_corroboration || selected?.network_corroboration || 'INSUFFICIENT CORROBORATION').replace(/_/g, ' ')}</strong></p>
+          <p className="sg-explain-card__muted">{(explanation?.network_corroboration === 'REGIONAL' || selected?.network_corroboration === 'REGIONAL') ? 'Neighbors report similar anomalies.' : 'Anomaly appears localized to this station.'}</p>
+        </section>
+        <section>
+          <h4><ShieldAlert size={15} /> What the model noticed</h4>
+          {features.length ? <ol>{features.map((feature) => <li key={feature.name}><span className={feature.impact >= 0 ? 'risk' : 'normal'}>{feature.impact >= 0 ? 'Raises risk' : 'Offsets risk'}</span><div><strong>{displayParameter(feature.name)}</strong><p>{explainFeature(feature.name)}</p></div><b>{Math.round(Math.abs(feature.impact) * 100)}%</b></li>)}</ol> : <p className="sg-explain-card__muted">This event was confirmed by deterministic safety rules before a full SHAP feature vector was available.</p>}
+        </section>
+        <section>
+          <h4><ChevronRight size={15} /> Operator-ready conclusion</h4>
+          <p className="sg-explain-card__conclusion">{implicated.length ? `${implicated.map(displayParameter).join(', ')} is the most likely affected sensor channel.` : 'The detector found a station-level pattern that requires review.'}</p>
+          {observed.length > 0 && <p><strong>Observed:</strong> {formatSuggestedList(observed)}</p>}
+          <SuggestedValues items={suggested} emptyLabel="Suggested replacement becomes available after the baseline warm-up." />
+          <p className="sg-explain-card__action"><CheckCircle2 size={15} /> Suggested action: Keep raw telemetry visible; use the suggested reading for downstream analysis while investigating.</p>
+        </section>
+      </div>
     </>}
   </Card>;
 };

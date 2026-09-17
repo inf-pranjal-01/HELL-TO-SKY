@@ -339,6 +339,11 @@ class StateManager:
         # real on-disk store.
         self.history = history_store or HistoryStore()
 
+        self.neighbor_map = {}
+        for sid in metadata["station_id"]:
+            cluster = metadata[metadata["station_id"] == sid]["cluster_id"].iloc[0]
+            self.neighbor_map[sid] = metadata[(metadata["cluster_id"] == cluster) & (metadata["station_id"] != sid)]["station_id"].tolist()
+
         # Starts in live mode. main.py should call start_replay() before
         # kicking off any historical replay run -- see "MAIN.PY
         # INTEGRATION" in the module docstring.
@@ -393,10 +398,16 @@ class StateManager:
             if not history_df.empty else pd.DataFrame([current_row])
         )
 
+        neighbor_buffers = {
+            nid: self.buffers[nid].raw_history_df()
+            for nid in self.neighbor_map.get(station_id, [])
+        }
+
         verdict = score_reading(
             raw_reading,
             history_df_with_current,
             self.artifact,
+            neighbor_buffers=neighbor_buffers,
             explainer=self.explainer,
         )
         # A spike can only be proved after the following reading

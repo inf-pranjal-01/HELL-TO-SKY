@@ -18,6 +18,8 @@ export type AnomalyType =
   | 'sensor_fail_low'
   | 'multivariate_inconsistency';
 
+export type NetworkCorroborationState = 'LOCALIZED' | 'REGIONAL' | 'INSUFFICIENT_CORROBORATION';
+
 /**
  * Metric Range & Value Schema
  * Sub-object inside current-reading contract
@@ -151,6 +153,8 @@ export interface LatestAnomaly {
   /** Parameters implicated by the detector and their original readings. */
   affected_parameters?: string[];
   observed_values?: Record<string, number | null>;
+  regime?: string;
+  network_corroboration?: NetworkCorroborationState;
 }
 
 /**
@@ -171,6 +175,8 @@ export interface RecentAnomalyItem {
   /** Parameters implicated by the detector and their original readings. */
   affected_parameters?: string[];
   observed_values?: Record<string, number | null>;
+  regime?: string;
+  network_corroboration?: NetworkCorroborationState;
 }
 
 /**
@@ -194,6 +200,8 @@ export interface AnomalyExplanation {
   rule_confidence_pct?: number;
   anomaly_score_pct?: number;
   fault_type?: AnomalyType;
+  regime?: string;
+  network_corroboration?: NetworkCorroborationState;
 }
 
 /**
