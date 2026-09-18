@@ -50,6 +50,7 @@ export interface CurrentSensorReading {
   severity?: AnomalySeverity | null;
   suggested_values?: Record<string, number>;
   source?: 'live' | 'replay';
+  model_status?: string;
 }
 
 /**
@@ -118,6 +119,7 @@ export interface SystemStreamStatus {
   mode: 'live' | 'replay';
   replay_step_seconds: number | null;
   live_poll_interval_seconds: number;
+  is_pre_warming?: boolean;
 }
 
 /**

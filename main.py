@@ -246,13 +246,7 @@ async def get_trends(station_id: str, hours: int = 6):
     if not points:
         points = list(sim.trend_history[station_id])
     
-    if not points:
-        # Fallback to the pre-loaded baseline CSV data in the causal buffer 
-        # so the graph is never empty on first load (before any ticks have occurred).
-        df = sim.manager.buffers[station_id].raw_history_df().tail(hours)
-        points = df.to_dict(orient="records")
-        for p in points:
-            p["health_status"] = sim.manager.buffers[station_id].health.status
+
 
     trend_points = [
         {
@@ -276,10 +270,10 @@ async def get_trends(station_id: str, hours: int = 6):
     anomaly_windows = []
     in_window = False
     for p in points:
-        if p["is_anomaly"] and not in_window:
+        if bool(p.get("is_anomaly", False)) and not in_window:
             window_start = p["timestamp"]
             in_window = True
-        elif not p["is_anomaly"] and in_window:
+        elif not bool(p.get("is_anomaly", False)) and in_window:
             anomaly_windows.append({
                 "start": window_start.isoformat(),
                 "end": p["timestamp"].isoformat(),

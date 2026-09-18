@@ -82,7 +82,7 @@ RAW_PARAMS = ["temperature_c", "pressure_hpa", "humidity_pct"]
 HISTORY_COLUMNS = (
     ["timestamp", "station_id"]
     + RAW_PARAMS
-    + ["is_anomaly", "fault_type", "severity", "anomaly_score_pct"]
+    + ["is_anomaly", "fault_type", "severity", "anomaly_score_pct", "decision_basis"]
     + [f"suggested_{p}" for p in RAW_PARAMS]
     + ["health_status", "source"]
 )
@@ -112,17 +112,22 @@ class HistoryStore:
     def _read_csv(path: Path) -> pd.DataFrame:
         """Read history with one canonical, timezone-aware timestamp type.
 
-        Older versions wrote a mixture of naive replay timestamps and
-        timezone-aware live timestamps.  ``read_csv(parse_dates=...)`` leaves
-        a mixed column as strings, which then breaks time-window calculations.
-        Normalising explicitly keeps old files readable and makes every
-        timestamp comparison safe.
+        Tolerates schema evolution: old files may have fewer columns than the
+        current HISTORY_COLUMNS list (e.g. missing ``decision_basis``).
+        Missing columns are filled with NaN so the rest of the codebase never
+        sees a KeyError.  Bad/extra-field rows are silently skipped.
         """
-        df = pd.read_csv(path)
-        if "timestamp" not in df.columns:
+        try:
+            df = pd.read_csv(path, on_bad_lines="skip")
+        except Exception:
+            return pd.DataFrame(columns=HISTORY_COLUMNS)
+        if df.empty or "timestamp" not in df.columns:
             return df
+        # Back-fill any columns added after this CSV was written.
+        for col in HISTORY_COLUMNS:
+            if col not in df.columns:
+                df[col] = None
         parsed = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
-        # A malformed historic row must not take down the telemetry endpoint.
         if parsed.isna().any():
             df = df.loc[parsed.notna()].copy()
             parsed = parsed.loc[parsed.notna()]
@@ -146,6 +151,7 @@ class HistoryStore:
             "fault_type": verdict.get("fault_type"),
             "severity": verdict.get("severity"),
             "anomaly_score_pct": verdict.get("anomaly_score_pct"),
+            "decision_basis": verdict.get("decision_basis"),
             **{f"suggested_{p}": suggested.get(p) for p in RAW_PARAMS},
             "health_status": verdict.get("health_status"),
             "source": source,
@@ -176,6 +182,26 @@ class HistoryStore:
         self._append_counts[station_id] = count
         if count % TRIM_CHECK_INTERVAL == 0:
             self.trim(station_id)
+
+    def log_health_transition(self, station_id: str, timestamp, old_state: str, new_state: str, reason: str):
+        path = self.base_dir / f"{station_id}_health_events.csv"
+        write_header = not path.exists()
+        
+        row = {
+            "timestamp": pd.Timestamp(timestamp).isoformat(),
+            "station_id": station_id,
+            "old_state": old_state,
+            "new_state": new_state,
+            "reason": reason
+        }
+        
+        with self._lock_for(station_id):
+            with open(path, "a", newline="") as f:
+                import csv
+                writer = csv.DictWriter(f, fieldnames=["timestamp", "station_id", "old_state", "new_state", "reason"])
+                if write_header:
+                    writer.writeheader()
+                writer.writerow(row)
 
     def trim(self, station_id: str):
         """

@@ -30,6 +30,7 @@ this file's output with zero translation.
 
 import sys
 from pathlib import Path
+import logging
 
 import numpy as np
 import pandas as pd
@@ -65,6 +66,37 @@ FEATURE_DISPLAY_NAMES = {
     "hour_cos": "Time of Day Pattern",
     "doy_sin": "Seasonal Pattern",
     "doy_cos": "Seasonal Pattern",
+    "dewpoint_depression_c": "Dewpoint Depression",
+    "vapor_pressure_deficit_kpa": "Vapor Pressure Deficit",
+    "vapor_pressure_consistency_dev": "Vapor Pressure Consistency",
+    "dt_hours": "Elapsed Time",
+    "temp_robust_scale": "Robust Temperature Scale",
+    "pressure_robust_scale": "Robust Pressure Scale",
+    "humidity_robust_scale": "Robust Humidity Scale",
+    "temp_hours_since_valid": "Hours Since Valid Temperature",
+    "pressure_hours_since_valid": "Hours Since Valid Pressure",
+    "humidity_hours_since_valid": "Hours Since Valid Humidity",
+    "temp_range_1h": "Temperature Range (1h)",
+    "pressure_range_1h": "Pressure Range (1h)",
+    "humidity_range_1h": "Humidity Range (1h)",
+    "temp_range_3h": "Temperature Range (3h)",
+    "pressure_range_3h": "Pressure Range (3h)",
+    "humidity_range_3h": "Humidity Range (3h)",
+    "temp_range_6h": "Temperature Range (6h)",
+    "pressure_range_6h": "Pressure Range (6h)",
+    "humidity_range_6h": "Humidity Range (6h)",
+    "temp_range_24h": "Temperature Range (24h)",
+    "pressure_range_24h": "Pressure Range (24h)",
+    "humidity_range_24h": "Humidity Range (24h)",
+    "temp_slope_6h": "Temperature Slope (6h)",
+    "pressure_slope_6h": "Pressure Slope (6h)",
+    "humidity_slope_6h": "Humidity Slope (6h)",
+    "temp_slope_24h": "Temperature Slope (24h)",
+    "pressure_slope_24h": "Pressure Slope (24h)",
+    "humidity_slope_24h": "Humidity Slope (24h)",
+    "temp_same_hour_res": "Temperature Same-Hour Residual",
+    "pressure_same_hour_res": "Pressure Same-Hour Residual",
+    "humidity_same_hour_res": "Humidity Same-Hour Residual",
 }
 
 # Which raw sensor each feature implicates -- None means the feature
@@ -81,6 +113,19 @@ FEATURE_TO_PARAM = {
     "humidity_deviation": "humidity_pct", "humidity_roc_1h": "humidity_pct", "humidity_roc_3h": "humidity_pct",
     "humidity_volatility_z": "humidity_pct",
     "hour_sin": None, "hour_cos": None, "doy_sin": None, "doy_cos": None,
+    "dewpoint_depression_c": None,
+    "vapor_pressure_deficit_kpa": None,
+    "vapor_pressure_consistency_dev": None,
+    "dt_hours": None,
+    "temp_robust_scale": "temperature_c", "pressure_robust_scale": "pressure_hpa", "humidity_robust_scale": "humidity_pct",
+    "temp_hours_since_valid": "temperature_c", "pressure_hours_since_valid": "pressure_hpa", "humidity_hours_since_valid": "humidity_pct",
+    "temp_range_1h": "temperature_c", "pressure_range_1h": "pressure_hpa", "humidity_range_1h": "humidity_pct",
+    "temp_range_3h": "temperature_c", "pressure_range_3h": "pressure_hpa", "humidity_range_3h": "humidity_pct",
+    "temp_range_6h": "temperature_c", "pressure_range_6h": "pressure_hpa", "humidity_range_6h": "humidity_pct",
+    "temp_range_24h": "temperature_c", "pressure_range_24h": "pressure_hpa", "humidity_range_24h": "humidity_pct",
+    "temp_slope_6h": "temperature_c", "pressure_slope_6h": "pressure_hpa", "humidity_slope_6h": "humidity_pct",
+    "temp_slope_24h": "temperature_c", "pressure_slope_24h": "pressure_hpa", "humidity_slope_24h": "humidity_pct",
+    "temp_same_hour_res": "temperature_c", "pressure_same_hour_res": "pressure_hpa", "humidity_same_hour_res": "humidity_pct",
 }
 
 
@@ -100,12 +145,11 @@ class ExplainerCache:
             try:
                 self._explainer = shap.TreeExplainer(artifact["model"])
             except Exception as e:
-                print(f"[explain] shap.TreeExplainer construction failed, falling back to "
-                      f"magnitude ranking for all explanations: {e!r}")
+                logging.getLogger(__name__).warning(f"[explain] shap.TreeExplainer construction failed, falling back to magnitude ranking for all explanations: {e!r}")
                 self._shap_broken = True
 
-    def explain(self, feature_row: pd.Series) -> list[dict]:
-        """Returns [{"name", "impact", "column"}, ...] sorted by |impact| descending. "column" is internal -- strip before returning over the API."""
+    def explain(self, feature_row: pd.Series) -> dict:
+        """Returns {"method": str, "features": [{"name", "impact", "column"}, ...]}"""
         feature_columns = self.artifact["feature_columns"]
         missing = [c for c in feature_columns if c not in FEATURE_DISPLAY_NAMES]
         if missing:
@@ -113,24 +157,18 @@ class ExplainerCache:
 
         X = feature_row[feature_columns].values.reshape(1, -1).astype(np.float64)
         if np.isnan(X).any():
-            return []  # incomplete feature vector -- nothing honest to explain
+            return {"method": "none", "features": []}
 
         if not self._shap_broken:
             try:
                 shap_values = self._explainer.shap_values(X)
                 if isinstance(shap_values, list):
                     shap_values = shap_values[0]
-                return self._format(feature_columns, shap_values[0])
+                return {"method": "shap", "features": self._format(feature_columns, shap_values[0])}
             except Exception as e:
-                print(f"[explain] shap_values() failed on this reading, falling back to "
-                      f"magnitude ranking: {e!r}")
+                logging.getLogger(__name__).warning(f"[explain] shap_values() failed on this reading, falling back to magnitude ranking: {e!r}")
 
-        # FALLBACK: features are already deviations/z-scores/
-        # inconsistency signals centered near 0 for normal data (see
-        # features.py), so raw magnitude is a reasonable proxy for
-        # "how much did this feature contribute" without shap's exact
-        # game-theoretic attribution.
-        return self._format(feature_columns, X[0])
+        return {"method": "feature_magnitude_fallback", "features": self._format(feature_columns, X[0])}
 
     def _format(self, feature_columns, impacts) -> list[dict]:
         rows = [

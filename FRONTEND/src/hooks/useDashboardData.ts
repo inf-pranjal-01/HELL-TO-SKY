@@ -48,6 +48,7 @@ export interface DashboardDataState {
 
   // Pause / Resume controls [FRONTEND ONLY]
   isPaused: boolean;
+  isPreWarming: boolean;
   setIsPaused: (paused: boolean) => void;
   togglePause: () => void;
 
@@ -494,6 +495,7 @@ export function useDashboardData(
     streamMode: streamStatus.mode,
     isPaused,
     setIsPaused,
+    isPreWarming: streamStatus.is_pre_warming ?? false,
     togglePause,
     refreshAll,
     refreshReading: fetchReading,

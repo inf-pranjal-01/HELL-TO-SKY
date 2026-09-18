@@ -12,6 +12,7 @@ export interface LatestAnomalyCardProps {
   error?: string | null;
   onRetry?: () => void;
   className?: string;
+  streamMode?: 'live' | 'replay';
 }
 
 export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
@@ -20,6 +21,7 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
   error = null,
   onRetry,
   className = '',
+  streamMode = 'live',
 }) => {
   if (isLoading) {
     return (
@@ -64,7 +66,7 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
             <h3>Latest Anomaly</h3>
           </div>
           <span className="sg-anomaly-notice">
-            ● LIVE BACKEND
+            ● {streamMode === 'replay' ? 'REPLAY MODE' : 'LIVE BACKEND'}
           </span>
         </div>
 
@@ -138,7 +140,7 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
             <span className="sg-latest-field-label">Network Evidence:</span>
             <div className="sg-latest-network-badge">
               <StatusBadge 
-                status={anomaly.network_corroboration === 'LOCALIZED' ? 'warning' : anomaly.network_corroboration === 'REGIONAL' ? 'moderate' : 'normal'} 
+                status={anomaly.network_corroboration === 'LOCALIZED' ? 'warning' : anomaly.network_corroboration === 'REGIONAL' ? 'moderate' : 'optimal'} 
                 label={anomaly.network_corroboration.replace(/_/g, ' ')} 
                 size="sm" 
               />
@@ -168,7 +170,7 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
         <div className="sg-latest-footer">
           <span className="sg-anomaly-id">ID: {anomaly.anomaly_id}</span>
           <span className="sg-anomaly-notice">
-            ● LIVE BACKEND
+            ● {streamMode === 'replay' ? 'REPLAY MODE' : 'LIVE BACKEND'}
           </span>
         </div>
       </div>

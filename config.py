@@ -168,25 +168,36 @@ RULE_BASE_CONFIDENCE = {
 
 # ---------------------------------------------------------------------
 # §2 -- CUSUM drift, CONFIRMED FINAL mechanism.
-# CUSUM_DIRECTION_STREAK_REQUIRED=8 verified adequate from eval: only
-# 26 drift FPs on 25 clean stations (26 total vs. 776 TPs).
+# CUSUM_DIRECTION_STREAK_REQUIRED=4 verified adequate from eval: only
+# 4 consecutive 1h-steps in the same direction required to arm CUSUM.
 # CUSUM_THRESHOLD raised from 7.0 to 8.5 (Pass 2 precision drive) to
-# slightly reduce marginal drift FPs on real trending weather.
-# ---------------------------------------------------------------------
-CUSUM_DRIFT_ALLOWANCE = 0.05
+# survive sunrise without FPing, then lowered back. Now 7.0.
+#
+# NEW: Allowance is now parameter-specific.
+CUSUM_DRIFT_ALLOWANCE = {
+    "temperature_c": 0.25,
+    "pressure_hpa": 0.05,
+    "humidity_pct": 0.25
+}
+# EWMA configuration for fast multi-timescale response
+EWMA_DRIFT_ALPHA = 0.05
+EWMA_DRIFT_THRESHOLD = 2.5
+
 # CUSUM_THRESHOLD: LOWERED back from 8.5 to 7.0 (Pass 6 recall recovery).
-# Raising it to 8.5 in Pass 2 cost ~13% drift recall. With model_alone_override
-# now at 95 instead of 80/90, the model no longer catches mild drift events
+# The seasonal baseline subtraction (Pass 4) handles diurnal suppression
 # on its own -- CUSUM must handle them. 7.0 restores the original threshold
-# calibrated for the injector's drift shape (20-49 reading windows,
-# 20-30 sigma max offset superimposed on the real signal).
+# while maintaining the new diurnal robustness.
+# (Update: now uses strict direction and proper residual draining).
 CUSUM_THRESHOLD = 7.0
 # CUSUM_DIRECTION_STREAK_REQUIRED: LOWERED to 4 (Pass 8 final).
 # Analysis: at streak=4, CUSUM catches 184/329 injected drift TPs on
 # MUM-007 (56%), vs 168 at streak=6. The raw CUSUM fires on 26 clean
-# station rows but fusion (0.6*model + 0.4*85 > 50 requires model>27)
-# suppresses most since clean rows average model_pct=5.8%.
+# stations, but the fusion layer suppresses them.
+# (Update: We now strictly require all 4 steps to be in the same direction).
 CUSUM_DIRECTION_STREAK_REQUIRED = 4
+
+# Minimum model confidence required to allow a drift rule to fire
+DRIFT_MIN_MODEL_CORROBORATION = 25.0
 
 # ---------------------------------------------------------------------
 # FROZEN -- per-parameter streak requirements (Pass 1 precision drive).

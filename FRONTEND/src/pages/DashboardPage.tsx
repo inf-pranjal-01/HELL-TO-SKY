@@ -301,6 +301,7 @@ export const DashboardPage: React.FC = () => {
           <AnomalyScoreCard
             score={currentReading?.anomaly_score_pct}
             riskLevel={currentReading?.risk_level}
+            modelStatus={currentReading?.model_status}
             isLoading={isLoadingReading}
             error={readingError}
             onRetry={refreshReading}
@@ -353,6 +354,7 @@ export const DashboardPage: React.FC = () => {
             isLoading={isLoadingAnomalies}
             error={anomaliesError}
             onRetry={refreshAnomalies}
+            streamMode={streamMode}
           />
 
           {/* Recent Anomalies History Summary */}
@@ -361,6 +363,7 @@ export const DashboardPage: React.FC = () => {
             isLoading={isLoadingAnomalies}
             error={anomaliesError}
             onRetry={refreshAnomalies}
+            streamMode={streamMode}
           />
         </div>
       </section>

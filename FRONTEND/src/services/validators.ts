@@ -26,6 +26,7 @@ import {
   RepairSensorResponse,
   AnomalySeverity,
   AnomalyType,
+  NetworkCorroborationState,
   SystemStatusSummary,
   SystemOverallStatus,
 } from '../types';
@@ -65,6 +66,17 @@ function optionalObservedValues(value: unknown): Record<string, number | null> |
 function optionalAffectedParameters(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.filter((parameter): parameter is string => typeof parameter === 'string');
+}
+
+function optionalNetworkCorroboration(value: unknown): NetworkCorroborationState | undefined {
+  const validStates: readonly NetworkCorroborationState[] = [
+    'LOCALIZED',
+    'REGIONAL',
+    'INSUFFICIENT_CORROBORATION',
+  ];
+  return typeof value === 'string' && validStates.includes(value as NetworkCorroborationState)
+    ? value as NetworkCorroborationState
+    : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +214,7 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
       ? { fault_type: data.fault_type as AnomalyType } : {}),
     ...(isObject(data.suggested_values) ? { suggested_values: Object.fromEntries(Object.entries(data.suggested_values).filter(([, value]) => typeof value === 'number')) as Record<string, number> } : {}),
     ...(data.source === 'live' || data.source === 'replay' ? { source: data.source } : {}),
+    ...(typeof data.model_status === 'string' ? { model_status: data.model_status } : {}),
   };
 }
 
@@ -377,6 +390,7 @@ export function validateLatestAnomaly(data: unknown, expectedStationId?: string)
   }
   const observed_values = optionalObservedValues(data.observed_values);
   const affected_parameters = optionalAffectedParameters(data.affected_parameters);
+  const network_corroboration = optionalNetworkCorroboration(data.network_corroboration);
 
   return {
     anomaly_id: String(data.anomaly_id),
@@ -390,6 +404,10 @@ export function validateLatestAnomaly(data: unknown, expectedStationId?: string)
     ...(suggested_values !== undefined ? { suggested_values } : {}),
     ...(observed_values !== undefined ? { observed_values } : {}),
     ...(affected_parameters !== undefined ? { affected_parameters } : {}),
+    ...(typeof data.decision_basis === 'string' ? { decision_basis: data.decision_basis } : {}),
+    ...(typeof data.regime === 'string' ? { regime: data.regime } : {}),
+    ...(network_corroboration !== undefined ? { network_corroboration } : {}),
+    ...(typeof data.model_status === 'string' ? { model_status: data.model_status } : {}),
   };
 }
 
@@ -487,6 +505,7 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
     }
     const observed_values = optionalObservedValues(item.observed_values);
     const affected_parameters = optionalAffectedParameters(item.affected_parameters);
+    const network_corroboration = optionalNetworkCorroboration(item.network_corroboration);
 
     return {
       anomaly_id: String(item.anomaly_id),
@@ -500,6 +519,10 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
       ...(suggested_values !== undefined ? { suggested_values } : {}),
       ...(observed_values !== undefined ? { observed_values } : {}),
       ...(affected_parameters !== undefined ? { affected_parameters } : {}),
+      ...(typeof item.decision_basis === 'string' ? { decision_basis: item.decision_basis } : {}),
+      ...(typeof item.regime === 'string' ? { regime: item.regime } : {}),
+      ...(network_corroboration !== undefined ? { network_corroboration } : {}),
+      ...(typeof item.model_status === 'string' ? { model_status: item.model_status } : {}),
     };
   });
 }
@@ -579,6 +602,7 @@ export function validateAnomalyExplanation(
   const anomaly_score_pct = numericField(data.anomaly_score_pct);
   const fault_type = typeof data.fault_type === 'string' && (VALID_ANOMALY_TYPES as readonly string[]).includes(data.fault_type)
     ? data.fault_type as AnomalyType : undefined;
+  const network_corroboration = optionalNetworkCorroboration(data.network_corroboration);
 
   return {
     anomaly_id: String(data.anomaly_id),
@@ -591,6 +615,11 @@ export function validateAnomalyExplanation(
     ...(rule_confidence_pct !== undefined ? { rule_confidence_pct } : {}),
     ...(anomaly_score_pct !== undefined ? { anomaly_score_pct } : {}),
     ...(fault_type !== undefined ? { fault_type } : {}),
+    ...(typeof data.decision_basis === 'string' ? { decision_basis: data.decision_basis } : {}),
+    ...(typeof data.regime === 'string' ? { regime: data.regime } : {}),
+    ...(network_corroboration !== undefined ? { network_corroboration } : {}),
+    ...(typeof data.model_status === 'string' ? { model_status: data.model_status } : {}),
+    ...(typeof data.explanation_method === 'string' ? { explanation_method: data.explanation_method } : {}),
   };
 }
 

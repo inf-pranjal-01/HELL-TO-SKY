@@ -24,6 +24,7 @@ export const systemStatusService = {
       mode: status.mode,
       replay_step_seconds: typeof status.replay_step_seconds === 'number' ? status.replay_step_seconds : null,
       live_poll_interval_seconds: status.live_poll_interval_seconds,
+      is_pre_warming: typeof status.is_pre_warming === 'boolean' ? status.is_pre_warming : false,
     };
   },
 

@@ -199,7 +199,7 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
                 <h4 className="sg-anomaly-modal__section-title" style={{ marginBottom: '0.25rem' }}>Network Evidence</h4>
                 <div>
                   <StatusBadge 
-                    status={anomaly.network_corroboration === 'LOCALIZED' ? 'warning' : anomaly.network_corroboration === 'REGIONAL' ? 'moderate' : 'normal'} 
+                    status={anomaly.network_corroboration === 'LOCALIZED' ? 'warning' : anomaly.network_corroboration === 'REGIONAL' ? 'moderate' : 'optimal'} 
                     label={anomaly.network_corroboration.replace(/_/g, ' ')} 
                     size="sm" 
                   />

@@ -146,7 +146,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 # temperature/pressure/humidity swing instead of falsely flagging
 # "it's just afternoon" as a deviation. min_periods keeps the first
 # ~day of each station's data from producing all-NaN features.
-ROLLING_WINDOW_HOURS = 48
+ROLLING_WINDOW_HOURS = "48h"
 ROLLING_MIN_PERIODS = 6
 VOLATILITY_BASELINE_WINDOW_HOURS = 24 * 30  # ~30 days: "this station's own typical variability"
 # Rate-of-change lookback in hours. Short (1h) catches sudden jumps
@@ -192,6 +192,17 @@ FEATURE_COLUMNS = [
     "vapor_pressure_consistency_dev",
     # cyclical time
     "hour_sin", "hour_cos", "doy_sin", "doy_cos",
+    # Phase 2 advanced features
+    "dt_hours",
+    "temp_robust_scale", "pressure_robust_scale", "humidity_robust_scale",
+    "temp_hours_since_valid", "pressure_hours_since_valid", "humidity_hours_since_valid",
+    "temp_range_1h", "pressure_range_1h", "humidity_range_1h",
+    "temp_range_3h", "pressure_range_3h", "humidity_range_3h",
+    "temp_range_6h", "pressure_range_6h", "humidity_range_6h",
+    "temp_range_24h", "pressure_range_24h", "humidity_range_24h",
+    "temp_slope_6h", "pressure_slope_6h", "humidity_slope_6h",
+    "temp_slope_24h", "pressure_slope_24h", "humidity_slope_24h",
+    "temp_same_hour_res", "pressure_same_hour_res", "humidity_same_hour_res",
 ]
 
 # Shared (raw_column -> features.py prefix) mapping, used by BOTH the
@@ -206,10 +217,8 @@ RULE_ONLY_PREFIXES = [
     ("humidity_pct", "humidity"),
 ]
 
-# Lookback for the (now diagnostic-only, see module docstring) drift
-# delta column, in hours. Deliberately independent of
-# ROLLING_WINDOW_HOURS -- see module docstring.
-DRIFT_LOOKBACK_HOURS = 24
+# Lookback for multi-timescale drift tracking (30 days = 720 hours)
+DRIFT_LOOKBACK_HOURS = 720
 
 
 def _rolling_baseline(series: pd.Series, exclude_mask: pd.Series = None):
@@ -231,7 +240,12 @@ def _rolling_baseline(series: pd.Series, exclude_mask: pd.Series = None):
     clean_series = series.mask(exclude_mask) if exclude_mask is not None else series
     prior = clean_series.shift(1)
     roll = prior.rolling(ROLLING_WINDOW_HOURS, min_periods=ROLLING_MIN_PERIODS)
-    return roll.mean(), roll.std()
+    
+    import numpy as np
+    mad = prior.rolling(ROLLING_WINDOW_HOURS, min_periods=ROLLING_MIN_PERIODS).apply(
+        lambda x: np.nanmedian(np.abs(x - np.nanmedian(x))), raw=True
+    )
+    return roll.mean(), roll.std(), mad
 
 
 def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -271,7 +285,11 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     rather than leaving a stale claim about a function this file didn't
     yet implement.
     """
-    df = df.sort_values("timestamp").reset_index(drop=True)
+    # Live and replay readings can mix naive provider timestamps with
+    # timezone-aware simulator timestamps; normalize both to UTC before
+    # sorting and using time-based rolling windows.
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    df = df.sort_values("timestamp").set_index("timestamp", drop=False)
     exclude_mask = df["is_anomaly"].fillna(False).astype(bool) if "is_anomaly" in df.columns else None
 
     for col, prefix in [("temperature_c", "temp"), ("pressure_hpa", "pressure"), ("humidity_pct", "humidity")]:
@@ -283,25 +301,48 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         # telemetry/history display, and suggested-value generation.
         values = pd.to_numeric(df[col], errors="coerce")
         df[col] = values
-        mean, std = _rolling_baseline(values, exclude_mask)
-        # std of 0 (or NaN from too little history) would divide-by-zero
-        # into inf; treat as "no meaningful deviation info yet" instead.
-        safe_std = std.replace(0, np.nan)
-        df[f"{prefix}_deviation"] = (values - mean) / safe_std
+        mean, std, mad = _rolling_baseline(values, exclude_mask)
+        # Robust scale = 1.4826 * MAD
+        robust_scale = 1.4826 * mad
+        safe_scale = robust_scale.replace(0, np.nan)
+        df[f"{prefix}_deviation"] = (values - mean) / safe_scale
         clean_values = values.mask(exclude_mask) if exclude_mask is not None else values
         
         df[f"{prefix}_rolling_std"] = std
+        df[f"{prefix}_rolling_mad"] = mad
+        df[f"{prefix}_robust_scale"] = robust_scale
         df[f"{prefix}_rolling_mean"] = mean
-        df[f"{prefix}_rolling_mean_3h"] = values.rolling(3, min_periods=1).mean()
-        df[f"{prefix}_rolling_mean_24h"] = clean_values.rolling(24, min_periods=6).mean()
-        long_baseline = std.rolling(VOLATILITY_BASELINE_WINDOW_HOURS, min_periods=ROLLING_WINDOW_HOURS).median()
-        long_spread = std.rolling(VOLATILITY_BASELINE_WINDOW_HOURS, min_periods=ROLLING_WINDOW_HOURS).std()
+        df[f"{prefix}_rolling_mean_3h"] = values.shift(1).rolling("3h", min_periods=1).mean()
+        df[f"{prefix}_rolling_mean_24h"] = clean_values.shift(1).rolling("24h", min_periods=6).mean()
+        
+        # Missing data & Regularity
+        df["dt_hours"] = df.index.to_series().diff().dt.total_seconds() / 3600.0
+        valid_times = df.index.to_series()[values.notna()]
+        last_valid = valid_times.reindex(df.index, method='ffill')
+        df[f"{prefix}_hours_since_valid"] = (df.index.to_series() - last_valid).dt.total_seconds() / 3600.0
+        
+        # Ranges
+        for w in ["1h", "3h", "6h", "24h"]:
+            df[f"{prefix}_range_{w}"] = values.rolling(w, min_periods=1).max() - values.rolling(w, min_periods=1).min()
+            
+        long_baseline = std.rolling("720h", min_periods=ROLLING_MIN_PERIODS).median()
+        long_spread = std.rolling("720h", min_periods=ROLLING_MIN_PERIODS).std()
         df[f"{prefix}_volatility_z"] = (std - long_baseline) / long_spread.replace(0, np.nan)
+        
         df[f"{prefix}_roc_1h"] = values.diff(ROC_SHORT_HOURS)
         df[f"{prefix}_roc_3h"] = values.diff(ROC_LONG_HOURS)
-        df[f"{prefix}_normalized_roc_1h"] = df[f"{prefix}_roc_1h"] / safe_std
+        
+        # Robust slopes
+        df[f"{prefix}_slope_6h"] = (values - values.shift(6)) / 6.0
+        df[f"{prefix}_slope_24h"] = (values - values.shift(24)) / 24.0
+        
+        # Same-hour residual
+        df[f"{prefix}_same_hour_res"] = values - values.shift(24)
+        
+        df[f"{prefix}_normalized_roc_1h"] = df[f"{prefix}_roc_1h"] / safe_scale
 
-    return df
+    df["warm_up_complete"] = df["temp_rolling_std"].notna()
+    return df.reset_index(drop=True)
 
 
 def saturation_vapor_pressure_kpa(temp_c):

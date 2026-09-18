@@ -147,7 +147,7 @@ from history_store import HistoryStore
 # History buffer needs enough hours for the longest lookback any
 # feature uses -- DRIFT_LOOKBACK_HOURS (24) vs ROLLING_WINDOW_HOURS (48)
 # -- plus slack so the buffer never truncates a rolling window short.
-RAW_HISTORY_MAXLEN_HOURS = max(ROLLING_WINDOW_HOURS, DRIFT_LOOKBACK_HOURS) + 12
+RAW_HISTORY_MAXLEN_HOURS = max(int(str(ROLLING_WINDOW_HOURS).replace('h', '')), int(DRIFT_LOOKBACK_HOURS)) + 12
 
 # Recovery requires the same number of consecutive clean readings
 # used by SensorHealthTracker. This works consistently in live and

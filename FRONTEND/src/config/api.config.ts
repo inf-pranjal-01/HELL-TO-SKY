@@ -4,8 +4,8 @@
  * [BACKEND INTEGRATED — Steps 13A–13K Complete]
  * Backend Maturity: LEVEL 3 — REAL FastAPI backend live at http://127.0.0.1:8000
  * 
- * The frontend operates against isolated mock adapters by default (API_MODE = 'mock').
- * Set VITE_API_MODE=real to route all 10 service calls through the real FastAPI backend.
+ * The app connects to the local FastAPI backend by default. Set
+ * VITE_API_MODE=mock only when deliberately working with the isolated fixtures.
  */
 
 export type ApiMode = 'mock' | 'real';
@@ -50,7 +50,7 @@ export interface ApiConfig {
 }
 
 const rawApiMode = (
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_MODE) || 'mock'
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_MODE) || 'real'
 ).toLowerCase();
 const resolvedMode: ApiMode = rawApiMode === 'real' ? 'real' : 'mock';
 

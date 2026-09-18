@@ -165,6 +165,7 @@ async def _fetch_live_reading(client: httpx.AsyncClient, lat: float, lon: float)
         return None
 
 
+
 class SimulatorState:
     """
     The object main.py's routes read from. One instance, created at
@@ -202,6 +203,39 @@ class SimulatorState:
         self._anomaly_counter = 0
 
         self._http_client = httpx.AsyncClient()
+        self._seed_live_cache_from_local_data()
+
+    def _seed_live_cache_from_local_data(self) -> None:
+        """Keep the API usable while the optional weather provider is down.
+
+        The repository already contains the most recent retained reading for
+        every station.  Seeding the normal live cache with that value gives
+        the existing ``tick()``/``ingest_reading()`` path a safe starting
+        point when Open-Meteo is temporarily unavailable.  A successful
+        provider response always replaces the seed immediately.  This is
+        data-source resilience only; no detection or scoring logic changes.
+        """
+        required_columns = ["timestamp", "temperature_c", "pressure_hpa", "humidity_pct"]
+        for station_id in self.metadata["station_id"]:
+            path = DATA_DIR / f"{station_id}.csv"
+            try:
+                frame = pd.read_csv(path, usecols=required_columns).dropna(subset=required_columns)
+                if frame.empty:
+                    continue
+                row = frame.iloc[-1]
+                timestamp = pd.Timestamp(row["timestamp"])
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.tz_localize("UTC")
+                self._live_cache[station_id] = {
+                    "temperature_c": float(row["temperature_c"]),
+                    "pressure_hpa": float(row["pressure_hpa"]),
+                    "humidity_pct": float(row["humidity_pct"]),
+                }
+                self._live_observed_at[station_id] = timestamp.to_pydatetime()
+            except (FileNotFoundError, ValueError, KeyError, pd.errors.ParserError):
+                # The provider remains the primary source. Missing/corrupt
+                # local seed data should not prevent server startup.
+                continue
 
     @property
     def mode(self) -> str:
@@ -326,6 +360,7 @@ class SimulatorState:
         await self.tick()
 
     # ---------------- per-tick data sourcing ----------------
+
 
     async def _maybe_refresh_live_cache(self):
         now = datetime.now(timezone.utc)
@@ -458,12 +493,14 @@ class SimulatorState:
                     "observed_values": {spike["parameter"]: spike["observed_value"]},
                     "affected_parameters": [spike["parameter"]],
                     "shap_features": [],
+                    "explanation_method": None,
                     "likely_faulty_sensors": [spike["parameter"]],
                     "severity": "medium",
                     "type": "spike",
                     "root_cause": ROOT_CAUSE_BY_FAULT_TYPE["spike"],
                     "regime": verdict.get("regime"),
                     "network_corroboration": verdict.get("network_corroboration"),
+                    "model_status": verdict.get("model_status"),
                 })
 
             # Only create a new anomaly event when a new reading
@@ -474,7 +511,10 @@ class SimulatorState:
                 # not merely name a fault category.
                 affected_parameters = list(dict.fromkeys(
                     verdict.get("likely_faulty_sensors", [])
-                    or [param for _rule, param, _confidence in verdict.get("rules_fired", [])]
+                    or [
+                        rule.get("parameter") if isinstance(rule, dict) else rule[1]
+                        for rule in verdict.get("rules_fired", [])
+                    ]
                     or list((verdict.get("suggested_values") or {}).keys())
                 ))
                 observed_values = {
@@ -494,6 +534,8 @@ class SimulatorState:
                     "observed_values": observed_values,
                     "affected_parameters": affected_parameters,
                     "shap_features": verdict.get("shap_features", []),
+                    "explanation_method": verdict.get("explanation_method"),
+                    "suggested_metadata": verdict.get("suggested_metadata", {}),
                     "likely_faulty_sensors": verdict.get("likely_faulty_sensors", []),
                     "severity": verdict["severity"],
                     "rules_fired": verdict.get("rules_fired", []),
@@ -504,6 +546,7 @@ class SimulatorState:
                     ),
                     "regime": verdict.get("regime"),
                     "network_corroboration": verdict.get("network_corroboration"),
+                    "model_status": verdict.get("model_status"),
                 })
 
         if current_mode == "replay":

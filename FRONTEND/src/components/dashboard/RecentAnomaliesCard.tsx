@@ -13,6 +13,7 @@ export interface RecentAnomaliesCardProps {
   error?: string | null;
   onRetry?: () => void;
   className?: string;
+  streamMode?: 'live' | 'replay';
 }
 
 export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
@@ -21,6 +22,7 @@ export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
   error = null,
   onRetry,
   className = '',
+  streamMode = 'live',
 }) => {
   const navigate = useNavigate();
 
@@ -138,7 +140,7 @@ export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
 
       <div className="sg-recent-footer">
         <span className="sg-recent-notice">
-          ● LIVE BACKEND
+          ● {streamMode === 'replay' ? 'REPLAY MODE' : 'LIVE BACKEND'}
         </span>
       </div>
     </Card>

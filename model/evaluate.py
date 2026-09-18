@@ -62,6 +62,11 @@ from config import (
     MULTIVARIATE_ATTRIBUTION_DOMINANCE,
     FAIL_LOW_FLOOR,
     FAIL_LOW_CONSECUTIVE_REQUIRED,
+    RULE_BASE_CONFIDENCE,
+    score_to_severity,
+    EWMA_DRIFT_ALPHA,
+    EWMA_DRIFT_THRESHOLD,
+    DRIFT_MIN_MODEL_CORROBORATION,
     WINDOW_10H_SIZE,
     WINDOW_10H_TRIGGER,
     WINDOW_24H_SIZE,
@@ -91,6 +96,7 @@ from model.fault_helper import (
     fit_frozen_channel_helpers,
     score_frozen_channels,
 )
+from model.seasonal_baseline import get_expected_roc
 
 DATA_DIR = PROJECT_ROOT / "data"
 ARTIFACTS_PATH = PROJECT_ROOT / "model_artifacts" / "isolation_forest.pkl"
@@ -176,10 +182,16 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
         # features.py's build_feature_matrix (called via _featurize
         # below) always runs add_cross_parameter_features.
         vapor_dev_col = g["vapor_pressure_consistency_dev"].to_numpy(dtype=float)
-        nroc_col = {
-            p: g[f"{p}_normalized_roc_1h"].to_numpy(dtype=float)
+        roc_col = {
+            p: g[f"{p}_roc_1h"].to_numpy(dtype=float)
             for _, p in prefixes
         }
+        scale_col = {
+            p: g[f"{p}_robust_scale"].to_numpy(dtype=float) if f"{p}_robust_scale" in g.columns else np.ones(m)
+            for _, p in prefixes
+        }
+        hours_arr = pd.to_datetime(g["timestamp"]).dt.hour.to_numpy()
+        
         rollmean_col = {
             p: g[f"{p}_rolling_mean"].to_numpy(dtype=float)
             for _, p in prefixes
@@ -306,15 +318,23 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
                 # Spike: calibrated station/parameter threshold.
                 spike = spike_confirmed[prefix][i]
 
-                # Drift: causal CUSUM over normalized ROC.
-                nroc = nroc_col[prefix][i]
+                # Drift: causal CUSUM over diurnal residual, matching detect.py
+                raw_roc = roc_col[prefix][i]
+                scale_val = scale_col[prefix][i]
+                h = hours_arr[i]
                 previous_value = st["previous_value"]
                 if previous_value is not None and not np.isnan(previous_value) and not np.isnan(value):
                     st["direction_steps"].append(value - previous_value)
                 st["previous_value"] = value
-                if not np.isnan(nroc):
-                    st["splus"] = max(0.0, st["splus"] + nroc - CUSUM_DRIFT_ALLOWANCE) if nroc > 0 else 0.0
-                    st["sminus"] = max(0.0, st["sminus"] - nroc - CUSUM_DRIFT_ALLOWANCE) if nroc < 0 else 0.0
+                
+                if not np.isnan(raw_roc) and scale_val > 0:
+                    allowance = CUSUM_DRIFT_ALLOWANCE.get(col, 0.05) if isinstance(CUSUM_DRIFT_ALLOWANCE, dict) else CUSUM_DRIFT_ALLOWANCE
+                    expected = get_expected_roc(station_id, prefix, int(h))
+                    residual = (raw_roc - expected) / scale_val
+                    
+                    st["splus"] = max(0.0, st["splus"] + residual - allowance)
+                    st["sminus"] = max(0.0, st["sminus"] - residual - allowance)
+                    st["ewma_val"] = EWMA_DRIFT_ALPHA * residual + (1.0 - EWMA_DRIFT_ALPHA) * st.get("ewma_val", 0.0)
 
                 direction_consistent = (
                     len(st["direction_steps"]) >= CUSUM_DIRECTION_STREAK_REQUIRED
@@ -323,9 +343,11 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
                         or all(step < 0 for step in st["direction_steps"])
                     )
                 )
-                drift = direction_consistent and (
+                cusum_triggered = direction_consistent and (
                     st["splus"] > CUSUM_THRESHOLD or st["sminus"] > CUSUM_THRESHOLD
                 )
+                ewma_triggered = direction_consistent and abs(st.get("ewma_val", 0.0)) > EWMA_DRIFT_THRESHOLD
+                drift = cusum_triggered or ewma_triggered
 
                 # Sensor fail-low: absolute floor + persistence.
                 collapse = (
@@ -665,6 +687,7 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
         d["__source_file"] = path.name
         frames.append(d)
     df_full = pd.concat(frames, ignore_index=True)
+    df_full["timestamp"] = pd.to_datetime(df_full["timestamp"]).dt.tz_localize(None)
     df_full = add_frozen_channel_labels_from_reference(df_full)
 
     has_fault_type = "fault_type" in df_full.columns
@@ -688,8 +711,12 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
     # PASS 2: re-featurize using PASS 1's OWN PREDICTIONS (never ground
     # truth -- that would be look-ahead) as the exclusion mask,
     # approximating live detect.py/state.py's self-healing baseline.
+    featured_p1_keys = featured_p1[["station_id", "timestamp"]].assign(__pass1_flag=predicted_p1)
+    df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
+    featured_p1_keys["timestamp"] = pd.to_datetime(featured_p1_keys["timestamp"]).dt.tz_localize(None)
+    
     df_pass2 = df.merge(
-        featured_p1[["station_id", "timestamp"]].assign(__pass1_flag=predicted_p1),
+        featured_p1_keys,
         on=["station_id", "timestamp"], how="left",
     )
     df_pass2["__pass1_flag"] = df_pass2["__pass1_flag"].fillna(False)
@@ -751,6 +778,7 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
         f"seeds {HELPER_TRAINING_SEEDS}.)"
     )
 
+    featured["timestamp"] = pd.to_datetime(featured["timestamp"]).dt.tz_localize(None)
     featured = featured.merge(labels, on=["station_id", "timestamp"], how="left")
     featured["is_anomaly"] = featured["is_anomaly"].fillna(False).astype(bool)
     featured["fault_type"] = featured["fault_type"].fillna("none")

@@ -5,9 +5,10 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import './StatusOverviewCards.css';
 
-interface AnomalyScoreCardProps {
+export interface AnomalyScoreCardProps {
   score?: number;
   riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  modelStatus?: string;
   isLoading?: boolean;
   error?: string | null;
   onRetry?: () => void;
@@ -16,6 +17,7 @@ interface AnomalyScoreCardProps {
 export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
   score,
   riskLevel = 'low',
+  modelStatus,
   isLoading = false,
   error = null,
   onRetry,
@@ -54,13 +56,28 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
 
   return (
     <Card variant="glass" className="sg-status-overview-card">
-      <div className="sg-status-overview-card__header">
+      <div className="sg-status-overview-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span className="sg-status-overview-card__title">Anomaly Score</span>
-        <ShieldAlert
-          size={18}
-          className={riskLevel === 'critical' || riskLevel === 'high' ? 'text-critical' : 'text-accent'}
-          aria-hidden="true"
-        />
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {modelStatus && (
+            <span style={{
+              fontSize: '0.65rem',
+              fontWeight: 600,
+              padding: '2px 6px',
+              borderRadius: '4px',
+              backgroundColor: modelStatus === 'AVAILABLE' ? 'var(--status-optimal-bg)' : 'var(--status-warning-bg)',
+              color: modelStatus === 'AVAILABLE' ? 'var(--status-optimal-text)' : 'var(--status-warning-text)',
+              border: `1px solid ${modelStatus === 'AVAILABLE' ? 'var(--status-optimal-border)' : 'var(--status-warning-border)'}`
+            }}>
+              MODEL: {modelStatus}
+            </span>
+          )}
+          <ShieldAlert
+            size={18}
+            className={riskLevel === 'critical' || riskLevel === 'high' ? 'text-critical' : 'text-accent'}
+            aria-hidden="true"
+          />
+        </div>
       </div>
 
       <div className="sg-status-overview-card__body">

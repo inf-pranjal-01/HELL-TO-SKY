@@ -293,23 +293,29 @@ def load_model():
 
 
 
-def _model_score_to_pct(raw_reading: dict, feature_row: pd.Series, artifact: dict) -> float:
+def _model_score_to_pct(raw_reading: dict, feature_row: pd.Series, artifact: dict, history_df: pd.DataFrame) -> tuple:
     """
     Converts Isolation Forest's raw decision_function output into a
-    0-100 "anomaly score." Centered on 0 (the model's own contamination-
-    calibrated outlier boundary), NOT training_score_mean. Unchanged
-    from before -- this math was never the problem.
+    0-100 "anomaly score." Returns (score, status).
     """
     model = artifact["model"]
     X = feature_row[artifact["feature_columns"]].values.reshape(1, -1).astype(np.float64)
 
     if np.isnan(X).any():
-        return None
+        if len(history_df) < 48:
+            return None, "UNAVAILABLE_WARMUP"
+        return None, "UNAVAILABLE_MISSING_FEATURES"
 
-    raw_score = model.decision_function(X)[0]
+    try:
+        raw_score = model.decision_function(X)[0]
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[detect] Inference failed: {e}")
+        return None, "FAILED_INFERENCE"
+        
     z = (0.0 - raw_score) / (artifact["training_score_std"] + 1e-9)
     pct = 100 / (1 + np.exp(-1.5 * z))
-    return float(np.clip(pct, 0, 100))
+    return float(np.clip(pct, 0, 100)), "AVAILABLE"
 
 
 def _featurize_buffer(history_df: pd.DataFrame) -> pd.DataFrame:
@@ -377,14 +383,14 @@ def _cusum_evidence(
     with a TimescaleDB or API call without changing this function.
     """
     roc_col = f"{prefix}_roc_1h"
-    std_col = f"{prefix}_rolling_std"
+    scale_col = f"{prefix}_robust_scale"
     if roc_col not in featured_buffer.columns:
         return None
 
     # We need both raw ROC and rolling_std to compute the correct residual.
     valid_mask = featured_buffer[roc_col].notna()
-    if std_col in featured_buffer.columns:
-        valid_mask = valid_mask & featured_buffer[std_col].notna() & (featured_buffer[std_col] > 0)
+    if scale_col in featured_buffer.columns:
+        valid_mask = valid_mask & featured_buffer[scale_col].notna() & (featured_buffer[scale_col] > 0)
     valid_indices = featured_buffer.index[valid_mask]
     if valid_indices.empty:
         return None
@@ -396,37 +402,58 @@ def _cusum_evidence(
         step_hours = np.full(len(valid_indices), current_hour, dtype=int)
 
     raw_rocs = featured_buffer.loc[valid_indices, roc_col].to_numpy()
-    stds = (
-        featured_buffer.loc[valid_indices, std_col].to_numpy()
-        if std_col in featured_buffer.columns
+    scales = (
+        featured_buffer.loc[valid_indices, scale_col].to_numpy()
+        if scale_col in featured_buffer.columns
         else np.ones(len(valid_indices))
     )
 
     s_pos = s_neg = 0.0
-    for raw_roc, std_val, h in zip(raw_rocs, stds, step_hours):
+    ewma_val = 0.0
+    from config import EWMA_DRIFT_ALPHA, EWMA_DRIFT_THRESHOLD
+    
+    allowance = CUSUM_DRIFT_ALLOWANCE.get(param, 0.05) if isinstance(CUSUM_DRIFT_ALLOWANCE, dict) else 0.05
+    
+    for raw_roc, scale_val, h in zip(raw_rocs, scales, step_hours):
         if raw_roc is None or not np.isfinite(raw_roc):
             continue
         raw_roc = float(raw_roc)
-        std_val = float(std_val) if (std_val is not None and np.isfinite(std_val) and std_val > 0) else 1.0
-        # Subtract the expected diurnal ROC (same raw units: °C/h)
-        # THEN normalize by rolling_std so the accumulator is in σ-units.
+        scale_val = float(scale_val) if (scale_val is not None and np.isfinite(scale_val) and scale_val > 0) else 1.0
         expected = get_expected_roc(station_id, prefix, int(h))
-        residual = (raw_roc - expected) / std_val
-        # Direction-preserving accumulation on the normalized residual.
-        s_pos = max(0.0, s_pos + residual - CUSUM_DRIFT_ALLOWANCE) if residual > 0 else 0.0
-        s_neg = max(0.0, s_neg - residual - CUSUM_DRIFT_ALLOWANCE) if residual < 0 else 0.0
+        residual = (raw_roc - expected) / scale_val
+        
+        clamped_res_pos = residual
+        clamped_res_neg = -residual
+        s_pos = max(0.0, s_pos + clamped_res_pos - allowance)
+        s_neg = max(0.0, s_neg + clamped_res_neg - allowance)
+        
+        ewma_val = EWMA_DRIFT_ALPHA * residual + (1.0 - EWMA_DRIFT_ALPHA) * ewma_val
 
     raw_steps = featured_buffer[param].diff().dropna().to_numpy()
     direction_consistent = False
     if len(raw_steps) >= CUSUM_DIRECTION_STREAK_REQUIRED:
         recent_steps = raw_steps[-CUSUM_DIRECTION_STREAK_REQUIRED:]
-        # Allow up to 2 steps to go against the trend (natural noise overriding the drift)
+        # Require strict direction consistency: all steps in the window must be in the same direction
         direction_consistent = (
-            np.sum(recent_steps > 0) >= CUSUM_DIRECTION_STREAK_REQUIRED - 2
-            or np.sum(recent_steps < 0) >= CUSUM_DIRECTION_STREAK_REQUIRED - 2
+            np.sum(recent_steps > 0) == CUSUM_DIRECTION_STREAK_REQUIRED
+            or np.sum(recent_steps < 0) == CUSUM_DIRECTION_STREAK_REQUIRED
         )
-    if direction_consistent and (s_pos > CUSUM_THRESHOLD or s_neg > CUSUM_THRESHOLD):
-        return ("drift", param, RULE_BASE_CONFIDENCE["drift"])
+    cusum_triggered = direction_consistent and (s_pos > CUSUM_THRESHOLD or s_neg > CUSUM_THRESHOLD)
+    ewma_triggered = direction_consistent and abs(ewma_val) > EWMA_DRIFT_THRESHOLD
+    
+    if cusum_triggered or ewma_triggered:
+        trigger_src = "EWMA" if ewma_triggered else "CUSUM"
+        val = abs(ewma_val) if ewma_triggered else max(s_pos, s_neg)
+        thresh = EWMA_DRIFT_THRESHOLD if ewma_triggered else CUSUM_THRESHOLD
+        
+        return {
+            "type": "drift",
+            "parameter": param,
+            "confidence": RULE_BASE_CONFIDENCE["drift"],
+            "observed_value": raw_steps[-1] if len(raw_steps) else None,
+            "threshold": f">{thresh}",
+            "reason": f"{trigger_src} accumulator ({val:.2f}) exceeded threshold ({thresh})."
+        }
     return None
 
 
@@ -532,7 +559,14 @@ def _multivariate_evidence(featured_buffer: pd.DataFrame):
         # implicate nobody.
         implicated = ["temperature_c"] if temp_mag >= humidity_mag else ["humidity_pct"]
 
-    evidence = [("multivariate_inconsistency", param, confidence) for param in implicated]
+    evidence = [{
+        "type": "multivariate_inconsistency",
+        "parameter": param,
+        "confidence": confidence,
+        "observed_value": latest.get(param),
+        "threshold": "Consistency bounds",
+        "reason": "Multivariate inconsistency detected (temperature vs humidity)."
+    } for param in implicated]
     fast_path = set(implicated) if confirmed else set()
     return evidence, fast_path
 
@@ -614,19 +648,42 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
     for param, (low, high) in PHYSICAL_BOUNDS.items():
         val = raw_reading.get(param)
         if val is not None and not pd.isna(val) and not (low <= val <= high):
-            fired.append(("physical_bounds", param, RULE_BASE_CONFIDENCE["physical_bounds"]))
+            fired.append({
+                "type": "physical_bounds",
+                "parameter": param,
+                "confidence": RULE_BASE_CONFIDENCE["physical_bounds"],
+                "observed_value": val,
+                "threshold": f"[{low}, {high}]",
+                "reason": f"Value {val} violates hard physical bounds [{low}, {high}]."
+            })
 
     # frozen_value -- §1, deterministic floor-match computed once in
     # features.py; this file just reads the boolean off feature_row.
     for param, prefix in PARAM_PREFIXES.items():
         req = FROZEN_CONSECUTIVE_REQUIRED_PRESSURE if param == "pressure_hpa" else FROZEN_CONSECUTIVE_REQUIRED
-        if feature_row.get(f"{prefix}_frozen_streak", 0) >= req:
-            fired.append(("frozen_value", param, RULE_BASE_CONFIDENCE["frozen_value"]))
+        streak = feature_row.get(f"{prefix}_frozen_streak", 0)
+        if streak >= req:
+            fired.append({
+                "type": "frozen_value",
+                "parameter": param,
+                "confidence": RULE_BASE_CONFIDENCE["frozen_value"],
+                "observed_value": raw_reading.get(param),
+                "threshold": f"{req} readings",
+                "reason": f"Value exactly constant for {streak} consecutive readings (threshold: {req})."
+            })
 
     # dropout -- unambiguous, unchanged.
     for param in PHYSICAL_BOUNDS:
-        if raw_reading.get(param) is None or pd.isna(raw_reading.get(param)):
-            fired.append(("dropout", param, RULE_BASE_CONFIDENCE["dropout"]))
+        val = raw_reading.get(param)
+        if val is None or pd.isna(val):
+            fired.append({
+                "type": "dropout",
+                "parameter": param,
+                "confidence": RULE_BASE_CONFIDENCE["dropout"],
+                "observed_value": None,
+                "threshold": "present",
+                "reason": "Reading missing or NaN."
+            })
 
     # sensor_fail_low -- §5b. Persistence-gated by construction: this
     # ONLY fires once already held for FAIL_LOW_CONSECUTIVE_REQUIRED
@@ -640,7 +697,14 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
                 continue
             vals = recent_raw[param]
             if vals.notna().all() and (vals <= FAIL_LOW_FLOOR[prefix]).all():
-                fired.append(("sensor_fail_low", param, RULE_BASE_CONFIDENCE["sensor_fail_low"]))
+                fired.append({
+                    "type": "sensor_fail_low",
+                    "parameter": param,
+                    "confidence": RULE_BASE_CONFIDENCE["sensor_fail_low"],
+                    "observed_value": vals.iloc[-1],
+                    "threshold": f"<={FAIL_LOW_FLOOR[prefix]}",
+                    "reason": f"Value at or below noise floor {FAIL_LOW_FLOOR[prefix]} for {FAIL_LOW_CONSECUTIVE_REQUIRED} readings."
+                })
                 fast_path_offline_params.add(param)
 
     # drift (CUSUM, §2) + multivariate_inconsistency (§4) share one
@@ -700,8 +764,8 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     is the intended, correct behavior for those two.
     """
     if rule_evidence:
-        rule_confidence = max(c for _, _, c in rule_evidence)
-        fault_type = max(rule_evidence, key=lambda e: e[2])[0]
+        rule_confidence = max(r["confidence"] for r in rule_evidence)
+        fault_type = max(rule_evidence, key=lambda e: e["confidence"])["type"]
     else:
         rule_confidence = 0.0
         fault_type = None
@@ -727,7 +791,7 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     )
 
     if is_anomaly and fault_type is None:
-        fault_type = "statistical_anomaly"
+        fault_type = "UNKNOWN_STATISTICAL_ANOMALY"
 
     return overall, is_anomaly, fault_type, rule_confidence
 
@@ -748,15 +812,28 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
     if not neighbor_buffers:
         # No peer data available -- cannot perform network check.
         # Caller should surface this as INSUFFICIENT_CORROBORATION with reason.
-        return "INSUFFICIENT_CORROBORATION"
+        return {
+            "state": "INSUFFICIENT_CORROBORATION",
+            "eligible_peer_count": 0,
+            "corroborating_peer_count": 0,
+            "network_interpretation": "No peer stations available for comparison."
+        }
 
-    target_time = pd.to_datetime(raw_reading.get("timestamp") or history_df["timestamp"].iloc[-1])
+    target_time = pd.to_datetime(
+        raw_reading.get("timestamp") or history_df["timestamp"].iloc[-1],
+        utc=True,
+    )
 
     # Compute target station features ONCE before the peer loop.
     try:
         target_features = build_features_for_latest(history_df)
     except Exception:
-        return "INSUFFICIENT_CORROBORATION"
+        return {
+            "state": "INSUFFICIENT_CORROBORATION",
+            "eligible_peer_count": 0,
+            "corroborating_peer_count": 0,
+            "network_interpretation": "Target station features could not be built for comparison."
+        }
 
     eligible_peers = 0
     corroborating_peers = 0
@@ -765,7 +842,7 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
         if n_df is None or n_df.empty:
             continue
         n_latest = n_df.iloc[-1]
-        n_time = pd.to_datetime(n_latest["timestamp"])
+        n_time = pd.to_datetime(n_latest["timestamp"], utc=True)
 
         # Freshness check: peer reading must be within 1h of target.
         if abs((n_time - target_time).total_seconds()) > 3600:
@@ -798,11 +875,21 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             corroborating_peers += 1
 
     if eligible_peers < 1:
-        return "INSUFFICIENT_CORROBORATION"
+        state = "INSUFFICIENT_CORROBORATION"
+        interpretation = "No peers with fresh data within the last hour."
     elif corroborating_peers > 0:
-        return "REGIONAL"
+        state = "REGIONAL"
+        interpretation = f"{corroborating_peers} out of {eligible_peers} eligible peers show similar deviations, suggesting a regional environmental event."
     else:
-        return "LOCALIZED"
+        state = "LOCALIZED"
+        interpretation = f"None of the {eligible_peers} eligible peers show similar deviations, strongly suggesting a localized sensor fault."
+
+    return {
+        "state": state,
+        "eligible_peer_count": eligible_peers,
+        "corroborating_peer_count": corroborating_peers,
+        "network_interpretation": interpretation
+    }
 
 
 def _classify_regime(feature_row: "pd.Series", raw_reading: dict, history_df: "pd.DataFrame") -> str:
@@ -914,15 +1001,25 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     # valid earlier observation.  Never use the current raw value as its own
     # replacement (especially important for a dropout/spike).
     suggested_values = {}
+    suggested_metadata = {}
     for param, prefix in PARAM_PREFIXES.items():
+        source = "rolling_mean"
+        uncertainty = feature_row.get(f"{prefix}_rolling_std")
         candidate = feature_row.get(f"{prefix}_rolling_mean")
         if pd.isna(candidate):
+            source = "prior_reading"
+            uncertainty = None
             prior = pd.to_numeric(history_df[param].iloc[:-1], errors="coerce").dropna()
             candidate = prior.iloc[-1] if not prior.empty else None
         if pd.notna(candidate):
             suggested_values[param] = round(float(candidate), 2)
+            suggested_metadata[param] = {
+                "value": round(float(candidate), 2),
+                "source": source,
+                "uncertainty": round(float(uncertainty), 2) if pd.notna(uncertainty) else None
+            }
 
-    model_pct = _model_score_to_pct(raw_reading, feature_row, artifact)
+    model_pct, model_status = _model_score_to_pct(raw_reading, feature_row, artifact, history_df)
     rules = _rule_checks(raw_reading, feature_row, history_df, artifact)
 
     # Frozen-specific model gate: frozen_value fires at confidence=80 (below
@@ -931,10 +1028,15 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     # actual frozen sensors are indistinguishable -- suppress frozen evidence
     # so it cannot drive an anomaly verdict without model corroboration.
     fired = rules["fired"]
+    
+    from config import FROZEN_MIN_MODEL_CORROBORATION, DRIFT_MIN_MODEL_CORROBORATION
     if model_pct is None or model_pct < FROZEN_MIN_MODEL_CORROBORATION:
-        fired = [(rt, p, c) for (rt, p, c) in fired if rt != "frozen_value"]
-    else:
-        fired = fired  # model agrees -- frozen evidence kept
+        fired = [r for r in fired if r["type"] != "frozen_value"]
+    if model_pct is None or model_pct < DRIFT_MIN_MODEL_CORROBORATION:
+        fired = [r for r in fired if r["type"] != "drift"]
+
+    # FUSE: The rule engine evaluates multiple hypotheses independently.
+    # We take the single most confident rule failure.
 
     score_pct, is_anomaly, fault_type, rule_confidence = _fuse_and_score(model_pct, fired)
     severity = score_to_severity(score_pct)
@@ -968,19 +1070,20 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
 
 
     shap_features_public, likely_sensors = [], []
+    explanation_method = None
     if is_anomaly and explainer is not None:
         try:
-            shap_features = explainer.explain(feature_row)
+            explain_result = explainer.explain(feature_row)
+            explanation_method = explain_result.get("method")
+            shap_features = explain_result.get("features", [])
             likely_sensors = likely_faulty_params(shap_features)
             shap_features_public = [
                 {"name": f["name"], "impact": f["impact"]}
                 for f in shap_features
             ]
         except Exception as e:
-            print(
-                f"[detect] explanation failed for this reading, "
-                f"returning verdict without it: {e!r}"
-            )
+            import logging
+            logging.getLogger(__name__).warning(f"[detect] explanation failed for this reading, returning verdict without it: {e!r}")
 
     # Regime classification — 9-state taxonomy per audit §12.5.
     # Uses the already-computed feature_row so no extra featurization cost.
@@ -994,15 +1097,24 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     if is_anomaly:
         implicated = likely_sensors
         if not implicated and rules["fired"]:
-            implicated = list(set(r[1] for r in rules["fired"]))
+            implicated = list(set(r["parameter"] for r in rules["fired"]))
         neighbor_buffers_safe = neighbor_buffers or {}
-        network_state = _corroborate_network(
+        network_details = _corroborate_network(
             raw_reading, history_df, neighbor_buffers_safe, fault_type, implicated
         )
+        network_state = network_details["state"]
+        network_interpretation = network_details["network_interpretation"]
+        eligible_peer_count = network_details["eligible_peer_count"]
+        corroborating_peer_count = network_details["corroborating_peer_count"]
+    else:
+        network_interpretation = None
+        eligible_peer_count = None
+        corroborating_peer_count = None
 
     return {
         "anomaly_score_pct": round(score_pct, 1),
         "model_confidence_pct": round(model_pct, 1) if model_pct is not None else None,
+        "model_status": model_status,
         "rule_confidence_pct": round(rule_confidence, 1),
         "is_anomaly": bool(is_anomaly),
         "severity": severity,
@@ -1011,10 +1123,15 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
         "fast_path_offline_params": rules["fast_path_offline_params"],
         "confirmed_spikes": rules["confirmed_spikes"],
         "suggested_values": suggested_values,
+        "suggested_metadata": suggested_metadata,
         "shap_features": shap_features_public,
+        "explanation_method": explanation_method,
         "likely_faulty_sensors": likely_sensors,
         "regime": regime,
         "network_corroboration": network_state,
+        "network_interpretation": network_interpretation,
+        "eligible_peer_count": eligible_peer_count,
+        "corroborating_peer_count": corroborating_peer_count,
     }
 
 
@@ -1050,7 +1167,12 @@ class SensorHealthTracker:
 
     def record(self, verdict: dict):
         fired_params = {}
-        for rule_type, param, _confidence in verdict.get("rules_fired", []):
+        for rule in verdict.get("rules_fired", []):
+            if isinstance(rule, dict):
+                rule_type = rule.get("type")
+                param = rule.get("parameter")
+            else:
+                rule_type, param, _confidence = rule[:3]
             fired_params.setdefault(param, set()).add(rule_type)
         fast_path = verdict.get("fast_path_offline_params", set())
         # A causal spike is attributed to the preceding raw reading,

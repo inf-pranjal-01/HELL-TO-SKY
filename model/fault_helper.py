@@ -59,6 +59,10 @@ def build_network_features(frame: pd.DataFrame) -> pd.DataFrame:
         errors="ignore",
     )
     featured = build_feature_matrix(raw)
+    
+    featured["timestamp"] = pd.to_datetime(featured["timestamp"]).dt.tz_localize(None)
+    labels["timestamp"] = pd.to_datetime(labels["timestamp"]).dt.tz_localize(None)
+    
     featured = featured.merge(labels, on=["station_id", "timestamp"], how="left")
     featured["is_anomaly"] = featured["is_anomaly"].fillna(False).astype(bool)
     featured["fault_type"] = featured["fault_type"].fillna("none")
