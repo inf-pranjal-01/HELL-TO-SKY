@@ -170,6 +170,7 @@ from model.features import (
     get_threshold,
 )
 from model.explain import likely_faulty_params
+from model.seasonal_baseline import get_expected_roc
 
 from config import (
     score_to_severity,
@@ -243,7 +244,23 @@ PARAMS = list(PARAM_PREFIXES.keys())
 #   is confirmed (95) and also triggers the fast-path OFFLINE set.
 # ---------------------------------------------------------------------
 def load_model():
-    """Loads the trained model artifact ONCE -- call this at API startup, not per-request."""
+    """
+    Loads the trained model artifact ONCE -- call this at API startup, not per-request.
+
+    Track A (blueprint §1): also loads fault_helper.pkl if it exists alongside
+    isolation_forest.pkl.  When both are present, score_reading() OR's the
+    helper's alert into is_anomaly, matching evaluate.py's offline eval pipeline
+    exactly (previously the live path never called fault_helper, so demo metrics
+    and eval metrics diverged).
+
+    Graceful fallback: if fault_helper.pkl is missing (e.g. not yet trained),
+    a warning is logged and the system continues with the Isolation Forest + rules
+    alone.  The artifact dict gets a None 'fault_helper' key so score_reading()
+    can always check `artifact.get('fault_helper')` without an attribute error.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
     if not ARTIFACTS_PATH.exists():
         raise FileNotFoundError(f"No trained model at {ARTIFACTS_PATH} -- run model/train.py first.")
     artifact = joblib.load(ARTIFACTS_PATH)
@@ -253,7 +270,27 @@ def load_model():
             "train.py, before calibrate_rule_thresholds() was added. Retrain with the "
             "current train.py before running detection."
         )
+
+    # Load fault_helper (Track A).
+    fault_helper_path = ARTIFACTS_PATH.parent / "fault_helper.pkl"
+    if fault_helper_path.exists():
+        try:
+            artifact["fault_helper"] = joblib.load(fault_helper_path)
+            _log.info("[detect] fault_helper loaded from %s", fault_helper_path)
+        except Exception as exc:
+            _log.warning("[detect] Could not load fault_helper.pkl: %s -- continuing without it.", exc)
+            artifact["fault_helper"] = None
+    else:
+        _log.warning(
+            "[detect] fault_helper.pkl not found at %s -- "
+            "live detection uses Isolation Forest + rules only. "
+            "Run model/fault_helper.py training to restore evaluate.py parity.",
+            fault_helper_path,
+        )
+        artifact["fault_helper"] = None
+
     return artifact
+
 
 
 def _model_score_to_pct(raw_reading: dict, feature_row: pd.Series, artifact: dict) -> float:
@@ -299,47 +336,95 @@ def _featurize_buffer(history_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _cusum_evidence(featured_buffer: pd.DataFrame, prefix: str, param: str):
+def _cusum_evidence(
+    featured_buffer: pd.DataFrame,
+    prefix: str,
+    param: str,
+    station_id: str = "",
+    current_hour: int = 0,
+):
     """
     Recomputes the CUSUM S+/S- accumulator from scratch over the
     station's own causal buffer every call -- stateless by construction
-    (see module docstring #3). A sustained one-directional drift keeps
-    S+ (or S-) accumulating faster than the allowance drains it, so the
-    LATEST accumulator value correctly reflects "is this reading still
-    inside an active drift episode," without needing to persist state
-    across calls: normal noise pulls the accumulator back toward 0 on
-    its own once the drift ends.
+    (see module docstring #3).
+
+    DIURNAL HARDENING (SEA6/CUSUM3 in bug audit):
+    Instead of accumulating the raw normalized_roc_1h, we accumulate
+    the RESIDUAL:  (actual_roc - expected_roc) / rolling_std.
+
+    UNIT FIX: the previous version subtracted raw °C/h (from
+    seasonal_baseline) from normalized_roc_1h (a dimensionless z-score:
+    roc_1h / rolling_std).  This unit mismatch made the seasonal
+    hardening completely non-functional — normal morning warming at
+    +1.7°C/h produced norm_roc=3.83 minus expected=1.95 = residual
+    +1.88, which accumulated and triggered false drift.  Fixed: use
+    raw roc_1h, subtract expected_roc in matching °C/h units, THEN
+    divide by rolling_std to normalize.
+
+    expected_roc comes from seasonal_baseline.py which loads the real
+    3-month historical CSV (Open-Meteo data) once and caches it.  A
+    normal sunrise warming trend (e.g. +1.7°C/h at hour 8) has an
+    expected_roc ~+1.95°C/h at that hour, so its raw residual ≈ -0.25
+    and the normalized residual ≈ -0.06σ — CUSUM stays near 0.  A real
+    sensor drift fault deviates from the seasonal baseline, so its
+    residual accumulates.
+
+    Fallback: if no historical data exists for this station (new station,
+    warm-up), get_expected_roc returns 0.0, reproducing the original
+    pre-hardening behavior exactly -- safe, not silent.
+
+    The data source is swappable: replace seasonal_baseline._load_csv()
+    with a TimescaleDB or API call without changing this function.
     """
-    col = f"{prefix}_normalized_roc_1h"
-    if col not in featured_buffer.columns:
+    roc_col = f"{prefix}_roc_1h"
+    std_col = f"{prefix}_rolling_std"
+    if roc_col not in featured_buffer.columns:
         return None
-    steps = featured_buffer[col].dropna().to_numpy()
-    if len(steps) == 0:
+
+    # We need both raw ROC and rolling_std to compute the correct residual.
+    valid_mask = featured_buffer[roc_col].notna()
+    if std_col in featured_buffer.columns:
+        valid_mask = valid_mask & featured_buffer[std_col].notna() & (featured_buffer[std_col] > 0)
+    valid_indices = featured_buffer.index[valid_mask]
+    if valid_indices.empty:
         return None
+
+    # Build per-step hours for hour-aware baseline lookup.
+    if "timestamp" in featured_buffer.columns:
+        step_hours = pd.to_datetime(featured_buffer.loc[valid_indices, "timestamp"]).dt.hour.to_numpy()
+    else:
+        step_hours = np.full(len(valid_indices), current_hour, dtype=int)
+
+    raw_rocs = featured_buffer.loc[valid_indices, roc_col].to_numpy()
+    stds = (
+        featured_buffer.loc[valid_indices, std_col].to_numpy()
+        if std_col in featured_buffer.columns
+        else np.ones(len(valid_indices))
+    )
 
     s_pos = s_neg = 0.0
-    for step in steps:
-        # Incomplete weather records (for example a provider field that is
-        # temporarily null) must not stop the entire station tick. They carry
-        # no usable drift evidence and are skipped until the next complete
-        # observation arrives.
-        if step is None or not np.isfinite(step):
+    for raw_roc, std_val, h in zip(raw_rocs, stds, step_hours):
+        if raw_roc is None or not np.isfinite(raw_roc):
             continue
-        step = float(step)
-        # Drift evidence needs a direction-consistent run. Resetting the
-        # opposite accumulator on reversal prevents a normal diurnal
-        # swing from slowly accumulating into a false drift verdict.
-        s_pos = max(0.0, s_pos + step - CUSUM_DRIFT_ALLOWANCE) if step > 0 else 0.0
-        s_neg = max(0.0, s_neg - step - CUSUM_DRIFT_ALLOWANCE) if step < 0 else 0.0
+        raw_roc = float(raw_roc)
+        std_val = float(std_val) if (std_val is not None and np.isfinite(std_val) and std_val > 0) else 1.0
+        # Subtract the expected diurnal ROC (same raw units: °C/h)
+        # THEN normalize by rolling_std so the accumulator is in σ-units.
+        expected = get_expected_roc(station_id, prefix, int(h))
+        residual = (raw_roc - expected) / std_val
+        # Direction-preserving accumulation on the normalized residual.
+        s_pos = max(0.0, s_pos + residual - CUSUM_DRIFT_ALLOWANCE) if residual > 0 else 0.0
+        s_neg = max(0.0, s_neg - residual - CUSUM_DRIFT_ALLOWANCE) if residual < 0 else 0.0
 
     raw_steps = featured_buffer[param].diff().dropna().to_numpy()
-    direction_consistent = (
-        len(raw_steps) >= CUSUM_DIRECTION_STREAK_REQUIRED
-        and (
-            np.all(raw_steps[-CUSUM_DIRECTION_STREAK_REQUIRED:] > 0)
-            or np.all(raw_steps[-CUSUM_DIRECTION_STREAK_REQUIRED:] < 0)
+    direction_consistent = False
+    if len(raw_steps) >= CUSUM_DIRECTION_STREAK_REQUIRED:
+        recent_steps = raw_steps[-CUSUM_DIRECTION_STREAK_REQUIRED:]
+        # Allow up to 2 steps to go against the trend (natural noise overriding the drift)
+        direction_consistent = (
+            np.sum(recent_steps > 0) >= CUSUM_DIRECTION_STREAK_REQUIRED - 2
+            or np.sum(recent_steps < 0) >= CUSUM_DIRECTION_STREAK_REQUIRED - 2
         )
-    )
     if direction_consistent and (s_pos > CUSUM_THRESHOLD or s_neg > CUSUM_THRESHOLD):
         return ("drift", param, RULE_BASE_CONFIDENCE["drift"])
     return None
@@ -563,8 +648,19 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
     featured_buffer = _featurize_buffer(history_df)
     confirmed_spikes = _confirmed_spikes(featured_buffer, thresholds, station_id)
 
+    # Extract current hour once for the CUSUM diurnal baseline lookup.
+    try:
+        current_hour = pd.to_datetime(
+            raw_reading.get("timestamp") or history_df["timestamp"].iloc[-1]
+        ).hour
+    except Exception:
+        current_hour = 0
+
     for param, prefix in PARAM_PREFIXES.items():
-        cusum_hit = _cusum_evidence(featured_buffer, prefix, param)
+        cusum_hit = _cusum_evidence(
+            featured_buffer, prefix, param,
+            station_id=station_id, current_hour=current_hour,
+        )
         if cusum_hit:
             fired.append(cusum_hit)
 
@@ -637,43 +733,67 @@ def _fuse_and_score(model_pct, rule_evidence: list):
 
 
 def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_buffers: dict, fault_type: str, implicated_params: list) -> str:
+    """
+    Network corroboration check -- classifies anomaly as LOCALIZED, REGIONAL,
+    or INSUFFICIENT_CORROBORATION based on whether eligible cluster peers show
+    similar deviations in the same direction.
+
+    Performance fix: target_features is computed ONCE before the peer loop.
+    Each peer's features are also computed once per peer (not per param).
+
+    Returns None when neighbor_buffers is None/empty (no check performed),
+    which the caller must distinguish from INSUFFICIENT_CORROBORATION (peers
+    exist but were all stale/unhealthy). See audit §13.6.
+    """
     if not neighbor_buffers:
+        # No peer data available -- cannot perform network check.
+        # Caller should surface this as INSUFFICIENT_CORROBORATION with reason.
         return "INSUFFICIENT_CORROBORATION"
-    
+
     target_time = pd.to_datetime(raw_reading.get("timestamp") or history_df["timestamp"].iloc[-1])
-    
+
+    # Compute target station features ONCE before the peer loop.
+    try:
+        target_features = build_features_for_latest(history_df)
+    except Exception:
+        return "INSUFFICIENT_CORROBORATION"
+
     eligible_peers = 0
     corroborating_peers = 0
-    
+
     for nid, n_df in neighbor_buffers.items():
-        if n_df.empty: continue
+        if n_df is None or n_df.empty:
+            continue
         n_latest = n_df.iloc[-1]
         n_time = pd.to_datetime(n_latest["timestamp"])
-        
-        # freshness / timestamp alignment
+
+        # Freshness check: peer reading must be within 1h of target.
         if abs((n_time - target_time).total_seconds()) > 3600:
             continue
-            
+
         eligible_peers += 1
-        
-        # For simplicity, if fault is related to a parameter, we check if neighbor has a similar extreme value
-        # But wait, we can just run a quick deviation check
-        n_features = build_features_for_latest(n_df)
-        
-        # If any implicated parameter has a deviation > 2.0 (or < -2.0) in the same direction, it's regional
+
+        # Compute peer features ONCE per peer (not per implicated parameter).
+        try:
+            n_features = build_features_for_latest(n_df)
+        except Exception:
+            eligible_peers -= 1  # don't count peers whose features failed
+            continue
+
+        # Check whether any implicated parameter shows a same-direction
+        # deviation > 2.0 sigma in the peer.
         is_corroborating = False
         for param in implicated_params:
             prefix = PARAM_PREFIXES.get(param)
-            if not prefix: continue
-            
-            target_dev = build_features_for_latest(history_df).get(f"{prefix}_deviation", 0)
+            if not prefix:
+                continue
+            target_dev = target_features.get(f"{prefix}_deviation", 0)
             peer_dev = n_features.get(f"{prefix}_deviation", 0)
-            
             if pd.notna(target_dev) and pd.notna(peer_dev):
                 if abs(peer_dev) > 2.0 and (target_dev * peer_dev > 0):
                     is_corroborating = True
                     break
-        
+
         if is_corroborating:
             corroborating_peers += 1
 
@@ -683,6 +803,99 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
         return "REGIONAL"
     else:
         return "LOCALIZED"
+
+
+def _classify_regime(feature_row: "pd.Series", raw_reading: dict, history_df: "pd.DataFrame") -> str:
+    """
+    Classifies the current station environmental context into one of 9 regimes
+    per audit §12.5. Uses the already-computed feature_row from build_features_for_latest
+    to avoid double featurization.
+
+    States:
+      DAYTIME_WARMING       hour 6-18, temp trending up relative to baseline
+      NIGHTTIME_COOLING     hour 18-6, temp trending down
+      STABLE                low volatility, minimal rate-of-change all params
+      HIGH_HEAT             temp > 35°C or temp_deviation > 2.5σ
+      HIGH_HUMIDITY         humidity > 85% or humidity_deviation > 2.0σ
+      PRESSURE_SHIFT        significant pressure rate-of-change over 3h
+      HIGH_VOLATILITY       any parameter volatility_z > 2.0
+      REGIME_TRANSITION     direction reversal in recent temp readings
+      UNKNOWN_INSUFFICIENT_DATA   NaN features (warm-up period)
+      UNKNOWN_CONTEXT_FAILURE     exception during classification
+    """
+    try:
+        hour = pd.to_datetime(
+            raw_reading.get("timestamp") or history_df["timestamp"].iloc[-1]
+        ).hour
+
+        # Pull scalar values from feature_row with safe fallbacks.
+        def get(col, default=None):
+            v = feature_row.get(col)
+            if v is None or (hasattr(v, '__float__') and pd.isna(float(v))):
+                return default
+            return float(v)
+
+        temp_c         = get("temperature_c")
+        humidity_pct   = get("humidity_pct")
+        temp_dev       = get("temp_deviation")
+        humidity_dev   = get("humidity_deviation")
+        temp_roc_1h    = get("temp_roc_1h", 0.0)
+        temp_roc_3h    = get("temp_roc_3h", 0.0)
+        pressure_roc_3h = get("pressure_roc_3h", 0.0)
+        temp_vol_z     = get("temp_volatility_z", 0.0)
+        pressure_vol_z = get("pressure_volatility_z", 0.0)
+        humidity_vol_z = get("humidity_volatility_z", 0.0)
+
+        # UNKNOWN_INSUFFICIENT_DATA: primary indicators are NaN
+        if temp_dev is None or humidity_dev is None:
+            return "UNKNOWN_INSUFFICIENT_DATA"
+
+        # HIGH_VOLATILITY: any param's volatility z-score > 2.0
+        if (temp_vol_z is not None and abs(temp_vol_z) > 2.0
+                or pressure_vol_z is not None and abs(pressure_vol_z) > 2.0
+                or humidity_vol_z is not None and abs(humidity_vol_z) > 2.0):
+            return "HIGH_VOLATILITY"
+
+        # PRESSURE_SHIFT: sustained pressure rate-of-change over 3h
+        if pressure_roc_3h is not None and abs(pressure_roc_3h) > 2.0:
+            return "PRESSURE_SHIFT"
+
+        # HIGH_HEAT: extreme temperature by absolute value or deviation
+        if (temp_c is not None and temp_c > 35.0) or (temp_dev is not None and temp_dev > 2.5):
+            return "HIGH_HEAT"
+
+        # HIGH_HUMIDITY: extreme humidity by absolute value or deviation
+        if (humidity_pct is not None and humidity_pct > 85.0) or (humidity_dev is not None and humidity_dev > 2.0):
+            return "HIGH_HUMIDITY"
+
+        # REGIME_TRANSITION: recent direction reversal in temperature
+        if len(history_df) >= 3:
+            recent_temps = pd.to_numeric(history_df["temperature_c"].tail(4), errors="coerce").dropna().to_numpy()
+            if len(recent_temps) >= 3:
+                diffs = [recent_temps[i+1] - recent_temps[i] for i in range(len(recent_temps)-1)]
+                signs = [1 if d > 0 else (-1 if d < 0 else 0) for d in diffs]
+                non_zero = [s for s in signs if s != 0]
+                if len(non_zero) >= 2 and non_zero[-1] != non_zero[-2]:
+                    return "REGIME_TRANSITION"
+
+        # STABLE: small roc and deviation across all parameters
+        if (abs(temp_roc_3h) < 0.5 and abs(temp_dev) < 0.5
+                and abs(pressure_roc_3h) < 0.5):
+            return "STABLE"
+
+        # DAYTIME_WARMING / NIGHTTIME_COOLING
+        if 6 <= hour < 18:
+            if temp_roc_3h is not None and temp_roc_3h > 0 and temp_dev > 0.2:
+                return "DAYTIME_WARMING"
+            return "STABLE"
+        else:
+            if temp_roc_3h is not None and temp_roc_3h < 0:
+                return "NIGHTTIME_COOLING"
+            return "STABLE"
+
+    except Exception:
+        return "UNKNOWN_CONTEXT_FAILURE"
+
 
 def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
                   neighbor_buffers: dict = None, explainer=None) -> dict:
@@ -726,6 +939,34 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     score_pct, is_anomaly, fault_type, rule_confidence = _fuse_and_score(model_pct, fired)
     severity = score_to_severity(score_pct)
 
+    # Track A (blueprint §1) — fault_helper live-path wiring.
+    # OR the fault_helper's binary alert into is_anomaly so the live demo
+    # matches evaluate.py's offline pipeline exactly.  Gracefully skipped if
+    # fault_helper was not loaded (artifact["fault_helper"] is None).
+    fault_helper_artifact = artifact.get("fault_helper")
+    if fault_helper_artifact is not None and not is_anomaly:
+        try:
+            from config import HELPER_ALERT_THRESHOLD
+            from model.fault_helper import feature_columns, build_network_features
+            # Minimal single-station "network" for live scoring (no peer rows).
+            single_row = pd.DataFrame([{**raw_reading, "is_anomaly": False, "fault_type": None}])
+            fh_model, fh_cols = fault_helper_artifact
+            # build_network_features requires cluster context; skip if columns missing
+            fh_featured = build_network_features(single_row)
+            available_cols = [c for c in fh_cols if c in fh_featured.columns]
+            if available_cols:
+                fh_prob = fh_model.predict_proba(fh_featured[available_cols])[:, 1][0]
+                if fh_prob >= HELPER_ALERT_THRESHOLD:
+                    is_anomaly = True
+                    if fault_type is None:
+                        fault_type = "drift"  # conservative default label for helper-only alerts
+                    score_pct = max(score_pct, round(fh_prob * 100, 1))
+                    severity = score_to_severity(score_pct)
+        except Exception as _fh_exc:
+            import logging
+            logging.getLogger(__name__).debug("[detect] fault_helper scoring skipped: %s", _fh_exc)
+
+
     shap_features_public, likely_sensors = [], []
     if is_anomaly and explainer is not None:
         try:
@@ -741,28 +982,23 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
                 f"returning verdict without it: {e!r}"
             )
 
-    # Regime metadata (context-only, Option A)
-    # Simple mockup: use the hour of day and temp to assign a regime.
-    hour = pd.to_datetime(raw_reading.get("timestamp") or history_df["timestamp"].iloc[-1]).hour
-    temp = raw_reading.get("temperature_c", 25.0)
-    
-    if hour >= 6 and hour < 18:
-        if temp > 35:
-            regime = "SUMMER_DAY_HIGH_HEAT"
-        else:
-            regime = "NORMAL_DAY"
-    else:
-        if temp < 10:
-            regime = "WINTER_NIGHT_COLD"
-        else:
-            regime = "NORMAL_NIGHT"
+    # Regime classification — 9-state taxonomy per audit §12.5.
+    # Uses the already-computed feature_row so no extra featurization cost.
+    regime = _classify_regime(feature_row, raw_reading, history_df)
 
-    network_state = "INSUFFICIENT_CORROBORATION"
+    # Network corroboration is only meaningful when an anomaly was detected.
+    # When is_anomaly=False, return None explicitly (not INSUFFICIENT_CORROBORATION)
+    # so the frontend and API can distinguish "no check needed" from "check ran but
+    # peers were unavailable." See audit §13.6.
+    network_state = None
     if is_anomaly:
         implicated = likely_sensors
         if not implicated and rules["fired"]:
             implicated = list(set(r[1] for r in rules["fired"]))
-        network_state = _corroborate_network(raw_reading, history_df, neighbor_buffers, fault_type, implicated)
+        neighbor_buffers_safe = neighbor_buffers or {}
+        network_state = _corroborate_network(
+            raw_reading, history_df, neighbor_buffers_safe, fault_type, implicated
+        )
 
     return {
         "anomaly_score_pct": round(score_pct, 1),

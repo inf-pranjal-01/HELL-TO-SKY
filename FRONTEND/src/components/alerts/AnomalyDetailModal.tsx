@@ -169,14 +169,14 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
               size="md"
             />
             <span className="sg-anomaly-modal__score">
-              {Math.round(anomaly.anomaly_score_pct)}% SCORE
+              Evidence Strength: {Math.round(anomaly.anomaly_score_pct)}%
             </span>
           </div>
         </div>
 
         {/* Root Cause Section */}
         <div className="sg-anomaly-modal__section">
-          <h4 className="sg-anomaly-modal__section-title">Root Cause Determination</h4>
+          <h4 className="sg-anomaly-modal__section-title">Anomaly Indication</h4>
           <p className="sg-anomaly-modal__root-cause">{anomaly.root_cause}</p>
         </div>
 
@@ -186,9 +186,38 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
           <p className="sg-anomaly-modal__description">{anomaly.description}</p>
         </div>
 
+        {(anomaly.regime || anomaly.network_corroboration || anomaly.decision_basis) && (
+          <div className="sg-anomaly-modal__section" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px' }}>
+            {anomaly.regime && (
+              <div>
+                <h4 className="sg-anomaly-modal__section-title" style={{ marginBottom: '0.25rem' }}>Regime</h4>
+                <p className="sg-anomaly-modal__description" style={{ margin: 0 }}>{anomaly.regime.replace(/_/g, ' ')}</p>
+              </div>
+            )}
+            {anomaly.network_corroboration && (
+              <div>
+                <h4 className="sg-anomaly-modal__section-title" style={{ marginBottom: '0.25rem' }}>Network Evidence</h4>
+                <div>
+                  <StatusBadge 
+                    status={anomaly.network_corroboration === 'LOCALIZED' ? 'warning' : anomaly.network_corroboration === 'REGIONAL' ? 'moderate' : 'normal'} 
+                    label={anomaly.network_corroboration.replace(/_/g, ' ')} 
+                    size="sm" 
+                  />
+                </div>
+              </div>
+            )}
+            {anomaly.decision_basis && (
+              <div>
+                <h4 className="sg-anomaly-modal__section-title" style={{ marginBottom: '0.25rem' }}>Decision Basis</h4>
+                <p className="sg-anomaly-modal__description" style={{ margin: 0, fontSize: '0.75rem', fontWeight: 600 }}>{anomaly.decision_basis.replace(/_/g, ' ')}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {suggestedReading && (
           <div className="sg-anomaly-modal__section">
-            <h4 className="sg-anomaly-modal__section-title">Suggested Replacement Reading</h4>
+            <h4 className="sg-anomaly-modal__section-title">Estimated Replacement (Temporal Baseline — Not a Correction)</h4>
             <p className="sg-anomaly-modal__description">{suggestedReading}</p>
           </div>
         )}

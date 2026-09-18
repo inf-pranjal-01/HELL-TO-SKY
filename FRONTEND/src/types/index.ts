@@ -155,6 +155,10 @@ export interface LatestAnomaly {
   observed_values?: Record<string, number | null>;
   regime?: string;
   network_corroboration?: NetworkCorroborationState;
+  /** Explicit basis for the detection decision per audit §10.2 */
+  decision_basis?: string;
+  /** ML model availability status per audit §8.2 */
+  model_status?: string;
 }
 
 /**
@@ -177,6 +181,10 @@ export interface RecentAnomalyItem {
   observed_values?: Record<string, number | null>;
   regime?: string;
   network_corroboration?: NetworkCorroborationState;
+  /** Explicit basis for the detection decision per audit §10.2 */
+  decision_basis?: string;
+  /** ML model availability status per audit §8.2 */
+  model_status?: string;
 }
 
 /**
@@ -202,6 +210,8 @@ export interface AnomalyExplanation {
   fault_type?: AnomalyType;
   regime?: string;
   network_corroboration?: NetworkCorroborationState;
+  decision_basis?: string;
+  model_status?: string;
 }
 
 /**

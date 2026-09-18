@@ -126,6 +126,35 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
           <p className="sg-latest-description">{anomaly.description}</p>
         </div>
 
+        {anomaly.regime && (
+          <div className="sg-latest-field">
+            <span className="sg-latest-field-label">Regime:</span>
+            <p className="sg-latest-description">{anomaly.regime.replace(/_/g, ' ')}</p>
+          </div>
+        )}
+
+        {anomaly.network_corroboration && (
+          <div className="sg-latest-field sg-latest-field--network">
+            <span className="sg-latest-field-label">Network Evidence:</span>
+            <div className="sg-latest-network-badge">
+              <StatusBadge 
+                status={anomaly.network_corroboration === 'LOCALIZED' ? 'warning' : anomaly.network_corroboration === 'REGIONAL' ? 'moderate' : 'normal'} 
+                label={anomaly.network_corroboration.replace(/_/g, ' ')} 
+                size="sm" 
+              />
+            </div>
+          </div>
+        )}
+
+        {anomaly.decision_basis && (
+          <div className="sg-latest-field">
+            <span className="sg-latest-field-label">Decision Basis:</span>
+            <p className="sg-latest-description" style={{ fontSize: '0.75rem', letterSpacing: '0.05em', fontWeight: 600 }}>
+              {anomaly.decision_basis.replace(/_/g, ' ')}
+            </p>
+          </div>
+        )}
+
         {suggestedEntries.length > 0 && (
           <div className="sg-latest-field">
             <span className="sg-latest-field-label">Suggested replacement:</span>

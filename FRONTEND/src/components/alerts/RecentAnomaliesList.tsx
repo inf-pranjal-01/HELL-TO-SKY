@@ -97,7 +97,7 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                 <th scope="col">Severity</th>
                 <th scope="col">Classification Type</th>
                 <th scope="col">Anomaly Score</th>
-                <th scope="col">Root Cause</th>
+                <th scope="col">Anomaly Indication</th>
                 <th scope="col">Affected Sensor / Raw Reading</th>
                 <th scope="col">Suggested Replacement</th>
                 <th scope="col" style={{ textAlign: 'right' }}>Actions</th>

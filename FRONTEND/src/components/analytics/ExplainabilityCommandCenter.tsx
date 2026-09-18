@@ -51,27 +51,81 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
   const score = explanation?.anomaly_score_pct ?? selected.anomaly_score_pct;
 
   return <Card variant="glass" className={`sg-explain-card ${className}`} role="region" aria-label="Plain-language anomaly explanation">
-    <div className="sg-explain-card__header"><div><span className="sg-explain-card__eyebrow"><BrainCircuit size={15} /> EXPLAINABLE AI</span><h3>Decision X-Ray: why SkyGuard raised this alert</h3><p>Plain language evidence from the live model and deterministic safety rules.</p></div><span className="sg-explain-card__score"><Gauge size={16} /> {Math.round(score)}% confidence</span></div>
+    <div className="sg-explain-card__header"><div><span className="sg-explain-card__eyebrow"><BrainCircuit size={15} /> EXPLAINABLE AI</span><h3>Decision X-Ray: why SkyGuard raised this alert</h3><p>Plain language evidence from the live model and deterministic safety rules.</p></div><span className="sg-explain-card__score"><Gauge size={16} /> {Math.round(score)}% evidence strength</span></div>
     <div className="sg-explain-card__selector" aria-label="Choose an anomaly to explain">{anomalies.slice(0, 5).map((anomaly) => <button key={anomaly.anomaly_id} type="button" onClick={() => setSelectedId(anomaly.anomaly_id)} className={anomaly.anomaly_id === selected.anomaly_id ? 'is-active' : ''}>{anomaly.type.replace(/_/g, ' ')} <span>{new Date(anomaly.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></button>)}</div>
     {loadingExplanation ? <Skeleton width="100%" height="180px" /> : error ? <p className="sg-explain-card__error">{error}</p> : <>
-      <div className="sg-explain-card__hero"><div className="sg-explain-card__driver"><Sparkles size={18} /><div><span>Strongest evidence</span><strong>{top ? displayParameter(top.name) : 'Rule-based anomaly confirmation'}</strong><p>{top ? explainFeature(top.name) : 'The deterministic safety rules confirmed an unusual sensor pattern.'}</p></div></div><div className="sg-explain-card__split"><div><span>Model signal · 60% weight</span><strong>{explanation?.model_confidence_pct == null ? 'Warm-up / n.a.' : `${Math.round(explanation.model_confidence_pct)}%`}</strong></div><div><span>Safety rules · 40% weight</span><strong>{explanation?.rule_confidence_pct == null ? 'n.a.' : `${Math.round(explanation.rule_confidence_pct)}%`}</strong></div></div></div>
+      <div className="sg-explain-card__hero"><div className="sg-explain-card__driver"><Sparkles size={18} /><div><span>Strongest evidence</span><strong>{top ? displayParameter(top.name) : 'Rule evidence (no model explanation available)'}</strong><p>{top ? explainFeature(top.name) : 'Deterministic rules detected a pattern that warrants investigation.'}</p></div></div><div className="sg-explain-card__split">
+        <div>
+          <span>Model evidence · 60% weight</span>
+          <strong>
+            {explanation?.model_confidence_pct == null
+              ? (explanation?.model_status === 'UNAVAILABLE_WARMUP' ? 'Warming up — insufficient history' : 'Unavailable')
+              : `${Math.round(explanation.model_confidence_pct)}% evidence strength`}
+          </strong>
+        </div>
+        <div>
+          <span>Rule evidence · 40% weight</span>
+          <strong>{explanation?.rule_confidence_pct == null ? 'n.a.' : `${Math.round(explanation.rule_confidence_pct)}%`}</strong>
+        </div>
+        {(explanation?.decision_basis || selected?.decision_basis) && (
+          <div style={{gridColumn:'1/-1'}}>
+            <span>Decision basis</span>
+            <strong style={{fontSize:'0.75rem', letterSpacing:'0.05em'}}>
+              {(explanation?.decision_basis || selected?.decision_basis || '').replace(/_/g, ' ')}
+            </strong>
+          </div>
+        )}
+      </div></div>
       <div className="sg-explain-card__body">
         <section>
           <h4><ShieldAlert size={15} /> Station Context</h4>
-          <p className="sg-explain-card__muted">Regime: <strong>{(explanation?.regime || selected?.regime || 'UNKNOWN').replace(/_/g, ' ')}</strong></p>
+          {(() => {
+            const regime = explanation?.regime || selected?.regime;
+            const regimeLabels: Record<string,string> = {
+              DAYTIME_WARMING: 'Normal daytime warming pattern — environmental drift is expected.',
+              NIGHTTIME_COOLING: 'Normal nighttime cooling pattern.',
+              STABLE: 'Stable conditions with low environmental variability.',
+              HIGH_HEAT: 'High heat conditions — elevated temperature anomaly risk.',
+              HIGH_HUMIDITY: 'High humidity conditions.',
+              PRESSURE_SHIFT: 'Significant pressure change — possible incoming weather system.',
+              HIGH_VOLATILITY: 'High variability conditions — detection thresholds may be less reliable.',
+              REGIME_TRANSITION: 'Environmental regime transition detected — false positives possible.',
+              UNKNOWN_INSUFFICIENT_DATA: 'Context unavailable — station still in warm-up period (insufficient history).',
+              UNKNOWN_CONTEXT_FAILURE: 'Context classification failed — check system logs.',
+            };
+            return <>
+              <p className="sg-explain-card__muted">Regime: <strong>{regime ? regime.replace(/_/g, ' ') : 'Unknown'}</strong></p>
+              {regime && regimeLabels[regime] && <p className="sg-explain-card__muted" style={{fontSize:'0.78rem'}}>{regimeLabels[regime]}</p>}
+            </>;
+          })()}
         </section>
         <section>
           <h4><ShieldAlert size={15} /> Network Evidence</h4>
-          <p className="sg-explain-card__muted">Corroboration: <strong>{(explanation?.network_corroboration || selected?.network_corroboration || 'INSUFFICIENT CORROBORATION').replace(/_/g, ' ')}</strong></p>
-          <p className="sg-explain-card__muted">{(explanation?.network_corroboration === 'REGIONAL' || selected?.network_corroboration === 'REGIONAL') ? 'Neighbors report similar anomalies.' : 'Anomaly appears localized to this station.'}</p>
+          {(() => {
+            const corr = explanation?.network_corroboration || selected?.network_corroboration;
+            if (!corr) return <p className="sg-explain-card__muted">Network analysis not performed (no anomaly detected).</p>;
+            const labels: Record<string,string> = {
+              REGIONAL: 'Nearby stations show similar changes — regional environmental event possible. Sensor should not be blamed immediately.',
+              LOCALIZED: 'Nearby stations are within normal range — pattern appears localized. Sensor or telemetry investigation recommended.',
+              INSUFFICIENT_CORROBORATION: 'Insufficient peer data for network analysis. Cannot determine if event is localized or regional.',
+            };
+            return <>
+              <p className="sg-explain-card__muted"><strong>{corr.replace(/_/g, ' ')}</strong></p>
+              <p className="sg-explain-card__muted">{labels[corr] || 'Network state unknown.'}</p>
+            </>;
+          })()}
         </section>
         <section>
-          <h4><ShieldAlert size={15} /> What the model noticed</h4>
-          {features.length ? <ol>{features.map((feature) => <li key={feature.name}><span className={feature.impact >= 0 ? 'risk' : 'normal'}>{feature.impact >= 0 ? 'Raises risk' : 'Offsets risk'}</span><div><strong>{displayParameter(feature.name)}</strong><p>{explainFeature(feature.name)}</p></div><b>{Math.round(Math.abs(feature.impact) * 100)}%</b></li>)}</ol> : <p className="sg-explain-card__muted">This event was confirmed by deterministic safety rules before a full SHAP feature vector was available.</p>}
+          <h4><ShieldAlert size={15} /> {features.length ? 'Model evidence' : 'Rule evidence'}</h4>
+          {features.length ? (
+            <ol>{features.map((feature) => <li key={feature.name}><span className={feature.impact >= 0 ? 'risk' : 'normal'}>{feature.impact >= 0 ? 'Raises risk' : 'Offsets risk'}</span><div><strong>{displayParameter(feature.name)}</strong><p>{explainFeature(feature.name)}</p></div><b>{Math.round(Math.abs(feature.impact) * 100)}%</b></li>)}</ol>
+          ) : (
+            <p className="sg-explain-card__muted">Model explanation unavailable — this event was assessed by deterministic safety rules only. Rule evidence is not a probability estimate.</p>
+          )}
         </section>
         <section>
           <h4><ChevronRight size={15} /> Operator-ready conclusion</h4>
-          <p className="sg-explain-card__conclusion">{implicated.length ? `${implicated.map(displayParameter).join(', ')} is the most likely affected sensor channel.` : 'The detector found a station-level pattern that requires review.'}</p>
+          <p className="sg-explain-card__conclusion">{implicated.length ? `Suggested investigation target: ${implicated.map(displayParameter).join(', ')}. This is an indication, not a confirmed diagnosis.` : 'The detector found a station-level pattern that requires review.'}</p>
           {observed.length > 0 && <p><strong>Observed:</strong> {formatSuggestedList(observed)}</p>}
           <SuggestedValues items={suggested} emptyLabel="Suggested replacement becomes available after the baseline warm-up." />
           <p className="sg-explain-card__action"><CheckCircle2 size={15} /> Suggested action: Keep raw telemetry visible; use the suggested reading for downstream analysis while investigating.</p>

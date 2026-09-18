@@ -106,7 +106,7 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
         <div className="sg-latest-banner__title-group">
           <AlertTriangle size={22} className={isCritical ? 'text-critical' : 'text-warning'} />
           <h3 className="sg-latest-banner__title">
-            Active Anomaly: {latestAnomaly.type.replace('_', ' ')}
+            Anomaly Detected: {latestAnomaly.type.replace('_', ' ')}
           </h3>
         </div>
         <div className="sg-latest-banner__badges">
@@ -124,7 +124,7 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
             size="md"
           />
           <span className="sg-latest-banner__score">
-            Score: {Math.round(latestAnomaly.anomaly_score_pct)}%
+            Evidence Strength: {Math.round(latestAnomaly.anomaly_score_pct)}%
           </span>
         </div>
       </div>
@@ -136,7 +136,7 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
         </div>
 
         <div className="sg-latest-banner__block">
-          <span className="sg-latest-banner__block-label">Root Cause Determination</span>
+          <span className="sg-latest-banner__block-label">Anomaly Indication</span>
           <p className="sg-latest-banner__block-value sg-latest-banner__root-cause">
             {latestAnomaly.root_cause}
           </p>

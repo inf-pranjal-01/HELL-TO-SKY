@@ -284,13 +284,24 @@ WINDOW_24H_SIZE = 24
 WINDOW_24H_TRIGGER = 4
 
 # ---------------------------------------------------------------------
-# Severity buckets + anomaly_score_pct -> severity mapping. UNCHANGED
+# Severity buckets + anomaly_score_pct -\u003e severity mapping. UNCHANGED
 # contract from every prior phase (§7: "this changes what feeds the
 # score, not the contract").
 # ---------------------------------------------------------------------
 SEVERITY_CRITICAL_FLOOR = 90.0
 SEVERITY_HIGH_FLOOR = 70.0
 SEVERITY_MEDIUM_FLOOR = 55.0
+
+# ---------------------------------------------------------------------
+# Track A (blueprint §1) — fault_helper live-path wiring.
+# These constants must match evaluate.py's HELPER_ALERT_THRESHOLD so
+# the offline eval numbers and the live demo path stay in sync.
+# Moving them here is the explicit fix the blueprint calls for.
+# ---------------------------------------------------------------------
+# ExtraTrees binary fault-helper classifier alert threshold.
+HELPER_ALERT_THRESHOLD = 0.60
+# Per-channel frozen-specialist alert threshold.
+FROZEN_HELPER_ALERT_THRESHOLD = 0.55
 
 
 def score_to_severity(score_pct: float) -> str:

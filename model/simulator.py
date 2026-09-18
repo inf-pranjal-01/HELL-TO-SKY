@@ -439,6 +439,7 @@ class SimulatorState:
                 "pressure_hpa": raw_reading.get("pressure_hpa"),
                 "humidity_pct": raw_reading.get("humidity_pct"),
                 "is_anomaly": verdict["is_anomaly"],
+                "health_status": verdict.get("health_status"),
             })
 
             # A spike is confirmed by the following reading. Publish an
@@ -495,6 +496,7 @@ class SimulatorState:
                     "shap_features": verdict.get("shap_features", []),
                     "likely_faulty_sensors": verdict.get("likely_faulty_sensors", []),
                     "severity": verdict["severity"],
+                    "rules_fired": verdict.get("rules_fired", []),
                     "type": verdict["fault_type"] or "statistical_anomaly",
                     "root_cause": ROOT_CAUSE_BY_FAULT_TYPE.get(
                         verdict["fault_type"],

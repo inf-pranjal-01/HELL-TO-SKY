@@ -26,6 +26,7 @@ sys.path.append(str(Path(__file__).parent))
 from model.simulator import create_simulator_state, run_simulation_loop
 
 
+
 def _json_nullable(value):
     """Convert CSV/pandas NaN values to valid JSON nulls for API payloads."""
     if value is None:
@@ -34,6 +35,44 @@ def _json_nullable(value):
         return None if bool(pd.isna(value)) else value
     except (TypeError, ValueError):
         return value
+
+
+def _compute_decision_basis(model_confidence_pct, rules_fired) -> str:
+    """
+    Explicit decision basis label per audit §10.2.
+    Tells the frontend exactly which evidence sources contributed so it can
+    display truthful labels (never claim model evidence when model didn't run).
+    """
+    deterministic_rules = {"physical_bounds", "dropout", "sensor_fail_low"}
+    statistical_rules   = {"drift", "spike", "frozen_value", "multivariate_inconsistency"}
+    fired_types = {r[0] for r in (rules_fired or [])}
+    has_model         = model_confidence_pct is not None
+    has_deterministic = bool(fired_types & deterministic_rules)
+    has_statistical   = bool(fired_types & statistical_rules)
+
+    if has_deterministic and not has_model:
+        return "PHYSICS_ONLY"
+    if (has_deterministic or has_statistical) and has_model:
+        return "MODEL_AND_RULE_SUPPORTED"
+    if has_statistical and not has_model:
+        return "RULE_ONLY_STATISTICAL"
+    if has_model and not (has_deterministic or has_statistical):
+        return "MODEL_CONFIRMED"
+    if not has_model and not (has_deterministic or has_statistical):
+        return "MODEL_UNAVAILABLE"
+    return "INSUFFICIENT_EVIDENCE"
+
+
+def _compute_model_status(model_confidence_pct, history_len) -> str:
+    """
+    Explicit model availability label per audit §8.2.
+    history_len=None is treated as unknown (not warmup).
+    """
+    if model_confidence_pct is not None:
+        return "AVAILABLE"
+    if history_len is not None and history_len < 48:
+        return "UNAVAILABLE_WARMUP"
+    return "UNAVAILABLE_MISSING_FEATURES"
 
 
 @asynccontextmanager
@@ -68,7 +107,7 @@ app.add_middleware(
 
 
 @app.get("/api/system-status")
-def get_system_status():
+async def get_system_status():
     """Small control-plane endpoint: frontend cadence follows backend mode."""
     sim = app.state.sim
     return {
@@ -79,7 +118,7 @@ def get_system_status():
 
 
 @app.post("/api/system-mode")
-def set_system_mode(body: dict):
+async def set_system_mode(body: dict):
     """Switch safely back to live when the dashboard replay toggle is off."""
     if body.get("mode") != "live":
         raise HTTPException(status_code=400, detail="Only mode='live' is supported by this endpoint.")
@@ -88,7 +127,7 @@ def set_system_mode(body: dict):
 
 
 @app.get("/api/network-status")
-def get_network_status():
+async def get_network_status():
     """Aggregate station health for the header badge — not a static demo label."""
     from datetime import datetime, timezone
 
@@ -132,7 +171,7 @@ async def refresh_live_snapshot():
 # ---------------- GET /api/stations ----------------
 
 @app.get("/api/stations")
-def get_stations():
+async def get_stations():
     sim = app.state.sim
     result = []
     for _, row in sim.metadata.iterrows():
@@ -154,7 +193,7 @@ def get_stations():
 # ---------------- GET /api/current-reading ----------------
 
 @app.get("/api/current-reading")
-def get_current_reading(station_id: str):
+async def get_current_reading(station_id: str):
     sim = app.state.sim
     entry = sim.latest.get(station_id)
     if entry is None:
@@ -193,7 +232,7 @@ def get_current_reading(station_id: str):
 # ---------------- GET /api/trends ----------------
 
 @app.get("/api/trends")
-def get_trends(station_id: str, hours: int = 6):
+async def get_trends(station_id: str, hours: int = 6):
     sim = app.state.sim
     if station_id not in sim.manager.buffers:
         raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
@@ -206,6 +245,14 @@ def get_trends(station_id: str, hours: int = 6):
     points = sim.manager.get_station_history(station_id, hours=hours)
     if not points:
         points = list(sim.trend_history[station_id])
+    
+    if not points:
+        # Fallback to the pre-loaded baseline CSV data in the causal buffer 
+        # so the graph is never empty on first load (before any ticks have occurred).
+        df = sim.manager.buffers[station_id].raw_history_df().tail(hours)
+        points = df.to_dict(orient="records")
+        for p in points:
+            p["health_status"] = sim.manager.buffers[station_id].health.status
 
     trend_points = [
         {
@@ -268,7 +315,7 @@ def download_station_history(station_id: str):
 # ---------------- GET /api/anomalies/latest ----------------
 
 @app.get("/api/anomalies/latest")
-def get_latest_anomaly(station_id: str):
+async def get_latest_anomaly(station_id: str):
     sim = app.state.sim
     for a in sim.recent_anomalies:
         if a["station_id"] == station_id:
@@ -286,6 +333,14 @@ def get_latest_anomaly(station_id: str):
                 "affected_parameters": a.get("affected_parameters", []),
                 "regime": a.get("regime"),
                 "network_corroboration": a.get("network_corroboration"),
+                "decision_basis": _compute_decision_basis(
+                    a.get("model_confidence_pct"),
+                    a.get("rules_fired") or [],
+                ),
+                "model_status": _compute_model_status(
+                    a.get("model_confidence_pct"),
+                    None,
+                ),
             }
     # No recent anomaly is a healthy, expected state—not a missing resource.
     # Returning JSON null keeps the dashboard nominal and avoids a noisy 404
@@ -296,7 +351,7 @@ def get_latest_anomaly(station_id: str):
 # ---------------- GET /api/anomalies/recent ----------------
 
 @app.get("/api/anomalies/recent")
-def get_recent_anomalies(station_id: str, limit: int = 5):
+async def get_recent_anomalies(station_id: str, limit: int = 5):
     sim = app.state.sim
     matches = [a for a in sim.recent_anomalies if a["station_id"] == station_id][:limit]
     return [
@@ -314,6 +369,14 @@ def get_recent_anomalies(station_id: str, limit: int = 5):
             "affected_parameters": a.get("affected_parameters", []),
             "regime": a.get("regime"),
             "network_corroboration": a.get("network_corroboration"),
+            "decision_basis": _compute_decision_basis(
+                a.get("model_confidence_pct"),
+                a.get("rules_fired") or [],
+            ),
+            "model_status": _compute_model_status(
+                a.get("model_confidence_pct"),
+                None,
+            ),
         }
         for a in matches
     ]
@@ -349,6 +412,14 @@ def get_explanation(anomaly_id: str):
         "fault_type": match.get("type"),
         "regime": match.get("regime"),
         "network_corroboration": match.get("network_corroboration"),
+        "decision_basis": _compute_decision_basis(
+            match.get("model_confidence_pct"),
+            match.get("rules_fired") or [],
+        ),
+        "model_status": _compute_model_status(
+            match.get("model_confidence_pct"),
+            None,
+        ),
     }
 
 
@@ -419,7 +490,7 @@ def repair_sensor(body: dict):
 # ---------------- POST /api/inject-anomaly ----------------
 
 @app.post("/api/inject-anomaly")
-def inject_anomaly(body: dict):
+async def inject_anomaly(body: dict):
     """
     Repurposed as the REPLAY-MODE trigger -- see simulator.py's
     start_replay() docstring. body's station_id/type are accepted for
@@ -443,7 +514,7 @@ def inject_anomaly(body: dict):
 _ticket_counter = 0
 
 @app.post("/api/maintenance-ticket")
-def create_maintenance_ticket(body: dict):
+async def create_maintenance_ticket(body: dict):
     global _ticket_counter
     sim = app.state.sim
 
