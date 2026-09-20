@@ -102,8 +102,8 @@ export function useStationNetworkData(): UseStationNetworkDataResult {
 
   // Mock network readings for the current scenario
   const networkReadings = useMemo(() => {
-    return getMockNetworkReadings(selectedStationId, scenario);
-  }, [selectedStationId, scenario]);
+    return getMockNetworkReadings(selectedStationId, scenario, stations);
+  }, [selectedStationId, scenario, stations]);
 
   // Derive neighbor stations with Haversine distance and mock telemetry
   const neighbors = useMemo<NeighborStationItem[]>(() => {

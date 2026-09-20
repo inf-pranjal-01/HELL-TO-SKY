@@ -16,7 +16,10 @@ export type AnomalyType =
   | 'drift'
   | 'dropout'
   | 'sensor_fail_low'
-  | 'multivariate_inconsistency';
+  | 'multivariate_inconsistency'
+  | 'physical_bounds'
+  | 'statistical_anomaly'
+  | (string & {});
 
 export type NetworkCorroborationState = 'LOCALIZED' | 'REGIONAL' | 'INSUFFICIENT_CORROBORATION';
 
@@ -198,8 +201,43 @@ export interface ExplanationFeature {
   impact: number;
 }
 
+export interface PeerStationReading {
+  station_id: string;
+  name: string;
+  reading: number;
+  unit: string;
+}
+
+export interface ThermodynamicContext {
+  is_violation: boolean;
+  law?: string;
+  temperature_c?: number;
+  humidity_pct?: number;
+  pressure_hpa?: number;
+  explanation: string;
+}
+
+export interface SpatialContext {
+  cluster_id: string;
+  target_station: {
+    station_id: string;
+    name: string;
+    reading: number;
+    unit: string;
+  };
+  peer_stations: PeerStationReading[];
+  parameter_analyzed: string;
+  delta: number;
+  analysis_text: string;
+  recommended_action: string;
+  spatial_impact: string;
+  thermodynamic_context?: ThermodynamicContext | null;
+}
+
 export interface AnomalyExplanation {
   anomaly_id: string;
+  station_id?: string;
+  timestamp?: string;
   features: ExplanationFeature[];
   /** Optional list of sensor IDs most likely responsible for the anomaly */
   likely_faulty_sensors?: string[];
@@ -214,6 +252,7 @@ export interface AnomalyExplanation {
   network_corroboration?: NetworkCorroborationState;
   decision_basis?: string;
   model_status?: string;
+  spatial_context?: SpatialContext;
 }
 
 /**
@@ -352,6 +391,9 @@ export interface AnomalyTypeDistribution {
   dropout: number;
   sensor_fail_low: number;
   multivariate_inconsistency: number;
+  physical_bounds?: number;
+  statistical_anomaly?: number;
+  [key: string]: number | undefined;
 }
 
 /**

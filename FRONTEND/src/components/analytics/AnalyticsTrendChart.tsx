@@ -3,7 +3,7 @@ import { LineChart, Table, EyeOff } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
-import { TrendsResponse, CurrentSensorReading } from '../../types';
+import { TrendsResponse, CurrentSensorReading, TrendPoint } from '../../types';
 import './AnalyticsTrendChart.css';
 
 export interface AnalyticsTrendChartProps {
@@ -15,6 +15,24 @@ export interface AnalyticsTrendChartProps {
   isLoading?: boolean;
   className?: string;
 }
+
+const isMetricAnomalous = (pt: TrendPoint, metric: 'temperature_c' | 'pressure_hpa' | 'humidity_pct'): boolean => {
+  const isOverall = (pt.anomaly_score_pct || 0) > 75 || pt.is_anomaly === true;
+  if (!isOverall) return false;
+  const hasSuggested = {
+    temperature_c: pt.suggested_temperature_c != null,
+    pressure_hpa: pt.suggested_pressure_hpa != null,
+    humidity_pct: pt.suggested_humidity_pct != null,
+  };
+  if (hasSuggested.temperature_c || hasSuggested.pressure_hpa || hasSuggested.humidity_pct) {
+    return Boolean(hasSuggested[metric]);
+  }
+  const ft = (pt.fault_type || '').toLowerCase();
+  if (ft.includes('temp')) return metric === 'temperature_c';
+  if (ft.includes('press')) return metric === 'pressure_hpa';
+  if (ft.includes('humid') || ft.includes('dew')) return metric === 'humidity_pct';
+  return true;
+};
 
 export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
   trends,
@@ -126,7 +144,7 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
       ? padding.left + chartWidth / 2
       : padding.left + ((timestamp - minTime) / (maxTime - minTime)) * chartWidth;
     const y = padding.top + chartHeight - ((val - scaleMin) / scaleRange) * chartHeight;
-    const isAnomaly = (pt.anomaly_score_pct || 0) > 75;
+    const isAnomaly = isMetricAnomalous(pt, selectedMetric);
     return { x, y, val, timestamp: pt.timestamp, isAnomaly, score: pt.anomaly_score_pct };
   });
 

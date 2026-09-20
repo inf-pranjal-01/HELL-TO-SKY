@@ -83,29 +83,39 @@ export const anomalyService = {
   },
 
   /**
-   * Fetch recent anomaly event history for an Automatic Weather Station (AWS).
+   * Fetch recent anomaly event history. When stationId is omitted or 'all', fetches network-wide.
    * Request contract: GET /api/anomalies/recent?station_id={stationId}&limit={limit}
    */
   async getRecentAnomalies(
-    stationId: string,
-    limit: number = 5,
+    stationId?: string,
+    limit: number = 50,
     options?: RequestOptions
   ): Promise<RecentAnomalyItem[]> {
     if (isMockMode()) {
       return new Promise((resolve) => {
         setTimeout(() => {
-          const list = MOCK_RECENT_ANOMALIES[stationId] || [];
-          resolve(list.slice(0, limit));
+          if (stationId && stationId !== 'all') {
+            const list = MOCK_RECENT_ANOMALIES[stationId] || [];
+            resolve(list.slice(0, limit));
+          } else {
+            const all = Object.values(MOCK_RECENT_ANOMALIES).flat();
+            resolve(all.slice(0, limit));
+          }
         }, 60);
       });
     }
 
+    const params: Record<string, string | number> = { limit };
+    if (stationId && stationId !== 'all') {
+      params.station_id = stationId;
+    }
+
     const rawData = await apiClient.get<unknown>(
       API_CONFIG.endpoints.recentAnomalies,
-      { station_id: stationId, limit },
+      params,
       options
     );
-    return validateRecentAnomalies(rawData, stationId);
+    return validateRecentAnomalies(rawData, stationId && stationId !== 'all' ? stationId : undefined);
   },
 
   /**

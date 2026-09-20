@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/common/Button';
-import { Tooltip } from '../components/common/Tooltip';
 import './LoginPage.css';
 
 const DEMO_EMAIL = 'demo@skyguard.local';
@@ -220,17 +219,16 @@ export const LoginPage: React.FC = () => {
                     disabled={isSubmitting}
                     required
                   />
-                  <Tooltip content={showPassword ? 'Hide password' : 'Show password'} position="top">
-                    <button
-                      type="button"
-                      className="sg-password-toggle"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Hide password text' : 'Show password text'}
-                      tabIndex={0}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    className="sg-password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password text' : 'Show password text'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={0}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
                 {passwordError && (
                   <p id="password-error-msg" className="sg-field-error" role="alert">

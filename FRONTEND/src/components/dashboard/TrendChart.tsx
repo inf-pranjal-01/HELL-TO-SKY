@@ -59,6 +59,23 @@ const formatChartTime = (timestamp: string, includeDate = false): string => {
   ).format(date);
 };
 
+const isMetricAnomalous = (pt: TrendPoint, metric: MetricType): boolean => {
+  if (!pt.is_anomaly) return false;
+  const hasSuggested = {
+    temperature: pt.suggested_temperature_c != null,
+    pressure: pt.suggested_pressure_hpa != null,
+    humidity: pt.suggested_humidity_pct != null,
+  };
+  if (hasSuggested.temperature || hasSuggested.pressure || hasSuggested.humidity) {
+    return Boolean(hasSuggested[metric]);
+  }
+  const ft = (pt.fault_type || '').toLowerCase();
+  if (ft.includes('temp')) return metric === 'temperature';
+  if (ft.includes('press')) return metric === 'pressure';
+  if (ft.includes('humid') || ft.includes('dew')) return metric === 'humidity';
+  return true;
+};
+
 export const TrendChart: React.FC<TrendChartProps> = ({
   points = [],
   hours = 10,
@@ -297,7 +314,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           {windowedPoints.map((pt, i) => {
             const cx = getX(pt.timestamp);
             const cy = getY(pt[activeCfg.key]);
-            const isAnomaly = pt.is_anomaly === true;
+            const isAnomaly = isMetricAnomalous(pt, selectedMetric);
 
             return (
               <circle

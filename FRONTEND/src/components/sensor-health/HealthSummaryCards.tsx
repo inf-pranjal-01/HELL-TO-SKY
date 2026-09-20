@@ -1,7 +1,6 @@
 import React from 'react';
 import { Activity, HardDrive, Clock, Wifi } from 'lucide-react';
 import { Card } from '../common/Card';
-import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { SensorHealth, CurrentSensorReading } from '../../types';
 import './HealthSummaryCards.css';
@@ -42,16 +41,6 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
 
   const isHealthy = status === 'HEALTHY';
   const isWarning = status === 'WARNING';
-  const isCritical = status === 'CRITICAL';
-
-  let statusBadgeType: 'optimal' | 'moderate' | 'critical' | 'offline' = 'optimal';
-  if (isWarning) statusBadgeType = 'moderate';
-  else if (isCritical) statusBadgeType = 'critical';
-  else if (status === 'OFFLINE') statusBadgeType = 'offline';
-
-  let freshnessBadgeType: 'optimal' | 'moderate' | 'critical' = 'optimal';
-  if (staleStatusText === 'DATA DELAYED') freshnessBadgeType = 'moderate';
-  else if (staleStatusText === 'DATA STALE') freshnessBadgeType = 'critical';
 
   const formattedTimestamp = reading?.timestamp
     ? new Date(reading.timestamp).toLocaleTimeString([], {
@@ -111,9 +100,13 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
         </div>
         <div className="sg-health-summary-card__body">
           <div className="sg-health-summary-card__value" style={{ fontSize: '1.25rem' }}>
-            {status}
+            <span className={isHealthy ? 'text-optimal' : isWarning ? 'text-warning' : 'text-critical'}>
+              {status}
+            </span>
           </div>
-          <StatusBadge status={statusBadgeType} label={status} size="sm" />
+          <span className="sg-health-summary-card__subtitle">
+            {isHealthy ? 'Subsystem Nominal' : isWarning ? 'Degradation Detected' : 'Offline / Fault'}
+          </span>
         </div>
       </Card>
 
@@ -129,7 +122,7 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
           <div className="sg-health-summary-card__value" style={{ fontSize: '1.125rem' }}>
             {formattedTimestamp}
           </div>
-          <span className="sg-health-summary-card__subtitle">[FRONTEND ONLY]</span>
+          <span className="sg-health-summary-card__subtitle">Telemetry Sync</span>
         </div>
       </Card>
 
@@ -145,7 +138,9 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
           <div className="sg-health-summary-card__value" style={{ fontSize: '1.125rem' }}>
             {staleStatusText}
           </div>
-          <StatusBadge status={freshnessBadgeType} label={staleStatusText} size="sm" />
+          <span className="sg-health-summary-card__subtitle">
+            {staleStatusText === 'LIVE' ? 'Continuous Ingestion' : 'Polling Sync'}
+          </span>
         </div>
       </Card>
     </div>

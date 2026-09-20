@@ -109,7 +109,7 @@ export function useReportData(): UseReportDataResult {
   const spatialSummary = useMemo(() => {
     if (!selectedStation) return null;
 
-    const networkReadings = getMockNetworkReadings(selectedStation.station_id, 'localized_deviation');
+    const networkReadings = getMockNetworkReadings(selectedStation.station_id, 'localized_deviation', stations);
     const neighborReadings = stations
       .filter((s) => s.station_id !== selectedStation.station_id)
       .map((s) => networkReadings[s.station_id])

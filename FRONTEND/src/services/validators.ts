@@ -44,6 +44,8 @@ const VALID_ANOMALY_TYPES: readonly AnomalyType[] = [
   'dropout',
   'sensor_fail_low',
   'multivariate_inconsistency',
+  'physical_bounds',
+  'statistical_anomaly',
 ];
 
 // ---------------------------------------------------------------------------
@@ -359,13 +361,8 @@ export function validateLatestAnomaly(data: unknown, expectedStationId?: string)
   }
   const severity = data.severity as AnomalySeverity;
 
-  if (
-    typeof data.type !== 'string' ||
-    !(VALID_ANOMALY_TYPES as readonly string[]).includes(data.type)
-  ) {
-    throw ApiError.validationError(
-      `Latest anomaly has invalid type: "${String(data.type)}".`
-    );
+  if (typeof data.type !== 'string' || data.type.trim() === '') {
+    throw ApiError.validationError('Latest anomaly missing valid type string.');
   }
   const type = data.type as AnomalyType;
 
@@ -469,12 +466,9 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
     }
     const severity = item.severity as AnomalySeverity;
 
-    if (
-      typeof item.type !== 'string' ||
-      !(VALID_ANOMALY_TYPES as readonly string[]).includes(item.type)
-    ) {
+    if (typeof item.type !== 'string' || item.type.trim() === '') {
       throw ApiError.validationError(
-        `Recent anomaly at index ${idx} has invalid type: "${String(item.type)}".`
+        `Recent anomaly at index ${idx} missing valid type string.`
       );
     }
     const type = item.type as AnomalyType;
@@ -620,6 +614,7 @@ export function validateAnomalyExplanation(
     ...(network_corroboration !== undefined ? { network_corroboration } : {}),
     ...(typeof data.model_status === 'string' ? { model_status: data.model_status } : {}),
     ...(typeof data.explanation_method === 'string' ? { explanation_method: data.explanation_method } : {}),
+    ...(isObject(data.spatial_context) ? { spatial_context: data.spatial_context as any } : {}),
   };
 }
 

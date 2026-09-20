@@ -127,6 +127,9 @@ class HistoryStore:
         for col in HISTORY_COLUMNS:
             if col not in df.columns:
                 df[col] = None
+        for str_col in ["fault_type", "severity", "health_status", "source", "decision_basis"]:
+            if str_col in df.columns:
+                df[str_col] = df[str_col].astype(object)
         parsed = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
         if parsed.isna().any():
             df = df.loc[parsed.notna()].copy()
@@ -239,6 +242,9 @@ class HistoryStore:
             mask = (df["timestamp"] == target) & (df["source"] == source)
             if not mask.any():
                 return
+            df["is_anomaly"] = df["is_anomaly"].astype(object)
+            df["fault_type"] = df["fault_type"].astype(object)
+            df["severity"] = df["severity"].astype(object)
             df.loc[mask, "is_anomaly"] = True
             df.loc[mask, "fault_type"] = "spike"
             df.loc[mask, "severity"] = "medium"

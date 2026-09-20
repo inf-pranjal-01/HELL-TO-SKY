@@ -165,18 +165,21 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           </div>
         </div>
         <div className="sg-analytics-kpi-card__body">
-          <div
-            className="sg-analytics-kpi-card__value"
-            style={{ fontSize: '1.25rem', textTransform: 'uppercase' }}
-          >
-            {highestSeverity === 'none' ? 'NONE' : highestSeverity}
-          </div>
-          {highestSeverity !== 'none' && (
-            <StatusBadge
-              status={severityBadgeType}
-              label={highestSeverity.toUpperCase()}
-              size="sm"
-            />
+          {highestSeverity === 'none' ? (
+            <div
+              className="sg-analytics-kpi-card__value text-optimal"
+              style={{ fontSize: '1.25rem', textTransform: 'uppercase' }}
+            >
+              NONE
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <StatusBadge
+                status={severityBadgeType}
+                label={highestSeverity.toUpperCase()}
+                size="md"
+              />
+            </div>
           )}
         </div>
       </Card>

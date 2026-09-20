@@ -132,7 +132,8 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
 
       {typeof suggestedValue === 'number' && (
         <div className="sg-metric-card__suggested">
-          Suggested: <strong>{suggestedValue.toFixed(1)} {unit}</strong>
+          <span>Suggested</span>
+          <strong>{suggestedValue.toFixed(1)}&thinsp;{unit}</strong>
         </div>
       )}
     </Card>

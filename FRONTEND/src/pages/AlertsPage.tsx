@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { ShieldAlert, RefreshCw, Pause, Play, MapPin } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldAlert, RefreshCw, Pause, Play, MapPin, Globe } from 'lucide-react';
 import { useStation } from '../context/StationContext';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { anomalyService } from '../services/anomalyService';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
 import {
@@ -16,26 +18,56 @@ import { LatestAnomaly, RecentAnomalyItem } from '../types';
 import './AlertsPage.css';
 
 export const AlertsPage: React.FC = () => {
-  const { selectedStation } = useStation();
-  const stationId = selectedStation?.station_id;
-
-  const {
-    latestAnomaly,
-    recentAnomalies,
-    isLoadingAnomalies,
-    anomaliesError,
-    refreshAnomalies,
-    isPaused,
-    togglePause,
-    staleStatusText,
-  } = useDashboardData(stationId, { autoPoll: true });
+  const navigate = useNavigate();
+  const { stations, selectedStation } = useStation();
 
   // Filtering state
   const [filters, setFilters] = useState<AnomalyFilterValues>({
     severity: 'all',
     type: 'all',
     searchQuery: '',
+    stationId: 'all',
   });
+
+  const isNetworkWide = !filters.stationId || filters.stationId === 'all';
+  const effectiveStationId = isNetworkWide ? undefined : filters.stationId;
+
+  // Single station hook for header telemetry stream status
+  const {
+    latestAnomaly: stationLatestAnomaly,
+    isPaused,
+    togglePause,
+    staleStatusText,
+  } = useDashboardData(selectedStation?.station_id, { autoPoll: true });
+
+  const [anomalies, setAnomalies] = useState<RecentAnomalyItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAnomalies = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await anomalyService.getRecentAnomalies(effectiveStationId, 100);
+      setAnomalies(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load anomalies feed.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [effectiveStationId]);
+
+  useEffect(() => {
+    fetchAnomalies();
+    if (isPaused) return;
+    const interval = setInterval(fetchAnomalies, 15000);
+    return () => clearInterval(interval);
+  }, [fetchAnomalies, isPaused]);
+
+  // Handler to navigate directly to Decision X-Ray / SHAP
+  const handleOpenShap = (anomaly: RecentAnomalyItem) => {
+    navigate(`/analytics?anomaly_id=${anomaly.anomaly_id}&station_id=${anomaly.station_id}`);
+  };
 
   // Modal / Investigation state
   const [selectedAnomaly, setSelectedAnomaly] = useState<LatestAnomaly | RecentAnomalyItem | null>(null);
@@ -55,22 +87,23 @@ export const AlertsPage: React.FC = () => {
       severity: 'all',
       type: 'all',
       searchQuery: '',
+      stationId: 'all',
     });
   };
 
-  // Combine latestAnomaly into recent list if not already present, ensuring full visibility
-  const allStationAnomalies = useMemo(() => {
-    const list = [...recentAnomalies];
-    if (latestAnomaly && !list.some((a) => a.anomaly_id === latestAnomaly.anomaly_id)) {
-      list.unshift(latestAnomaly);
-    }
-    // Sort newest first
-    return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [latestAnomaly, recentAnomalies]);
+  // Sort newest first
+  const sortedAnomalies = useMemo(() => {
+    return [...anomalies].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [anomalies]);
 
   // Apply filters
   const filteredAnomalies = useMemo(() => {
-    return allStationAnomalies.filter((anomaly) => {
+    return sortedAnomalies.filter((anomaly) => {
+      // Station filter
+      if (filters.stationId && filters.stationId !== 'all' && anomaly.station_id !== filters.stationId) {
+        return false;
+      }
+
       // Severity filter
       if (filters.severity !== 'all' && anomaly.severity !== filters.severity) {
         return false;
@@ -81,23 +114,32 @@ export const AlertsPage: React.FC = () => {
         return false;
       }
 
-      // Search query filter (matches ID, root cause, or description)
+      // Search query filter (matches ID, station, root cause, or description)
       if (filters.searchQuery.trim().length > 0) {
         const query = filters.searchQuery.toLowerCase();
         const matchesId = anomaly.anomaly_id.toLowerCase().includes(query);
+        const matchesStation = anomaly.station_id.toLowerCase().includes(query);
         const matchesCause = anomaly.root_cause.toLowerCase().includes(query);
         const matchesDesc = anomaly.description.toLowerCase().includes(query);
-        if (!matchesId && !matchesCause && !matchesDesc) {
+        if (!matchesId && !matchesStation && !matchesCause && !matchesDesc) {
           return false;
         }
       }
 
       return true;
     });
-  }, [allStationAnomalies, filters]);
+  }, [sortedAnomalies, filters]);
 
-  const isFiltered =
-    filters.severity !== 'all' || filters.type !== 'all' || filters.searchQuery.trim().length > 0;
+  const featuredAnomaly = isNetworkWide
+    ? ((sortedAnomalies[0] as unknown as LatestAnomaly) ?? null)
+    : (stationLatestAnomaly ?? (sortedAnomalies[0] as unknown as LatestAnomaly) ?? null);
+
+  const isFiltered = Boolean(
+    filters.severity !== 'all' ||
+    filters.type !== 'all' ||
+    filters.searchQuery.trim().length > 0 ||
+    (filters.stationId && filters.stationId !== 'all')
+  );
 
   return (
     <div className="sg-alerts-page" role="main" aria-label="Anomaly Alerts & Incident Investigation">
@@ -109,18 +151,25 @@ export const AlertsPage: React.FC = () => {
             <h1 className="sg-alerts-page__title">Anomaly Alerts & Incidents</h1>
           </div>
           <p className="sg-alerts-page__subtitle">
-            Autonomous meteorological anomaly detection stream, classification analysis & root cause
+            Autonomous meteorological anomaly detection stream across all stations, classification analysis & root cause
             investigation.
           </p>
         </div>
 
         <div className="sg-alerts-page__header-controls">
-          {selectedStation && (
-            <div className="sg-alerts-page__station-badge">
-              <MapPin size={14} className="text-accent" />
-              <span>{selectedStation.name} ({selectedStation.station_id})</span>
-            </div>
-          )}
+          <div className="sg-alerts-page__station-badge">
+            {isNetworkWide ? (
+              <>
+                <Globe size={14} className="text-accent" />
+                <span>All Stations ({stations.length} Active)</span>
+              </>
+            ) : (
+              <>
+                <MapPin size={14} className="text-accent" />
+                <span>Station: {filters.stationId}</span>
+              </>
+            )}
+          </div>
 
           <StatusBadge
             status={staleStatusText === 'LIVE' ? 'optimal' : staleStatusText === 'DATA DELAYED' ? 'moderate' : 'critical'}
@@ -141,7 +190,7 @@ export const AlertsPage: React.FC = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => refreshAnomalies()}
+            onClick={() => fetchAnomalies()}
             leftIcon={<RefreshCw size={14} />}
             ariaLabel="Refresh anomaly feeds"
           >
@@ -152,18 +201,19 @@ export const AlertsPage: React.FC = () => {
 
       {/* Summary KPI Cards */}
       <AlertSummaryCards
-        latestAnomaly={latestAnomaly}
-        recentAnomalies={allStationAnomalies}
-        isLoading={isLoadingAnomalies}
+        latestAnomaly={featuredAnomaly}
+        recentAnomalies={sortedAnomalies}
+        isLoading={isLoading}
       />
 
       {/* Prominent Latest Anomaly Hero Banner */}
       <LatestAnomalyBanner
-        latestAnomaly={latestAnomaly}
-        isLoading={isLoadingAnomalies}
-        error={anomaliesError}
-        onRetry={refreshAnomalies}
+        latestAnomaly={featuredAnomaly}
+        isLoading={isLoading}
+        error={error}
+        onRetry={fetchAnomalies}
         onInvestigate={handleOpenModal}
+        onOpenShap={(anom) => handleOpenShap(anom as unknown as RecentAnomalyItem)}
       />
 
       {/* Filtering Bar */}
@@ -171,17 +221,19 @@ export const AlertsPage: React.FC = () => {
         filters={filters}
         onChange={setFilters}
         onReset={handleResetFilters}
-        totalCount={allStationAnomalies.length}
+        totalCount={sortedAnomalies.length}
         filteredCount={filteredAnomalies.length}
+        stations={stations}
       />
 
       {/* Interactive Anomaly History Table */}
       <RecentAnomaliesList
         anomalies={filteredAnomalies}
-        isLoading={isLoadingAnomalies}
-        error={anomaliesError}
-        onRetry={refreshAnomalies}
+        isLoading={isLoading}
+        error={error}
+        onRetry={fetchAnomalies}
         onSelectAnomaly={handleOpenModal}
+        onOpenShap={handleOpenShap}
         isFiltered={isFiltered}
         onClearFilters={handleResetFilters}
       />
@@ -195,3 +247,5 @@ export const AlertsPage: React.FC = () => {
     </div>
   );
 };
+
+export default AlertsPage;

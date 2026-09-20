@@ -134,6 +134,8 @@ export function deriveTypeDistribution(anomalies: RecentAnomalyItem[]): AnomalyT
     dropout: 0,
     sensor_fail_low: 0,
     multivariate_inconsistency: 0,
+    physical_bounds: 0,
+    statistical_anomaly: 0,
   };
 
   if (!anomalies) return dist;

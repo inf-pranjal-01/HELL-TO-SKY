@@ -65,7 +65,8 @@ export const MOCK_REGIONAL_BASELINE_READINGS: Record<string, StationNetworkReadi
  */
 export function getMockNetworkReadings(
   selectedStationId: string | null | undefined,
-  scenario: SpatialDemoScenario = 'localized_deviation'
+  scenario: SpatialDemoScenario = 'localized_deviation',
+  availableStations?: Array<{ station_id: string }>
 ): Record<string, StationNetworkReading> {
   const readings: Record<string, StationNetworkReading> = {};
 
@@ -73,6 +74,26 @@ export function getMockNetworkReadings(
   Object.keys(MOCK_REGIONAL_BASELINE_READINGS).forEach((id) => {
     readings[id] = { ...MOCK_REGIONAL_BASELINE_READINGS[id], timestamp: new Date().toISOString() };
   });
+
+  // If availableStations is provided, ensure every station in the network has baseline telemetry
+  if (availableStations && availableStations.length > 0) {
+    availableStations.forEach((station, idx) => {
+      if (!readings[station.station_id]) {
+        const tempOffset = ((idx % 7) - 3) * 0.25; // -0.75 to +0.75°C
+        const pressOffset = ((idx % 5) - 2) * 0.3; // -0.6 to +0.6 hPa
+        const humOffset = ((idx % 6) - 2.5) * 0.8; // -2.0 to +2.0%
+        readings[station.station_id] = {
+          station_id: station.station_id,
+          timestamp: new Date().toISOString(),
+          temperature_c: +(31.2 + tempOffset).toFixed(1),
+          pressure_hpa: +(1012.4 + pressOffset).toFixed(1),
+          humidity_pct: +(68.0 + humOffset).toFixed(1),
+          anomaly_score_pct: 5.0 + (idx % 10),
+          sensor_health_pct: 95.0 - (idx % 8),
+        };
+      }
+    });
+  }
 
   if (scenario === 'localized_deviation' && selectedStationId && readings[selectedStationId]) {
     // Inject localized thermal/humidity deviation into selected station

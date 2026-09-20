@@ -168,7 +168,22 @@ class ExplainerCache:
             except Exception as e:
                 logging.getLogger(__name__).warning(f"[explain] shap_values() failed on this reading, falling back to magnitude ranking: {e!r}")
 
-        return {"method": "feature_magnitude_fallback", "features": self._format(feature_columns, X[0])}
+        # Standardize features for fallback ranking so physical units (e.g. pressure 1013 hPa)
+        # do not artificially dominate over genuine sensor deviations and rate of changes.
+        scaled_impacts = []
+        for col, val in zip(feature_columns, X[0]):
+            if col == "pressure_hpa":
+                scaled_impacts.append((val - 1013.25) / 10.0)
+            elif col == "temperature_c":
+                scaled_impacts.append((val - 25.0) / 10.0)
+            elif col == "humidity_pct":
+                scaled_impacts.append((val - 50.0) / 25.0)
+            elif "sin" in col or "cos" in col or "dt_hours" in col:
+                scaled_impacts.append(0.0)
+            else:
+                scaled_impacts.append(float(val))
+
+        return {"method": "feature_magnitude_fallback", "features": self._format(feature_columns, scaled_impacts)}
 
     def _format(self, feature_columns, impacts) -> list[dict]:
         rows = [

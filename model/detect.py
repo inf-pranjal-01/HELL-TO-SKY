@@ -201,9 +201,18 @@ from config import (
     WINDOW_10H_TRIGGER,
     WINDOW_24H_SIZE,
     WINDOW_24H_TRIGGER,
+    SPATIAL_CORROBORATION_MIN_PEERS,
+    SPATIAL_CORROBORATION_THRESHOLD_SIGMA,
+    graduated_confidence_frozen,
+    graduated_confidence_drift,
+    graduated_confidence_spike,
+    graduated_confidence_fail_low,
+    graduated_confidence_multivariate,
+    CLUSTERS,
 )
 
 ARTIFACTS_PATH = Path(__file__).parent.parent / "model_artifacts" / "isolation_forest.pkl"
+CALIBRATION_ARTIFACT_PATH = Path(__file__).parent.parent / "model_artifacts" / "network_corroboration.pkl"
 
 # Same hard physical ceilings used in anomaly_injector.py's clip step --
 # duplicated intentionally, not imported: this is a genuinely
@@ -418,38 +427,36 @@ def _cusum_evidence(
         if raw_roc is None or not np.isfinite(raw_roc):
             continue
         raw_roc = float(raw_roc)
-        scale_val = float(scale_val) if (scale_val is not None and np.isfinite(scale_val) and scale_val > 0) else 1.0
+        min_scale = 1.0 if param in ("temperature_c", "humidity_pct") else 0.3
+        scale_val = max(float(scale_val), min_scale) if (scale_val is not None and np.isfinite(scale_val) and scale_val > 0) else min_scale
         expected = get_expected_roc(station_id, prefix, int(h))
-        residual = (raw_roc - expected) / scale_val
+        residual = float(np.clip((raw_roc - expected) / scale_val, -3.0, 3.0))
         
-        clamped_res_pos = residual
-        clamped_res_neg = -residual
-        s_pos = max(0.0, s_pos + clamped_res_pos - allowance)
-        s_neg = max(0.0, s_neg + clamped_res_neg - allowance)
+        s_pos = max(0.0, s_pos + residual - allowance)
+        s_neg = max(0.0, s_neg - residual - allowance)
         
         ewma_val = EWMA_DRIFT_ALPHA * residual + (1.0 - EWMA_DRIFT_ALPHA) * ewma_val
 
     raw_steps = featured_buffer[param].diff().dropna().to_numpy()
-    direction_consistent = False
+    pos_streak = neg_streak = False
     if len(raw_steps) >= CUSUM_DIRECTION_STREAK_REQUIRED:
         recent_steps = raw_steps[-CUSUM_DIRECTION_STREAK_REQUIRED:]
-        # Require strict direction consistency: all steps in the window must be in the same direction
-        direction_consistent = (
-            np.sum(recent_steps > 0) == CUSUM_DIRECTION_STREAK_REQUIRED
-            or np.sum(recent_steps < 0) == CUSUM_DIRECTION_STREAK_REQUIRED
-        )
-    cusum_triggered = direction_consistent and (s_pos > CUSUM_THRESHOLD or s_neg > CUSUM_THRESHOLD)
-    ewma_triggered = direction_consistent and abs(ewma_val) > EWMA_DRIFT_THRESHOLD
+        pos_streak = np.sum(recent_steps > 0) == CUSUM_DIRECTION_STREAK_REQUIRED
+        neg_streak = np.sum(recent_steps < 0) == CUSUM_DIRECTION_STREAK_REQUIRED
+
+    cusum_triggered = (pos_streak and s_pos > CUSUM_THRESHOLD) or (neg_streak and s_neg > CUSUM_THRESHOLD)
+    ewma_triggered = (pos_streak and ewma_val > EWMA_DRIFT_THRESHOLD) or (neg_streak and ewma_val < -EWMA_DRIFT_THRESHOLD)
     
     if cusum_triggered or ewma_triggered:
         trigger_src = "EWMA" if ewma_triggered else "CUSUM"
-        val = abs(ewma_val) if ewma_triggered else max(s_pos, s_neg)
+        val = abs(ewma_val) if ewma_triggered else (s_pos if pos_streak else s_neg)
         thresh = EWMA_DRIFT_THRESHOLD if ewma_triggered else CUSUM_THRESHOLD
+        drift_conf = graduated_confidence_drift(val, thresh, is_ewma=ewma_triggered)
         
         return {
             "type": "drift",
             "parameter": param,
-            "confidence": RULE_BASE_CONFIDENCE["drift"],
+            "confidence": drift_conf,
             "observed_value": raw_steps[-1] if len(raw_steps) else None,
             "threshold": f">{thresh}",
             "reason": f"{trigger_src} accumulator ({val:.2f}) exceeded threshold ({thresh})."
@@ -535,10 +542,12 @@ def _multivariate_evidence(featured_buffer: pd.DataFrame):
 
     confirmed = len(featured_buffer) >= 2 and _fires(featured_buffer.iloc[-2])
 
-    confidence = (
-        RULE_BASE_CONFIDENCE["multivariate_confirmed"] if confirmed
-        else RULE_BASE_CONFIDENCE["multivariate_single"]
-    )
+    # Compute joint magnitude across temp and humidity deviations
+    td = abs(latest.get("temp_deviation", 0.0)) if pd.notna(latest.get("temp_deviation")) else 0.0
+    hd = abs(latest.get("humidity_deviation", 0.0)) if pd.notna(latest.get("humidity_deviation")) else 0.0
+    joint_z = float(np.sqrt(td ** 2 + hd ** 2))
+    base_thresh = float(np.sqrt(MULTIVARIATE_TEMP_DEVIATION_THRESHOLD ** 2 + MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD ** 2))
+    confidence = graduated_confidence_multivariate(joint_z, base_thresh, confirmed=confirmed)
 
     # --- weighted attribution: which param(s) actually implicated ---
     temp_dev = latest.get("temp_deviation")
@@ -606,7 +615,7 @@ def _confirmed_spikes(featured_buffer: pd.DataFrame, thresholds: dict, station_i
                 continue
                 
             jump = abs(candidate_val - before_val)
-            if jump == 0:
+            if jump < spike_threshold:
                 continue
                 
             candidate_dev = candidate.get(f"{prefix}_deviation")
@@ -615,11 +624,18 @@ def _confirmed_spikes(featured_buffer: pd.DataFrame, thresholds: dict, station_i
                 
             # If it reverted to baseline NOW
             if abs(current_val - before_val) <= jump * SPIKE_REVERSION_RATIO:
+                reversion_cleanliness = max(0.0, 1.0 - (abs(current_val - before_val) / (jump * SPIKE_REVERSION_RATIO if jump > 0 else 1.0)))
+                spike_conf = graduated_confidence_spike(
+                    abs(candidate_dev),
+                    spike_threshold * SPIKE_DEVIATION_MULTIPLIER,
+                    reversion_cleanliness=reversion_cleanliness,
+                )
                 confirmed.append({
                     "parameter": param,
                     "timestamp": pd.Timestamp(candidate["timestamp"]),
                     "observed_value": float(candidate_val),
                     "suggested_value": round(float((before_val + current_val) / 2), 2),
+                    "confidence": spike_conf,
                 })
                 break  # we confirmed a spike for this parameter, stop checking older steps
                 
@@ -663,12 +679,14 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
         req = FROZEN_CONSECUTIVE_REQUIRED_PRESSURE if param == "pressure_hpa" else FROZEN_CONSECUTIVE_REQUIRED
         streak = feature_row.get(f"{prefix}_frozen_streak", 0)
         if streak >= req:
+            frozen_conf = graduated_confidence_frozen(int(streak), int(req))
             fired.append({
                 "type": "frozen_value",
                 "parameter": param,
-                "confidence": RULE_BASE_CONFIDENCE["frozen_value"],
+                "confidence": frozen_conf,
                 "observed_value": raw_reading.get(param),
                 "threshold": f"{req} readings",
+                "streak": int(streak),
                 "reason": f"Value exactly constant for {streak} consecutive readings (threshold: {req})."
             })
 
@@ -697,10 +715,16 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
                 continue
             vals = recent_raw[param]
             if vals.notna().all() and (vals <= FAIL_LOW_FLOOR[prefix]).all():
+                faillow_conf = graduated_confidence_fail_low(
+                    float(vals.iloc[-1]),
+                    float(FAIL_LOW_FLOOR[prefix]),
+                    len(vals),
+                    FAIL_LOW_CONSECUTIVE_REQUIRED,
+                )
                 fired.append({
                     "type": "sensor_fail_low",
                     "parameter": param,
-                    "confidence": RULE_BASE_CONFIDENCE["sensor_fail_low"],
+                    "confidence": faillow_conf,
                     "observed_value": vals.iloc[-1],
                     "threshold": f"<={FAIL_LOW_FLOOR[prefix]}",
                     "reason": f"Value at or below noise floor {FAIL_LOW_FLOOR[prefix]} for {FAIL_LOW_CONSECUTIVE_REQUIRED} readings."
@@ -765,7 +789,11 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     """
     if rule_evidence:
         rule_confidence = max(r["confidence"] for r in rule_evidence)
-        fault_type = max(rule_evidence, key=lambda e: e["confidence"])["type"]
+        specific_evidence = [r for r in rule_evidence if r["type"] not in ("physical_bounds", "dropout")]
+        if specific_evidence:
+            fault_type = max(specific_evidence, key=lambda e: e["confidence"])["type"]
+        else:
+            fault_type = max(rule_evidence, key=lambda e: e["confidence"])["type"]
     else:
         rule_confidence = 0.0
         fault_type = None
@@ -780,7 +808,7 @@ def _fuse_and_score(model_pct, rule_evidence: list):
         overall = MODEL_WEIGHT * model_pct + RULE_WEIGHT * rule_confidence
 
     is_anomaly = (
-        overall > FUSION_ANOMALY_THRESHOLD
+        (overall > FUSION_ANOMALY_THRESHOLD and rule_confidence > 0.0)
         or (model_pct is not None and model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD)
         # Frozen floor-match is confidence 90 but remains evidence for
         # fusion, per Draft 2 §1; it must not recreate the retired
@@ -796,35 +824,73 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     return overall, is_anomaly, fault_type, rule_confidence
 
 
-def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_buffers: dict, fault_type: str, implicated_params: list) -> str:
+def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_buffers: dict, fault_type: str, implicated_params: list, artifact: dict = None) -> dict:
     """
-    Network corroboration check -- classifies anomaly as LOCALIZED, REGIONAL,
-    or INSUFFICIENT_CORROBORATION based on whether eligible cluster peers show
-    similar deviations in the same direction.
-
-    Performance fix: target_features is computed ONCE before the peer loop.
-    Each peer's features are also computed once per peer (not per param).
-
-    Returns None when neighbor_buffers is None/empty (no check performed),
-    which the caller must distinguish from INSUFFICIENT_CORROBORATION (peers
-    exist but were all stale/unhealthy). See audit §13.6.
+    Network corroboration check (Stages 3 & 4).
+    Empirically-calibrated against ERA5 cluster residuals (model_artifacts/network_corroboration.pkl).
+    
+    Hard constraints:
+    - NEVER flips is_anomaly in EITHER direction (True -> False or False -> True).
+    - NEVER touches, gates, delays, bonuses, or relabels spike or multivariate_inconsistency.
+    - NEVER touches hardware rail faults (physical_bounds, dropout, sensor_fail_low).
+    - Only adjusts confidence and labeling for frozen_value and drift.
     """
     if not neighbor_buffers:
-        # No peer data available -- cannot perform network check.
-        # Caller should surface this as INSUFFICIENT_CORROBORATION with reason.
         return {
             "state": "INSUFFICIENT_CORROBORATION",
             "eligible_peer_count": 0,
             "corroborating_peer_count": 0,
-            "network_interpretation": "No peer stations available for comparison."
+            "network_interpretation": "No peer stations available for comparison.",
+            "confidence_bonus": 0.0,
+            "relabel_fault_type": None,
         }
 
+    station_id = raw_reading.get("station_id") or (history_df["station_id"].iloc[-1] if not history_df.empty else None)
     target_time = pd.to_datetime(
         raw_reading.get("timestamp") or history_df["timestamp"].iloc[-1],
         utc=True,
     )
 
-    # Compute target station features ONCE before the peer loop.
+    # Resolve calibrated thresholds from artifact or file
+    calib_dict = None
+    if artifact and "network_corroboration" in artifact:
+        calib_dict = artifact["network_corroboration"]
+    elif CALIBRATION_ARTIFACT_PATH.exists():
+        try:
+            calib_dict = joblib.load(CALIBRATION_ARTIFACT_PATH)
+        except Exception:
+            calib_dict = None
+
+    # Identify cluster info for station_id
+    cluster_id = None
+    center_id = None
+    if calib_dict and "clusters" in calib_dict:
+        for cid, cinfo in calib_dict["clusters"].items():
+            if cinfo["center_station_id"] == station_id:
+                cluster_id = cid
+                center_id = station_id
+                break
+            if station_id in cinfo["pairs"]:
+                cluster_id = cid
+                center_id = cinfo["center_station_id"]
+                break
+
+    # If cluster not found via calibration artifact, fallback to CLUSTERS in config
+    if cluster_id is None:
+        for cid, cinfo in CLUSTERS.items():
+            if cinfo["center"]["station_id"] == station_id:
+                cluster_id = cid
+                center_id = station_id
+                break
+            for nmeta in cinfo["neighbors"]:
+                if nmeta["station_id"] == station_id:
+                    cluster_id = cid
+                    center_id = cinfo["center"]["station_id"]
+                    break
+
+    cluster_calib = calib_dict["clusters"].get(cluster_id) if (calib_dict and cluster_id) else None
+
+    # Compute target station features ONCE before the peer loop
     try:
         target_features = build_features_for_latest(history_df)
     except Exception:
@@ -832,11 +898,15 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             "state": "INSUFFICIENT_CORROBORATION",
             "eligible_peer_count": 0,
             "corroborating_peer_count": 0,
-            "network_interpretation": "Target station features could not be built for comparison."
+            "network_interpretation": "Target station features could not be built for comparison.",
+            "confidence_bonus": 0.0,
+            "relabel_fault_type": None,
         }
 
     eligible_peers = 0
     corroborating_peers = 0
+    diverged_peers = 0
+    flat_peers = 0
 
     for nid, n_df in neighbor_buffers.items():
         if n_df is None or n_df.empty:
@@ -844,51 +914,138 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
         n_latest = n_df.iloc[-1]
         n_time = pd.to_datetime(n_latest["timestamp"], utc=True)
 
-        # Freshness check: peer reading must be within 1h of target.
+        # Freshness check: peer reading must be within 1h of target
         if abs((n_time - target_time).total_seconds()) > 3600:
             continue
 
+        # Check exclusion from empirical calibration
+        peer_calib = None
+        if cluster_calib and "pairs" in cluster_calib:
+            # Pair calibration between center and neighbor
+            if nid in cluster_calib["pairs"]:
+                peer_calib = cluster_calib["pairs"][nid]
+            elif station_id in cluster_calib["pairs"] and nid == center_id:
+                peer_calib = cluster_calib["pairs"][station_id]
+
         eligible_peers += 1
 
-        # Compute peer features ONCE per peer (not per implicated parameter).
         try:
             n_features = build_features_for_latest(n_df)
         except Exception:
-            eligible_peers -= 1  # don't count peers whose features failed
+            eligible_peers -= 1
             continue
 
-        # Check whether any implicated parameter shows a same-direction
-        # deviation > 2.0 sigma in the peer.
-        is_corroborating = False
+        # Evaluate corroboration / divergence per implicated parameter
         for param in implicated_params:
             prefix = PARAM_PREFIXES.get(param)
             if not prefix:
                 continue
+
+            param_calib = peer_calib["parameters"].get(param) if peer_calib else None
+            # Skip if this parameter pair is excluded due to reanalysis grid resolution
+            if param_calib and param_calib.get("excluded", False):
+                continue
+
             target_dev = target_features.get(f"{prefix}_deviation", 0)
             peer_dev = n_features.get(f"{prefix}_deviation", 0)
-            if pd.notna(target_dev) and pd.notna(peer_dev):
-                if abs(peer_dev) > 2.0 and (target_dev * peer_dev > 0):
-                    is_corroborating = True
+
+            # Peer delta over 1h
+            peer_roc = n_features.get(f"{prefix}_roc_1h", 0.0)
+            peer_delta = abs(float(peer_roc)) if pd.notna(peer_roc) else 0.0
+            div_thresh = param_calib["divergence_threshold"] if param_calib else 1.0
+
+            if fault_type == "frozen_value":
+                # Stage 3: Frozen-value spatial confirmation
+                # Check if eligible neighbor diverged while target is flat
+                if peer_delta > div_thresh:
+                    diverged_peers += 1
+                elif peer_delta <= (div_thresh * 0.3):
+                    flat_peers += 1
+
+            elif fault_type == "drift":
+                # Stage 4: Drift spatial corroboration
+                # Check if eligible neighbor matches direction and magnitude
+                target_roc = target_features.get(f"{prefix}_roc_1h", 0.0)
+                corroborated_by_dev = (
+                    pd.notna(target_dev) and pd.notna(peer_dev)
+                    and abs(peer_dev) >= SPATIAL_CORROBORATION_THRESHOLD_SIGMA
+                    and (target_dev * peer_dev > 0)
+                )
+                corroborated_by_roc = (
+                    pd.notna(target_roc) and pd.notna(peer_roc)
+                    and abs(peer_roc) >= (div_thresh * 0.5)
+                    and (target_roc * peer_roc > 0)
+                )
+                if corroborated_by_dev or corroborated_by_roc:
+                    corroborating_peers += 1
                     break
+            else:
+                # For any other fault type (e.g. spike, multivariate, statistical), standard tracking
+                if pd.notna(target_dev) and pd.notna(peer_dev):
+                    if abs(peer_dev) >= SPATIAL_CORROBORATION_THRESHOLD_SIGMA and (target_dev * peer_dev > 0):
+                        corroborating_peers += 1
+                        break
 
-        if is_corroborating:
-            corroborating_peers += 1
+    confidence_bonus = 0.0
+    relabel_fault_type = None
 
-    if eligible_peers < 1:
-        state = "INSUFFICIENT_CORROBORATION"
-        interpretation = "No peers with fresh data within the last hour."
-    elif corroborating_peers > 0:
-        state = "REGIONAL"
-        interpretation = f"{corroborating_peers} out of {eligible_peers} eligible peers show similar deviations, suggesting a regional environmental event."
+    if fault_type == "frozen_value":
+        if eligible_peers < 1:
+            state = "INSUFFICIENT_CORROBORATION"
+            interpretation = "No eligible peers with fresh data to corroborate frozen sensor."
+        elif diverged_peers >= 1:
+            state = "CONFIRMED_DIVERGENCE"
+            interpretation = f"{diverged_peers} peer(s) diverged beyond calibrated envelope while sensor remained flat."
+            confidence_bonus = 6.0
+        elif flat_peers >= 1:
+            state = "AMBIGUOUS_STABLE_REGION"
+            interpretation = f"Peers are also stable/flat within calibrated envelope; regional meteorological stability."
+            confidence_bonus = 0.0
+        else:
+            state = "LOCALIZED"
+            interpretation = "Peers show normal variability within bounds."
+            confidence_bonus = 0.0
+
+    elif fault_type == "drift":
+        if eligible_peers < 1:
+            state = "INSUFFICIENT_CORROBORATION"
+            interpretation = "No eligible peers with fresh data to corroborate drift."
+        elif corroborating_peers >= SPATIAL_CORROBORATION_MIN_PEERS:
+            state = "REGIONAL"
+            interpretation = f"{corroborating_peers} of {eligible_peers} eligible peers corroborate directional shift; classified as regional event."
+            confidence_bonus = 3.0
+            relabel_fault_type = "REGIONAL_EVENT"
+        elif corroborating_peers > 0:
+            state = "PARTIAL_CORROBORATION"
+            interpretation = f"{corroborating_peers} of {eligible_peers} eligible peers corroborate shift; inconclusive regional signal."
+            confidence_bonus = 0.0
+        else:
+            state = "LOCALIZED"
+            interpretation = f"None of {eligible_peers} eligible peers corroborate shift; localized sensor drift."
+            confidence_bonus = 0.0
+
     else:
-        state = "LOCALIZED"
-        interpretation = f"None of the {eligible_peers} eligible peers show similar deviations, strongly suggesting a localized sensor fault."
+        # spike, multivariate, and others are strictly untouched by network corroboration
+        if eligible_peers < 1:
+            state = "INSUFFICIENT_CORROBORATION"
+            interpretation = "No peers with fresh data within the last hour."
+        elif corroborating_peers >= SPATIAL_CORROBORATION_MIN_PEERS:
+            state = "REGIONAL"
+            interpretation = f"{corroborating_peers} out of {eligible_peers} eligible peers show similar deviations."
+        elif corroborating_peers > 0:
+            state = "PARTIAL_CORROBORATION"
+            interpretation = f"{corroborating_peers} out of {eligible_peers} eligible peers show similar deviations."
+        else:
+            state = "LOCALIZED"
+            interpretation = f"None of the {eligible_peers} eligible peers show similar deviations."
 
     return {
         "state": state,
         "eligible_peer_count": eligible_peers,
         "corroborating_peer_count": corroborating_peers,
-        "network_interpretation": interpretation
+        "network_interpretation": interpretation,
+        "confidence_bonus": confidence_bonus,
+        "relabel_fault_type": relabel_fault_type,
     }
 
 
@@ -943,9 +1100,10 @@ def _classify_regime(feature_row: "pd.Series", raw_reading: dict, history_df: "p
                 or humidity_vol_z is not None and abs(humidity_vol_z) > 2.0):
             return "HIGH_VOLATILITY"
 
-        # PRESSURE_SHIFT: sustained pressure rate-of-change over 3h
-        if pressure_roc_3h is not None and abs(pressure_roc_3h) > 2.0:
-            return "PRESSURE_SHIFT"
+        # THERMODYNAMIC_CONFLICT: Clausius-Clapeyron violation
+        vapor_dev = get("vapor_pressure_consistency_dev", None)
+        if vapor_dev is not None and abs(vapor_dev) > 15.0:
+            return "THERMODYNAMIC_CONFLICT"
 
         # HIGH_HEAT: extreme temperature by absolute value or deviation
         if (temp_c is not None and temp_c > 35.0) or (temp_dev is not None and temp_dev > 2.5):
@@ -954,6 +1112,10 @@ def _classify_regime(feature_row: "pd.Series", raw_reading: dict, history_df: "p
         # HIGH_HUMIDITY: extreme humidity by absolute value or deviation
         if (humidity_pct is not None and humidity_pct > 85.0) or (humidity_dev is not None and humidity_dev > 2.0):
             return "HIGH_HUMIDITY"
+
+        # PRESSURE_SHIFT: sustained pressure rate-of-change over 3h
+        if pressure_roc_3h is not None and abs(pressure_roc_3h) > 2.0:
+            return "PRESSURE_SHIFT"
 
         # REGIME_TRANSITION: recent direction reversal in temperature
         if len(history_df) >= 3:
@@ -995,23 +1157,109 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     both serving and the model vector.
     """
     feature_row = build_features_for_latest(history_df)
-    # A suggestion must be available for every reportable bad reading,
-    # including the first hours before a 48h rolling baseline is warm.  Use
-    # the causal rolling mean when it exists; otherwise use the most recent
-    # valid earlier observation.  Never use the current raw value as its own
-    # replacement (especially important for a dropout/spike).
+    # ── Time-aware suggested value interpolation ──────────────────────
+    # The old approach used a flat 48h rolling mean, which produced noon
+    # suggestions of ~23°C when the real noon reading should be ~32°C
+    # (because the 48h window includes overnight lows).
+    #
+    # Priority cascade (first valid wins):
+    #   1. Same-hour-yesterday: reading from ≈24h ago (captures diurnal cycle)
+    #   2. Trend-extrapolated 3h mean: short-window mean + slope correction
+    #   3. Neighbor station interpolation: time-aligned peer reading
+    #   4. 48h rolling mean (original fallback)
+    #   5. Most recent prior clean observation
     suggested_values = {}
     suggested_metadata = {}
+
+    # Pre-parse history timestamps for same-hour lookup
+    _hist_ts = pd.to_datetime(history_df["timestamp"], utc=True, errors="coerce")
+    _current_ts = _hist_ts.iloc[-1] if not _hist_ts.empty else None
+    _clean_history = history_df.iloc[:-1]  # exclude the current (possibly anomalous) reading
+
     for param, prefix in PARAM_PREFIXES.items():
-        source = "rolling_mean"
+        candidate = None
+        source = None
         uncertainty = feature_row.get(f"{prefix}_rolling_std")
-        candidate = feature_row.get(f"{prefix}_rolling_mean")
-        if pd.isna(candidate):
-            source = "prior_reading"
-            uncertainty = None
+
+        # ── Strategy 1: Spatial Neighbor Interpolation (Real-Time Regional Weather) ─
+        # For an active cluster, neighbor stations experience the same microclimate
+        # at the exact same hour. The peer median is the gold standard for imputing
+        # what this station should have observed under true atmospheric conditions.
+        if candidate is None and neighbor_buffers:
+            peer_vals_for_param = []
+            for _nid, _nbuf_df in (neighbor_buffers or {}).items():
+                if _nbuf_df is None or _nbuf_df.empty or param not in _nbuf_df.columns:
+                    continue
+                if _current_ts is not None and "timestamp" in _nbuf_df.columns:
+                    n_ts = pd.to_datetime(_nbuf_df["timestamp"], utc=True, errors="coerce")
+                    n_vals = pd.to_numeric(_nbuf_df[param], errors="coerce")
+                    n_valid = n_vals.notna() & n_ts.notna()
+                    if n_valid.any():
+                        n_diffs = (n_ts[n_valid] - _current_ts).abs()
+                        n_best = n_diffs.idxmin()
+                        if n_diffs.loc[n_best] <= pd.Timedelta(hours=2):
+                            nv = n_vals.loc[n_best]
+                            if pd.notna(nv):
+                                peer_vals_for_param.append(float(nv))
+            if peer_vals_for_param:
+                import numpy as np
+                candidate = float(np.median(peer_vals_for_param))
+                source = "neighbor_interpolation"
+
+        # ── Strategy 2: Same-hour-yesterday (Diurnal Temporal Match) ─
+        # Find a clean reading from ~24h ago (±2h tolerance).
+        # This naturally matches diurnal temperature/humidity curves when
+        # network peer consensus is unavailable.
+        if candidate is None and _current_ts is not None and pd.notna(_current_ts) and len(_clean_history) > 0:
+            target_24h = _current_ts - pd.Timedelta(hours=24)
+            clean_ts = pd.to_datetime(_clean_history["timestamp"], utc=True, errors="coerce")
+            clean_vals = pd.to_numeric(_clean_history[param], errors="coerce")
+            valid_mask = clean_vals.notna() & clean_ts.notna()
+            if valid_mask.any():
+                diffs_24h = (clean_ts[valid_mask] - target_24h).abs()
+                best_idx = diffs_24h.idxmin()
+                if diffs_24h.loc[best_idx] <= pd.Timedelta(hours=2):
+                    val_24h = clean_vals.loc[best_idx]
+                    if pd.notna(val_24h):
+                        candidate = float(val_24h)
+                        source = "same_hour_yesterday"
+
+        # ── Strategy 3: Forward Trend Extrapolation from Last Clean Reading ─
+        # Project forward from the last clean observation using the recent rate of change,
+        # rather than taking an unweighted backward rolling mean that drags into morning lows.
+        if candidate is None:
+            clean_series = pd.to_numeric(history_df[param].iloc[:-1], errors="coerce").dropna()
+            if not clean_series.empty:
+                last_clean_val = float(clean_series.iloc[-1])
+                slope_6h = feature_row.get(f"{prefix}_slope_6h")
+                roc_1h = feature_row.get(f"{prefix}_roc_1h")
+                
+                # Use recent 1h or 6h rate of change to extrapolate forward
+                step = 0.0
+                if pd.notna(roc_1h) and abs(roc_1h) < 10.0:
+                    step = float(roc_1h)
+                elif pd.notna(slope_6h) and abs(slope_6h) < 10.0:
+                    step = float(slope_6h)
+                
+                candidate = last_clean_val + step
+                source = "trend_extrapolated"
+
+        # ── Strategy 4: 48h rolling mean (original baseline fallback) ─
+        if candidate is None:
+            rm = feature_row.get(f"{prefix}_rolling_mean")
+            if pd.notna(rm):
+                candidate = float(rm)
+                source = "rolling_mean_48h"
+
+        # ── Strategy 5: Most recent prior clean observation ──────────
+        if candidate is None:
             prior = pd.to_numeric(history_df[param].iloc[:-1], errors="coerce").dropna()
-            candidate = prior.iloc[-1] if not prior.empty else None
-        if pd.notna(candidate):
+            if not prior.empty:
+                candidate = float(prior.iloc[-1])
+                source = "prior_reading"
+                uncertainty = None
+
+        if candidate is not None:
             suggested_values[param] = round(float(candidate), 2)
             suggested_metadata[param] = {
                 "value": round(float(candidate), 2),
@@ -1100,12 +1348,38 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
             implicated = list(set(r["parameter"] for r in rules["fired"]))
         neighbor_buffers_safe = neighbor_buffers or {}
         network_details = _corroborate_network(
-            raw_reading, history_df, neighbor_buffers_safe, fault_type, implicated
+            raw_reading, history_df, neighbor_buffers_safe, fault_type, implicated, artifact=artifact
         )
         network_state = network_details["state"]
         network_interpretation = network_details["network_interpretation"]
         eligible_peer_count = network_details["eligible_peer_count"]
         corroborating_peer_count = network_details["corroborating_peer_count"]
+
+        # STAGES 3 & 4 SPATIAL CORROBORATION:
+        # Constraint: NEVER flip is_anomaly in EITHER direction (neither True->False nor False->True).
+        # Network corroboration adjusts confidence and relabels fault_type for frozen_value and drift only.
+        bonus = network_details.get("confidence_bonus", 0.0)
+        if bonus > 0:
+            if fault_type == "frozen_value":
+                # Add bounded bonus (+6.0, capped at 89.5 if base < 90)
+                if rule_confidence < RULE_CONFIDENCE_BYPASS:
+                    rule_confidence = min(89.5, rule_confidence + bonus)
+                else:
+                    rule_confidence = min(100.0, rule_confidence + bonus)
+            elif fault_type == "drift":
+                rule_confidence = min(95.0, rule_confidence + bonus)
+            
+            # Recalculate fused overall score with adjusted rule confidence
+            if model_pct is not None:
+                score_pct = MODEL_WEIGHT * model_pct + RULE_WEIGHT * rule_confidence
+            else:
+                score_pct = rule_confidence
+            severity = score_to_severity(score_pct)
+
+        # Relabel fault_type if specified (e.g. drift confirmed regional -> REGIONAL_EVENT)
+        relabel = network_details.get("relabel_fault_type")
+        if relabel:
+            fault_type = relabel
     else:
         network_interpretation = None
         eligible_peer_count = None

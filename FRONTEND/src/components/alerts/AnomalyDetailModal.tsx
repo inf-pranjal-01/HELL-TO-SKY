@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, MapPin, Copy, Check, Wrench } from 'lucide-react';
+import { Clock, MapPin, Copy, Check, Wrench, BrainCircuit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -25,7 +25,6 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
   const [isLoadingExplanation, setIsLoadingExplanation] = useState<boolean>(false);
   const [explanationError, setExplanationError] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
-
 
   useEffect(() => {
     if (!isOpen || !anomaly) {
@@ -124,13 +123,24 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
         >
           Create Maintenance Ticket
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          style={{ borderColor: 'rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
+          onClick={() => {
+            navigate(`/analytics?anomaly_id=${anomaly.anomaly_id}&station_id=${anomaly.station_id}`);
+            onClose();
+          }}
+          leftIcon={<BrainCircuit size={14} />}
+        >
+          Decision X-Ray (SHAP)
+        </Button>
         <Button variant="primary" size="sm" onClick={onClose}>
           Close Investigation
         </Button>
       </div>
     </div>
   );
-
 
   return (
     <Modal

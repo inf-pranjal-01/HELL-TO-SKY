@@ -163,8 +163,80 @@ RULE_BASE_CONFIDENCE = {
     # confirms its return-to-baseline shape.
     "spike": 85.0,
     "multivariate_single": 45.0,
-    "multivariate_confirmed": 82.0,
+    "multivariate_confirmed": 88.0,
 }
+
+
+def graduated_confidence_frozen(streak: int, req: int) -> float:
+    """
+    Graduated confidence for frozen_value:
+    80.0 floor for just crossing threshold up to 95.0 ceiling for 2x threshold streak.
+    """
+    if req <= 0:
+        return 80.0
+    ratio = max(0.0, min(1.0, (streak - req) / req))
+    return round(80.0 + (95.0 - 80.0) * ratio, 1)
+
+
+def graduated_confidence_drift(accumulator_val: float, threshold: float, is_ewma: bool = False) -> float:
+    """
+    Graduated confidence for drift (CUSUM/EWMA):
+    85.0 floor for just crossing threshold up to 95.0 ceiling at 2x threshold.
+    """
+    if threshold <= 0:
+        return 85.0
+    ratio = max(0.0, min(1.0, (abs(accumulator_val) - threshold) / threshold))
+    return round(85.0 + (95.0 - 85.0) * ratio, 1)
+
+
+def graduated_confidence_spike(abs_dev: float, spike_threshold: float, reversion_cleanliness: float = 1.0) -> float:
+    """
+    Graduated confidence for spike:
+    85.0 floor up to 95.0 ceiling based on deviation magnitude and reversion completeness.
+    """
+    if spike_threshold <= 0:
+        return 85.0
+    dev_ratio = max(0.0, min(1.0, (abs_dev - spike_threshold) / spike_threshold))
+    rev_factor = max(0.5, min(1.0, reversion_cleanliness))
+    ratio = dev_ratio * rev_factor
+    return round(85.0 + (95.0 - 85.0) * ratio, 1)
+
+
+def graduated_confidence_fail_low(val: float, floor: float, streak: int, req: int) -> float:
+    """
+    Graduated confidence for sensor_fail_low:
+    92.0 floor up to 98.0 ceiling combining depth below floor and persistence streak.
+    """
+    depth_ratio = 1.0 if floor == 0.0 and val <= 0.0 else (
+        max(0.0, min(1.0, (floor - val) / abs(floor))) if floor != 0.0 else 0.0
+    )
+    streak_ratio = max(0.0, min(1.0, (streak - req) / req)) if req > 0 else 0.0
+    ratio = 0.6 * depth_ratio + 0.4 * streak_ratio
+    return round(92.0 + (98.0 - 92.0) * ratio, 1)
+
+
+def graduated_confidence_multivariate(joint_z: float, threshold: float, confirmed: bool) -> float:
+    """
+    Graduated confidence for multivariate_inconsistency:
+    Single tier: 45.0 to 60.0.
+    Confirmed tier: 88.0 to 95.0.
+    """
+    if threshold <= 0:
+        return 88.0 if confirmed else 45.0
+    ratio = max(0.0, min(1.0, (joint_z - threshold) / threshold))
+    if confirmed:
+        return round(88.0 + (95.0 - 88.0) * ratio, 1)
+    else:
+        return round(45.0 + (60.0 - 45.0) * ratio, 1)
+
+
+# ---------------------------------------------------------------------
+# Spatial Neighbor Corroboration constants.
+# When >= SPATIAL_CORROBORATION_MIN_PEERS corroborate directional change,
+# the event is confirmed as a regional weather event rather than a localized sensor fault.
+# ---------------------------------------------------------------------
+SPATIAL_CORROBORATION_MIN_PEERS = 2
+SPATIAL_CORROBORATION_THRESHOLD_SIGMA = 1.5
 
 # ---------------------------------------------------------------------
 # §2 -- CUSUM drift, CONFIRMED FINAL mechanism.
@@ -330,3 +402,8 @@ def score_to_severity(score_pct: float) -> str:
     if score_pct >= SEVERITY_MEDIUM_FLOOR:
         return "medium"
     return "low"
+
+
+# Export spatial clusters for single-source-of-truth access
+from data_fetch import CLUSTERS
+

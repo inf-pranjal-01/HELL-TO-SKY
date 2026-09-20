@@ -7,6 +7,7 @@ export interface AnomalyFilterValues {
   severity: AnomalySeverity | 'all';
   type: AnomalyType | 'all';
   searchQuery: string;
+  stationId?: string | 'all';
 }
 
 export interface AnomalyFiltersProps {
@@ -15,6 +16,7 @@ export interface AnomalyFiltersProps {
   onReset: () => void;
   totalCount: number;
   filteredCount: number;
+  stations?: Array<{ station_id: string; name: string }>;
 }
 
 export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
@@ -23,9 +25,20 @@ export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
   onReset,
   totalCount,
   filteredCount,
+  stations = [],
 }) => {
   const isFiltered =
-    filters.severity !== 'all' || filters.type !== 'all' || filters.searchQuery.trim().length > 0;
+    filters.severity !== 'all' ||
+    filters.type !== 'all' ||
+    filters.searchQuery.trim().length > 0 ||
+    (filters.stationId && filters.stationId !== 'all');
+
+  const handleStationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onChange({
+      ...filters,
+      stationId: e.target.value,
+    });
+  };
 
   const handleSeverityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChange({
@@ -51,6 +64,29 @@ export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
   return (
     <div className="sg-anomaly-filters" role="search" aria-label="Filter anomaly records">
       <div className="sg-anomaly-filters__controls">
+        {/* Station Filter */}
+        {stations.length > 0 && (
+          <div className="sg-anomaly-filters__group">
+            <label htmlFor="sg-filter-station" className="sg-anomaly-filters__label">
+              Station
+            </label>
+            <select
+              id="sg-filter-station"
+              className="sg-anomaly-filters__select"
+              value={filters.stationId || 'all'}
+              onChange={handleStationChange}
+              aria-label="Filter by weather station"
+            >
+              <option value="all">All Stations (Network-wide)</option>
+              {stations.map((s) => (
+                <option key={s.station_id} value={s.station_id}>
+                  {s.name} ({s.station_id})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Severity Filter */}
         <div className="sg-anomaly-filters__group">
           <label htmlFor="sg-filter-severity" className="sg-anomaly-filters__label">
@@ -88,6 +124,8 @@ export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
             <option value="drift">Drift</option>
             <option value="frozen_value">Frozen Value</option>
             <option value="dropout">Dropout</option>
+            <option value="physical_bounds">Physical Bounds</option>
+            <option value="statistical_anomaly">Statistical Anomaly</option>
             <option value="sensor_fail_low">Sensor Fail Low</option>
             <option value="multivariate_inconsistency">Multivariate Inconsistency</option>
           </select>

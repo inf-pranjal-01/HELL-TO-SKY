@@ -135,3 +135,25 @@
   background-color: var(--bg-surface-hover);
   color: var(--text-primary);
 }
+
+/* Suggested replacement reading footer */
+.sg-metric-card__suggested {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(56, 189, 248, 0.2);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.sg-metric-card__suggested strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #6ee7b7;
+  letter-spacing: 0;
+}

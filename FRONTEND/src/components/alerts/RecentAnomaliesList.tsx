@@ -1,5 +1,5 @@
 import React from 'react';
-import { History, Eye, CheckCircle2 } from 'lucide-react';
+import { History, Eye, CheckCircle2, BrainCircuit } from 'lucide-react';
 import { Card } from '../common/Card';
 import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
@@ -15,6 +15,7 @@ export interface RecentAnomaliesListProps {
   error?: string | null;
   onRetry?: () => void;
   onSelectAnomaly: (anomaly: RecentAnomalyItem) => void;
+  onOpenShap?: (anomaly: RecentAnomalyItem) => void;
   isFiltered?: boolean;
   onClearFilters?: () => void;
   className?: string;
@@ -26,6 +27,7 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
   error = null,
   onRetry,
   onSelectAnomaly,
+  onOpenShap,
   isFiltered = false,
   onClearFilters,
   className = '',
@@ -93,6 +95,7 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
             <thead>
               <tr>
                 <th scope="col">Event ID</th>
+                <th scope="col">Station</th>
                 <th scope="col">Timestamp</th>
                 <th scope="col">Severity</th>
                 <th scope="col">Classification Type</th>
@@ -123,8 +126,26 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                 const suggested = suggestedFromRecord(anom.suggested_values);
 
                 return (
-                  <tr key={anom.anomaly_id}>
-                    <td className="sg-alerts-table-id">{anom.anomaly_id}</td>
+                  <tr
+                    key={anom.anomaly_id}
+                    className="sg-alerts-row-clickable"
+                    onClick={() => {
+                      if (onOpenShap) {
+                        onOpenShap(anom);
+                      } else {
+                        onSelectAnomaly(anom);
+                      }
+                    }}
+                    title="Click row to open Decision X-Ray & SHAP explanation"
+                  >
+                    <td className="sg-alerts-table-id">
+                      <span className="sg-alerts-id-link">{anom.anomaly_id}</span>
+                    </td>
+                    <td className="sg-alerts-table-station">
+                      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-secondary, #94a3b8)' }}>
+                        {anom.station_id}
+                      </span>
+                    </td>
                     <td className="sg-alerts-table-time" title={anom.timestamp}>
                       {formattedDate} {formattedTime}
                     </td>
@@ -150,12 +171,37 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                     <td className="sg-alerts-table-cause">
                       {suggested.length ? formatSuggestedList(suggested) : 'Unavailable during baseline warm-up'}
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {onOpenShap && (
+                        <button
+                          type="button"
+                          className="sg-alerts-investigate-btn"
+                          style={{
+                            marginRight: '6px',
+                            background: 'rgba(56, 189, 248, 0.12)',
+                            borderColor: 'rgba(56, 189, 248, 0.35)',
+                            color: '#38bdf8'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenShap(anom);
+                          }}
+                          aria-label={`View Decision X-Ray / SHAP for incident ${anom.anomaly_id}`}
+                          title="Open Decision X-Ray & SHAP explanation"
+                        >
+                          <BrainCircuit size={13} aria-hidden="true" />
+                          <span>SHAP X-Ray</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="sg-alerts-investigate-btn"
-                        onClick={() => onSelectAnomaly(anom)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectAnomaly(anom);
+                        }}
                         aria-label={`Investigate incident ${anom.anomaly_id}`}
+                        title="Open incident investigation modal"
                       >
                         <Eye size={13} aria-hidden="true" />
                         <span>Investigate</span>

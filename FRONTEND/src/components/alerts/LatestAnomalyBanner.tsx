@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ShieldCheck, ArrowRight, Eye, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, ArrowRight, Eye, RefreshCw, BrainCircuit } from 'lucide-react';
 import { Card } from '../common/Card';
 import { StatusBadge } from '../common/StatusBadge';
 import { Button } from '../common/Button';
@@ -13,6 +13,7 @@ export interface LatestAnomalyBannerProps {
   error?: string | null;
   onRetry?: () => void;
   onInvestigate: (anomaly: LatestAnomaly) => void;
+  onOpenShap?: (anomaly: LatestAnomaly) => void;
   className?: string;
 }
 
@@ -22,6 +23,7 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
   error = null,
   onRetry,
   onInvestigate,
+  onOpenShap,
   className = '',
 }) => {
   if (isLoading) {
@@ -149,7 +151,19 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
           </div>
         )}
 
-        <div className="sg-latest-banner__action">
+        <div className="sg-latest-banner__action" style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+          {onOpenShap && (
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => onOpenShap(latestAnomaly)}
+              leftIcon={<BrainCircuit size={16} />}
+              style={{ borderColor: 'rgba(56, 189, 248, 0.45)', color: '#38bdf8' }}
+              ariaLabel="Open Decision X-Ray and SHAP explanation for this anomaly"
+            >
+              Decision X-Ray (SHAP)
+            </Button>
+          )}
           <Button
             variant="primary"
             size="md"

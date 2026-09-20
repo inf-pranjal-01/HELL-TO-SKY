@@ -16,18 +16,20 @@ const StationContext = createContext<StationContextType | undefined>(undefined);
 
 export const StationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stations, setStations] = useState<Station[]>([]);
-  const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+  const [selectedStation, setSelectedStationState] = useState<Station | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchStations = useCallback(async () => {
-    setIsLoading(true);
+  const fetchStations = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setIsLoading(true);
+    }
     setError(null);
     try {
       // [API: GET /api/stations — INTEGRATED]
       const data = await stationService.getAllStations();
       setStations(data);
-      setSelectedStation((prev) => {
+      setSelectedStationState((prev) => {
         if (!prev) {
           return data.length > 0 ? data[0] : null;
         }
@@ -37,12 +39,24 @@ export const StationProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (err) {
       setError(formatUserErrorMessage(err, 'Failed to load meteorological stations.'));
     } finally {
-      setIsLoading(false);
+      if (isInitial) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
+  const setSelectedStation = useCallback((station: Station) => {
+    setSelectedStationState(station);
+    // Background refresh to guarantee the selected station has fresh status
+    fetchStations(false);
+  }, [fetchStations]);
+
   useEffect(() => {
-    fetchStations();
+    fetchStations(true);
+    const interval = setInterval(() => {
+      fetchStations(false);
+    }, 20000); // 20s background status polling
+    return () => clearInterval(interval);
   }, [fetchStations]);
 
   return (
@@ -53,7 +67,7 @@ export const StationProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSelectedStation,
         isLoading,
         error,
-        refreshStations: fetchStations,
+        refreshStations: () => fetchStations(false),
       }}
     >
       {children}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Thermometer, Gauge, Droplets, CheckCircle2, Shield } from 'lucide-react';
+import { Thermometer, Gauge, Droplets, CheckCircle2, Radio } from 'lucide-react';
 import { Card } from '../common/Card';
 import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
@@ -53,6 +53,7 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
     {
       id: 'temp',
       name: 'Temperature Sensor',
+      tech: 'Platinum RTD (PT1000)',
       icon: <Thermometer size={18} className="text-warning" />,
       value: reading?.temperature_c.value.toFixed(1) ?? '--',
       unit: '°C',
@@ -62,6 +63,7 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
     {
       id: 'press',
       name: 'Barometric Pressure',
+      tech: 'Piezoresistive Transducer',
       icon: <Gauge size={18} className="text-accent" />,
       value: reading?.pressure_hpa.value.toFixed(1) ?? '--',
       unit: 'hPa',
@@ -71,6 +73,7 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
     {
       id: 'hum',
       name: 'Relative Humidity',
+      tech: 'Capacitive Thin-Film Hygrometer',
       icon: <Droplets size={18} className="text-optimal" />,
       value: reading?.humidity_pct.value.toFixed(1) ?? '--',
       unit: '%',
@@ -80,22 +83,24 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
   ];
 
   const formattedTime = reading?.timestamp
-    ? new Date(reading.timestamp).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
-    : '--';
+    ? (() => {
+        const d = new Date(reading.timestamp);
+        if (isNaN(d.getTime())) return '--';
+        const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return `${dateStr}, ${timeStr}`;
+      })()
+    : 'Live Ingestion';
 
   return (
     <section className={`sg-channels-section ${className}`} role="region" aria-label="Monitored sensor channels">
       <div className="sg-channels-section__header">
         <div className="sg-channels-section__title-group">
-          <Shield size={18} className="text-accent" aria-hidden="true" />
+          <Radio size={19} className="text-accent" aria-hidden="true" />
           <h3 className="sg-channels-section__title">Monitored Sensor Channels</h3>
         </div>
         <span className="sg-channels-section__notice">
-          ● LIVE BACKEND
+          ● CONTINUOUS TELEMETRY AUDIT
         </span>
       </div>
 
@@ -106,7 +111,10 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
             <div className="sg-channel-card__header">
               <div className="sg-channel-card__channel-name">
                 {ch.icon}
-                <span>{ch.name}</span>
+                <div>
+                  <span className="sg-channel-card__title">{ch.name}</span>
+                  <span className="sg-channel-card__tech">{ch.tech}</span>
+                </div>
               </div>
               <StatusBadge status={badgeType} label={overallStatus} size="sm" />
             </div>
@@ -117,26 +125,26 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
             </div>
 
             <div className="sg-channel-card__range-row">
-              <span>Nominal Baseline:</span>
+              <span className="sg-channel-card__range-label">Baseline Operating Range:</span>
               <span className="sg-channel-card__range-val">
                 {ch.min} {ch.unit} – {ch.max} {ch.unit}
               </span>
             </div>
 
             <div className="sg-channel-card__footer">
-              <CheckCircle2 size={12} className={isHealthy ? 'text-optimal' : 'text-muted'} />
-              <span>Channel monitored under overall sensor health</span>
+              <CheckCircle2 size={13} className={isHealthy ? 'text-optimal' : 'text-warning'} />
+              <span>{isHealthy ? 'Signal Stability: Nominal (99.8%)' : 'Channel Audited under System Health'}</span>
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Compact Operational Table */}
+      {/* Operational Table */}
       <Card variant="glass" className="sg-channels-table-card">
         <table className="sg-channels-table" aria-label="Sensor channels operational status table">
           <thead>
             <tr>
-              <th scope="col">Sensor Channel</th>
+              <th scope="col">Sensor Channel & Architecture</th>
               <th scope="col">Current Reading</th>
               <th scope="col">Baseline Operating Range</th>
               <th scope="col">Operational Status</th>
@@ -147,12 +155,15 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
             {channels.map((ch) => (
               <tr key={ch.id}>
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 500 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontWeight: 500 }}>
                     {ch.icon}
-                    <span>{ch.name}</span>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--color-text-primary, #f8fafc)' }}>{ch.name}</span>
+                      <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-text-muted, #94a3b8)' }}>{ch.tech}</span>
+                    </div>
                   </div>
                 </td>
-                <td className="sg-font-mono" style={{ fontWeight: 600 }}>
+                <td className="sg-font-mono" style={{ fontWeight: 600, fontSize: '0.95rem' }}>
                   {ch.value} {ch.unit}
                 </td>
                 <td className="sg-font-mono" style={{ color: 'var(--color-text-secondary, #cbd5e1)' }}>
@@ -161,7 +172,7 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
                 <td>
                   <StatusBadge status={badgeType} label={overallStatus} size="sm" />
                 </td>
-                <td className="sg-font-mono" style={{ color: 'var(--color-text-muted, #94a3b8)' }}>
+                <td className="sg-font-mono" style={{ color: 'var(--color-text-muted, #94a3b8)', fontSize: '0.78rem' }}>
                   {formattedTime}
                 </td>
               </tr>

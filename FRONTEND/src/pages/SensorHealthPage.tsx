@@ -16,6 +16,7 @@ import {
   FutureDiagnosticsNotice,
 } from '../components/sensor-health';
 import { ConfirmationDialog } from '../components/common/ConfirmationDialog';
+import './SensorHealthPage.css';
 
 export const SensorHealthPage: React.FC = () => {
   const { selectedStation } = useStation();
@@ -99,111 +100,113 @@ export const SensorHealthPage: React.FC = () => {
   };
 
   return (
-    <div className="sg-health-page" role="main" aria-label="Sensor Health & Hardware Reliability">
-      {/* Page Header */}
-      <header className="sg-health-page__header">
-        <div className="sg-health-page__title-area">
-          <div className="sg-health-page__title-row">
-            <HardDrive size={26} className="text-accent" aria-hidden="true" />
-            <h1 className="sg-health-page__title">Sensor Health & Reliability</h1>
-          </div>
-          <p className="sg-health-page__subtitle">
-            Monitor sensor hardware reliability, subsystem diagnostics, and telemetry integrity for
-            the selected automatic weather station.
-          </p>
-        </div>
-
-        <div className="sg-health-page__header-controls">
-          {selectedStation && (
-            <div className="sg-health-page__station-badge">
-              <MapPin size={14} className="text-accent" aria-hidden="true" />
-              <span>{selectedStation.name} ({selectedStation.station_id})</span>
+    <div className="page-container">
+      <div className="sg-health-page" role="main" aria-label="Sensor Health &amp; Hardware Reliability">
+        {/* Page Header */}
+        <header className="sg-health-page__header">
+          <div className="sg-health-page__title-area">
+            <div className="sg-health-page__title-row">
+              <HardDrive size={26} className="text-accent" aria-hidden="true" />
+              <h1 className="sg-health-page__title">Sensor Health &amp; Reliability</h1>
             </div>
-          )}
+            <p className="sg-health-page__subtitle">
+              Monitor sensor hardware reliability, subsystem diagnostics, and telemetry integrity for
+              the selected automatic weather station.
+            </p>
+          </div>
 
-          <StatusBadge
-            status={
-              staleStatusText === 'LIVE'
-                ? 'optimal'
-                : staleStatusText === 'DATA DELAYED'
-                ? 'moderate'
-                : 'critical'
-            }
-            label={staleStatusText}
-            size="sm"
-          />
+          <div className="sg-health-page__header-controls">
+            {selectedStation && (
+              <div className="sg-health-page__station-badge">
+                <MapPin size={14} className="text-accent" aria-hidden="true" />
+                <span>{selectedStation.name} ({selectedStation.station_id})</span>
+              </div>
+            )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={togglePause}
-            leftIcon={isPaused ? <Play size={14} /> : <Pause size={14} />}
-            ariaLabel={isPaused ? 'Resume polling' : 'Pause polling'}
-          >
-            {isPaused ? 'Resume' : 'Pause'}
-          </Button>
+            <StatusBadge
+              status={
+                staleStatusText === 'LIVE'
+                  ? 'optimal'
+                  : staleStatusText === 'DATA DELAYED'
+                  ? 'moderate'
+                  : 'critical'
+              }
+              label={staleStatusText}
+              size="sm"
+            />
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRefresh}
-            leftIcon={<RefreshCw size={14} />}
-            ariaLabel="Refresh sensor health telemetry"
-          >
-            Refresh
-          </Button>
-        </div>
-      </header>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={togglePause}
+              leftIcon={isPaused ? <Play size={14} /> : <Pause size={14} />}
+              ariaLabel={isPaused ? 'Resume polling' : 'Pause polling'}
+            >
+              {isPaused ? 'Resume' : 'Pause'}
+            </Button>
 
-      {/* 1. Overall Sensor Health Hero Section */}
-      <SensorHealthHero
-        health={sensorHealth}
-        lastUpdated={lastUpdated}
-        isLoading={isLoadingHealth}
-        error={healthError}
-        onRetry={refreshHealth}
-        onRepair={handleRepair}
-        onForceRecover={() => setShowForceConfirm(true)}
-        isRepairing={isRepairing}
-        repairResult={repairResult}
-        repairError={repairError}
-      />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              leftIcon={<RefreshCw size={14} />}
+              ariaLabel="Refresh sensor health telemetry"
+            >
+              Refresh
+            </Button>
+          </div>
+        </header>
 
-      {/* 2. Health Summary KPI Cards */}
-      <HealthSummaryCards
-        health={sensorHealth}
-        reading={currentReading}
-        staleStatusText={staleStatusText}
-        isLoading={isLoadingHealth || isLoadingReading}
-      />
+        {/* 1. Overall Sensor Health Hero Section */}
+        <SensorHealthHero
+          health={sensorHealth}
+          lastUpdated={lastUpdated}
+          isLoading={isLoadingHealth}
+          error={healthError}
+          onRetry={refreshHealth}
+          onRepair={handleRepair}
+          onForceRecover={() => setShowForceConfirm(true)}
+          isRepairing={isRepairing}
+          repairResult={repairResult}
+          repairError={repairError}
+        />
 
-      {/* 3. Anomaly Context Disambiguation Notice (Health vs Anomaly Risk) */}
-      <AnomalyContextNotice latestAnomaly={latestAnomaly} />
+        {/* 2. Health Summary KPI Cards */}
+        <HealthSummaryCards
+          health={sensorHealth}
+          reading={currentReading}
+          staleStatusText={staleStatusText}
+          isLoading={isLoadingHealth || isLoadingReading}
+        />
 
-      {/* 4. Sensor Health History Visualization */}
-      <HealthHistoryChart stationId={stationId} />
+        {/* 3. Anomaly Context Disambiguation Notice (Health vs Anomaly Risk) */}
+        <AnomalyContextNotice latestAnomaly={latestAnomaly} />
 
-      {/* 5. Monitored Sensor Channels Overview */}
-      <SensorChannelOverview
-        reading={currentReading}
-        health={sensorHealth}
-        isLoading={isLoadingReading}
-      />
+        {/* 4. Sensor Health History Visualization */}
+        <HealthHistoryChart stationId={stationId} />
 
-      {/* 6. Future Hardware Diagnostics Capability Seam */}
-      <FutureDiagnosticsNotice />
+        {/* 5. Monitored Sensor Channels Overview */}
+        <SensorChannelOverview
+          reading={currentReading}
+          health={sensorHealth}
+          isLoading={isLoadingReading}
+        />
 
-      <ConfirmationDialog
-        isOpen={showForceConfirm}
-        onClose={() => setShowForceConfirm(false)}
-        onConfirm={handleForceRecover}
-        title="Force sensor recovery?"
-        message="This immediately clears health counters and skips the three-reading trust ramp. Use only for a stuck sensor or a demo reset."
-        confirmLabel="Force Recovery"
-        cancelLabel="Cancel"
-        isDanger={true}
-        isLoading={isRepairing}
-      />
+        {/* 6. Future Hardware Diagnostics Capability Seam */}
+        <FutureDiagnosticsNotice />
+
+        <ConfirmationDialog
+          isOpen={showForceConfirm}
+          onClose={() => setShowForceConfirm(false)}
+          onConfirm={handleForceRecover}
+          title="Force sensor recovery?"
+          message="This immediately clears health counters and skips the three-reading trust ramp. Use only for a stuck sensor or a demo reset."
+          confirmLabel="Force Recovery"
+          cancelLabel="Cancel"
+          isDanger={true}
+          isLoading={isRepairing}
+        />
+      </div>
     </div>
   );
 };

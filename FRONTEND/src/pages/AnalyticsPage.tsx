@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useStation } from '../context/StationContext';
 import { useAnalyticsData } from '../hooks/useAnalyticsData';
 import {
@@ -26,7 +27,20 @@ import './AnalyticsPage.css';
  * [FRONTEND ONLY] [DERIVED FROM LIVE BACKEND DATA]
  */
 const AnalyticsPage: React.FC = () => {
-  const { selectedStation, isLoading: isLoadingStation } = useStation();
+  const { stations, selectedStation, setSelectedStation, isLoading: isLoadingStation } = useStation();
+  const [searchParams] = useSearchParams();
+  const targetStationId = searchParams.get('station_id');
+  const targetAnomalyId = searchParams.get('anomaly_id');
+
+  // Synchronise active station if deep-linked via URL query parameter
+  useEffect(() => {
+    if (targetStationId && stations.length > 0 && selectedStation?.station_id !== targetStationId) {
+      const match = stations.find((s) => s.station_id === targetStationId);
+      if (match) {
+        setSelectedStation(match);
+      }
+    }
+  }, [targetStationId, stations, selectedStation, setSelectedStation]);
 
   const stationId = selectedStation?.station_id ?? null;
 
@@ -116,7 +130,11 @@ const AnalyticsPage: React.FC = () => {
         isLoading={isLoading}
       />
 
-      <ExplainabilityCommandCenter anomalies={anomalies} isLoading={isLoading} />
+      <ExplainabilityCommandCenter
+        anomalies={anomalies}
+        isLoading={isLoading}
+        initialAnomalyId={targetAnomalyId ?? undefined}
+      />
 
       {/* ── Anomaly Distribution Cards ── */}
       <p className="sg-analytics-page__section-label" aria-hidden="true">

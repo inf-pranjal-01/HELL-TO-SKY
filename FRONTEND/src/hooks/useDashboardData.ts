@@ -119,6 +119,7 @@ export function useDashboardData(
   const priorStreamModeRef = useRef<'live' | 'replay'>(streamStatus.mode);
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
+  const fetchAnomaliesRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   // 1. Fetch Current Reading
   const fetchReading = useCallback(async () => {
@@ -137,6 +138,10 @@ export function useDashboardData(
       setReadingError(null);
       const updateTime = new Date();
       setLastUpdated(updateTime);
+
+      if (data.is_anomaly) {
+        fetchAnomaliesRef.current();
+      }
 
       // Immediate rendering path: add the freshly processed backend
       // reading to the timestamped graph without waiting for CSV-backed
@@ -284,6 +289,8 @@ export function useDashboardData(
       }
     }
   }, [stationId]);
+
+  fetchAnomaliesRef.current = fetchAnomalies;
 
   // 4. Fetch Sensor Health [API: GET /api/sensor-health?station_id=...]
   const fetchHealth = useCallback(async () => {
