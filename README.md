@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-[**Live Demo**](http://localhost:5173) • [**API Docs**](http://localhost:8000/docs) • [**Architecture Blueprint**](docs/BACKEND_BLUEPRINT.md) • [**Evaluation Benchmark**](evaluation/evaluate.py)
+[**Live Dashboard**](http://localhost:5173) • [**API Docs**](http://localhost:8000/docs) • [**Architecture Blueprint**](docs/BACKEND_BLUEPRINT.md) • [**Evaluation Script**](model/evaluate.py)
 
 </div>
 
@@ -20,100 +20,100 @@
 ## 📌 Table of Contents
 
 - [Overview](#-overview)
-- [The Core Challenge](#-the-core-challenge)
+- [The Problem](#-the-problem)
+- [How It Works](#-how-it-works)
 - [Key Features](#-key-features)
-- [Multi-Tier Detection Architecture](#-multi-tier-detection-architecture)
-- [Empirical Benchmark & Scorecard](#-empirical-benchmark--scorecard)
+- [Detection Pipeline Architecture](#-detection-pipeline-architecture)
+- [Empirical Benchmark Results](#-empirical-benchmark-results)
 - [Repository Structure](#-repository-structure)
-- [Quick Start Guide](#-quick-start-guide)
-  - [Option 1: Docker (Recommended)](#option-1-docker-compose-recommended)
+- [Getting Started](#-getting-started)
+  - [Option 1: Docker Compose (Recommended)](#option-1-docker-compose-recommended)
   - [Option 2: Local Development Setup](#option-2-local-development-setup)
-- [Running the Benchmark Suite](#-running-the-benchmark-suite)
+- [Running the Evaluation Benchmark](#-running-the-evaluation-benchmark)
 - [API Reference](#-api-reference)
-- [Sensor Health & Auto-Recovery Lifecycle](#-sensor-health--auto-recovery-lifecycle)
-- [Contributing & License](#-contributing--license)
+- [Sensor Health State Machine](#-sensor-health-state-machine)
+- [License](#-license)
 
 ---
 
 ## 🌍 Overview
 
-**SkyGuard AI** is an industrial-grade, edge-compatible meteorological intelligence platform designed to safeguard distributed networks of **Automatic Weather Stations (AWS)** against physical sensor failures, environmental degradation, electrical glitches, and communication dropouts.
+**SkyGuard AI** is an anomaly detection and data quality monitoring system built for distributed networks of **Automatic Weather Stations (AWS)**. It identifies physical sensor faults, calibration drift, communication dropouts, and atmospheric inconsistencies in meteorological telemetry.
 
-In operational weather monitoring, **ground-truth labels do not exist**. Severe natural weather events (violent sunrise warming, thunderstorm squalls, atmospheric gravity waves) frequently mimic sensor failure signatures, causing naive detectors to flood operators with false alarms. 
+In operational weather monitoring, **ground-truth labels do not exist**. Severe natural weather events (such as sharp morning temperature transitions or sudden storm fronts) often resemble sensor faults. If a system relies purely on single-sensor thresholds, it triggers excessive false alarms during normal weather events.
 
-SkyGuard AI solves this via a **Tri-Tier Hybrid Intelligence Architecture**:
-1. **Unsupervised Density Estimation** (Isolation Forest) to catch zero-day, patternless anomalies without requiring pre-labeled training data.
-2. **First-Principles Thermodynamic & Physics Rules** (Clausius-Clapeyron saturation vapor pressure bounds, CUSUM/EWMA diurnal residual tracking, electrical rail limits).
-3. **Multi-Station Spatial Peer Consensus** across 7 microclimate clusters (28 stations) to distinguish localized hardware breakdowns from widespread regional weather fronts.
+SkyGuard AI addresses this with a **hybrid detection pipeline**:
+1. **Unsupervised Outlier Detection** (Isolation Forest) to flag multivariate outliers without requiring pre-labeled training data.
+2. **Physics-Informed Rules** (Clausius-Clapeyron saturation vapor pressure bounds, CUSUM diurnal rate-of-change checks, and electrical rail limits).
+3. **Spatial Peer Corroboration** across 7 regional clusters (28 stations) to check whether neighboring stations observed the same event before flagging a sensor fault.
 
 ---
 
-## ⚡ The Core Challenge
+## ⚡ The Problem
 
-| Failure Mode in the Field | Physical Transducer Mechanism | Why Naive Heuristics / Supervised ML Fail | SkyGuard AI Solution |
+| Fault Type | Physical Cause | Challenge with Simple Thresholds | SkyGuard AI Approach |
 | :--- | :--- | :--- | :--- |
-| **Calibration Drift** | Aging thermistors or optical sensor coating degradation causes a slow $+0.1^\circ\text{C}/\text{hr}$ offset. | Static threshold checks miss it for weeks; standard CUSUM alarms every sunrise when temperatures naturally spike. | **Diurnal Residual CUSUM + Spatial Consensus**: Evaluates rate-of-change against seasonal baselines; verifies if neighbor stations also warmed up. |
-| **Frozen / Stuck ADC** | Telemetry buffer deadlock or analog-to-digital converter (ADC) freeze. | Real stuck sensors still exhibit electronic thermal jitter ($\pm 0.05^\circ\text{C}$), evading exact duplicate filters. | **Variance Activity Gap**: Detects near-zero variance windows during naturally dynamic weather; cross-references peer activity. |
-| **Sensor Fail-Low** | Ground short, cable severance, or detached sensing element pulls pin to ground ($0.0\text{ ADC counts}$). | Arbitrary low thresholds confuse sensor disconnection with cold snaps. | **Hardware Rail Clamping + Multi-Step Persistence**: Flags values pinned at physical electrical floors ($-40^\circ\text{C}, 0\text{ hPa}, 0\%$). |
-| **Multivariate Inconsistency** | Sensor cross-talk, solar shield displacement, or internal heating element leakage. | Parameter-isolated checks see plausible numbers ($32^\circ\text{C}$, $85\%\text{ RH}$) and raise no alert. | **Clausius-Clapeyron Consistency**: Evaluates saturation vapor pressure $e_s(T)$ curves; alarms if temperature rises while humidity rises without moisture advection. |
-| **Unstructured Anomalies** | Power ripple, partial bridge degradation, or unprecedented chaotic hardware failure. | Rule engines have no template for it; supervised classifiers are blind to unmodeled patterns. | **Unsupervised Isolation Depth**: Isolates sparse multi-dimensional feature space ($T, P, RH, \text{ROC}$), catching 100% of patternless faults. |
+| **Calibration Drift** | Aging sensing elements or optical degradation cause slow systematic offset ($+0.1^\circ\text{C}/\text{hr}$). | Hard thresholds take days or weeks to trigger; naive CUSUM flags every morning sunrise. | **Diurnal Residual CUSUM + Peer Check**: Compares rate of change against seasonal diurnal baseline; checks if neighbors also moved. |
+| **Frozen Value** | Telemetry freeze or stuck ADC converter. | Stuck sensors still show minor electronic thermal noise ($\pm 0.05^\circ\text{C}$), evading exact duplicate checks. | **Variance Window Check**: Detects near-zero variance during periods when surrounding weather is dynamic. |
+| **Sensor Fail-Low** | Cable break or short circuit pulls analog input to electrical floor ($0.0\text{ ADC counts}$). | Fixed lower limits can confuse electrical dropouts with cold snaps. | **Hardware Rail Detection**: Verifies values pinned at physical limits ($-40^\circ\text{C}$, $0\text{ hPa}$, $0\%$) across multiple consecutive steps. |
+| **Multivariate Inconsistency** | Sensor cross-talk, radiation shield damage, or internal heating issues. | Individual readings ($32^\circ\text{C}$, $85\%\text{ RH}$) look plausible in isolation. | **Clausius-Clapeyron Consistency**: Checks saturation vapor pressure curves; flags temperature increases accompanied by unphysical humidity rises. |
+| **Unstructured Anomalies** | Power supply ripple, bridge degradation, or complex hardware noise. | No hand-crafted rule exists for arbitrary noise patterns. | **Unsupervised Isolation Depth**: Isolation Forest isolates points that violate joint parameter distributions ($T, P, RH, \text{ROC}$). |
 
 ---
 
 ## 🚀 Key Features
 
-- 🧠 **Unsupervised Zero-Day Detection**: Unsupervised multi-dimensional Isolation Forest operating over 13 engineered features—no historical failure labels required.
-- 🌐 **Spatial Microclimate Corroboration**: Organizes stations into 7 geographic clusters (Chennai, Delhi, Mumbai, Kolkata, Bhopal, Varanasi, Ranchi). Suppressed **over 2,100 false alarms** caused by regional weather fronts.
-- 🔬 **Decision X-Ray (SHAP Explainability)**: Full breakdown of every flagged event into parameter attributions, showing operators exactly which feature triggered the alert.
-- 🔄 **Self-Healing Auto-Recovery**: Finite-state sensor tracker (`HEALTHY` $\rightarrow$ `WARNING` $\rightarrow$ `SUSPECT` $\rightarrow$ `OFFLINE` $\rightarrow$ `RECOVERING`) that automatically re-integrates repaired sensors after verified clean streaks.
-- 🩹 **Physics-Informed Imputation**: Automatically computes synthetic suggested readings using nearest-neighbor inverse-distance weighting and atmospheric lapse rates during outages.
-- 📡 **Real-Time WebSocket Streaming**: High-throughput bidirectional telemetry broadcasting real-time metrics, anomaly events, and sensor state transitions to the UI.
-- 🗺️ **Geospatial Command Center**: Interactive React 18 dashboard with Leaflet regional mapping, live trend charts, sensor health cards, and dual-mode simulation toggles.
+- **Unsupervised Anomaly Detection**: Isolation Forest trained on uncorrupted baseline weather data across 13 engineered rolling and rate-of-change features.
+- **Spatial Consensus**: 7 geographic clusters (Chennai, Delhi, Mumbai, Kolkata, Bhopal, Varanasi, Ranchi) cross-reference peer station movements, suppressing false alarms caused by regional fronts.
+- **Explainability (SHAP & Decision Attribution)**: Exposes feature contributions for flagged anomalies so operators can inspect why an alert fired.
+- **Sensor Health Tracking**: Tracks per-sensor state (`HEALTHY`, `WARNING`, `SUSPECT`, `OFFLINE`, `RECOVERING`) with streak requirements before taking sensors offline or recovering them.
+- **Reading Imputation**: Computes fallback suggested readings using inverse-distance weighting from active cluster neighbors during sensor outages.
+- **Live Dashboard**: React 18 dashboard with interactive map view, telemetry trend charts, alert lists, and simulation controls.
 
 ---
 
-## 🏛️ Multi-Tier Detection Architecture
+## 🏛️ Detection Pipeline Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Ingestion ["1. Real-Time Ingestion & Feature Engineering"]
-        RAW["Raw AWS Telemetry<br/>(Temp, Press, Humidity)"] --> QC["Quality Gate & Sanity Bounds"]
-        QC --> FEAT["Feature Extraction Matrix<br/>(13 Rolling & Residual Dimensions)"]
+    subgraph Ingestion ["1. Data Ingestion & Features"]
+        RAW["Station Telemetry<br/>(Temperature, Pressure, Humidity)"] --> QC["Range Checks & Missing Value Filters"]
+        QC --> FEAT["Feature Matrix<br/>(13 Rolling, Deviation & ROC Features)"]
     end
 
-    subgraph Detection ["2. Tri-Tier Hybrid Detection Triad"]
-        FEAT --> IF["Layer 1: Unsupervised Isolation Forest<br/>(Out-of-Distribution Density Score)"]
-        FEAT --> PHYS["Layer 2: Atmospheric Physics Rules<br/>(CUSUM, Clausius-Clapeyron, Rail Check)"]
-        FEAT --> SPAT["Layer 3: Spatial Peer Corroboration<br/>(7 Regional Microclimate Clusters)"]
+    subgraph Detection ["2. Hybrid Detection Layer"]
+        FEAT --> IF["Isolation Forest<br/>(Unsupervised Outlier Score)"]
+        FEAT --> RULES["Physics Rules Engine<br/>(CUSUM, Clausius-Clapeyron, Rail Check)"]
+        FEAT --> SPATIAL["Spatial Peer Corroboration<br/>(Regional Cluster Consensus)"]
     end
 
-    subgraph Fusion ["3. Evidence Blending & Decision Routing"]
-        IF --> FUSE{"Evidence Fusion Engine"}
-        PHYS --> FUSE
-        SPAT --> FUSE
-        FUSE -->|Model Score > 90% Alone| MO["Model Override<br/>(Unstructured Anomaly)"]
-        FUSE -->|Physics Conf > 90% Alone| RB["Rule Bypass<br/>(Rail / Bounds Failure)"]
-        FUSE -->|Blended Score > 50%| WF["Weighted Fusion<br/>(Joint Consensus)"]
-        FUSE -->|All Peers Diverged in Sync| REG["Regional Weather Front<br/>(Alarm Suppressed)"]
+    subgraph Fusion ["3. Decision Routing"]
+        IF --> FUSE{"Evidence Fusion"}
+        RULES --> FUSE
+        SPATIAL --> FUSE
+        FUSE -->|Model Score > 90%| MO["Model Override<br/>(Unstructured Outlier)"]
+        FUSE -->|Rule Confidence > 90%| RB["Rule Bypass<br/>(Physical Limit / Rail Short)"]
+        FUSE -->|Blended Score > 50%| WF["Weighted Fusion<br/>(Model + Rule Agreement)"]
+        FUSE -->|Peers Diverge in Sync| REG["Regional Weather Event<br/>(Alarm Suppressed)"]
     end
 
-    subgraph Delivery ["4. Health Tracking & Operations Delivery"]
-        MO --> STATE["Sensor Health Lifecycle<br/>(Healthy / Degraded / Offline)"]
-        RB --> STATE
-        WF --> STATE
-        STATE --> IMP["Physics-Based Imputation<br/>(Suggested Readings)"]
-        STATE --> WS["WebSocket & REST API<br/>(FastAPI Backend)"]
-        WS --> UI["React 18 Dashboard<br/>(Geospatial Command Center)"]
+    subgraph Output ["4. Operations & UI"]
+        MO --> HEALTH["Sensor Health Tracker<br/>(Healthy / Warning / Offline)"]
+        RB --> HEALTH
+        WF --> HEALTH
+        HEALTH --> IMP["Suggested Readings<br/>(Neighbor Imputation)"]
+        HEALTH --> API["FastAPI REST & WebSocket"]
+        API --> UI["React 18 Dashboard"]
     end
 ```
 
 ---
 
-## 📊 Empirical Benchmark & Scorecard
+## 📊 Empirical Benchmark Results
 
-Benchmarked across all **28 Automatic Weather Stations** (60,480 total rows, 59,063 evaluated timesteps, 1,417 warm-up excluded) using the updated evaluation engine ([`model/evaluate.py`](model/evaluate.py)):
+Evaluated across all **28 stations** (60,480 rows total, 59,063 evaluated timesteps, 1,417 warm-up excluded) using the benchmark script ([`model/evaluate.py`](model/evaluate.py)):
 
-### Executive Network Scorecard
+### Summary Scorecard
 
 ```text
 ==========================================================================================
@@ -131,28 +131,30 @@ Benchmarked across all **28 Automatic Weather Stations** (60,480 total rows, 59,
 ==========================================================================================
 ```
 
-### Breakdown by Fault Category
+### Breakdown by Injected Fault Type
 
-| Fault Category | True Rows | Caught Rows | Precision | Recall | F1 Score | Operational Impact |
+| Fault Type | True Rows | Caught Rows | Precision | Recall | F1 Score | Notes |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Unstructured / Patternless** | 291 | 291 | Model-alone | **100.0%** | N/A | Caught entirely by unsupervised Isolation Forest |
-| **Calibration Drift** | 1,494 | 1,215 | **84.2%** | **81.3%** | **0.828** | 2,117 regional weather fronts successfully suppressed |
-| **Sensor Fail-Low (Rail Short)** | 185 | 185 | High | **100.0%** | N/A | Ground shorts & cable cuts caught instantly |
-| **Multivariate Inconsistency** | 201 | 201 | Balanced | **100.0%** | N/A | 100% of Clausius-Clapeyron violations caught |
-| **Frozen / Stuck Sensor** | 372 | 134 | 30.7% | 36.0% | 0.332 | **79.2% Episode Catch Rate (38/48 incidents caught)** |
-| **Electrical Spike Transients** | 199 | 121 | 32.0% | 60.8% | 0.419 | Reversion-checked against subsequent timesteps |
+| **Unstructured Anomaly** | 291 | 291 | Model-alone | **100.0%** | N/A | Caught by unsupervised Isolation Forest without hand-crafted rules |
+| **Calibration Drift** | 1,494 | 1,215 | **84.2%** | **81.3%** | **0.828** | Peer corroboration suppressed 2,117 false alarms from regional weather |
+| **Sensor Fail-Low** | 185 | 185 | 27.5% | **100.0%** | 0.431 | Pinned electrical floor detected; all events captured |
+| **Multivariate Inconsistency** | 201 | 201 | 13.9% | **100.0%** | 0.244 | 100% of Clausius-Clapeyron violations identified |
+| **Frozen Value** | 372 | 134 | 30.7% | 36.0% | 0.332 | **79.2% Episode Catch Rate (38/48 episodes caught)** |
+| **Spike** | 199 | 121 | 32.0% | 60.8% | 0.419 | Requires reversion on subsequent step to filter natural pressure dips |
 
-### 7-Cluster Regional Performance Summary
+*(Note on frozen value recall: In real-time streaming, a sensor must stay flat for 3–4 consecutive steps before a frozen streak can be confirmed. This initial verification lag affects row-level recall, while the detector alarms on 79.2% of total frozen episodes).*
 
-| Cluster Code | Region / Microclimate Description | Stations | True Faults | Alerts Sent | Precision | Recall | F1 Score | Status |
-| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **BHO** | Bhopal (Central Plateau) | 4 | 545 | 453 | **91.6%** | 76.1% | **0.832** | Active Monitoring |
-| **CHN** | Chennai (Coastal Humid) | 4 | 0 | 27 | Clean Baseline | 100% TN | **1.000** | Active Monitoring |
-| **DEL** | Delhi (Inland Semi-Arid) | 4 | 0 | 6 | Clean Baseline | 100% TN | **1.000** | Active Monitoring |
-| **KOL** | Kolkata (Gangetic Delta) | 4 | 530 | 475 | **89.5%** | 80.2% | **0.846** | Active Monitoring |
-| **MUM** | Mumbai (Coastal Tropical) | 4 | 510 | 450 | **89.3%** | 78.8% | **0.837** | Active Monitoring |
-| **RAN** | Ranchi (Chota Nagpur Plateau) | 4 | 1,157 | 1,040 | **87.0%** | 78.2% | **0.824** | Active Monitoring |
-| **VAR** | Varanasi (Indo-Gangetic Plain) | 4 | 0 | 8 | Clean Baseline | 100% TN | **1.000** | Active Monitoring |
+### Regional Cluster Performance
+
+| Cluster Code | Region Description | Stations | True Faults | Alerts Sent | Precision | Recall | F1 Score |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **BHO** | Bhopal (Central Plateau) | 4 | 545 | 453 | **91.6%** | 76.1% | 0.832 |
+| **CHN** | Chennai (Coastal Humid) | 4 | 0 | 27 | Clean Baseline | 100% TN | Baseline |
+| **DEL** | Delhi (Inland Semi-Arid) | 4 | 0 | 6 | Clean Baseline | 100% TN | Baseline |
+| **KOL** | Kolkata (Gangetic Delta) | 4 | 530 | 475 | **89.5%** | 80.2% | 0.846 |
+| **MUM** | Mumbai (Coastal Tropical) | 4 | 510 | 450 | **89.3%** | 78.8% | 0.837 |
+| **RAN** | Ranchi (Chota Nagpur Plateau) | 4 | 1,157 | 1,040 | **87.0%** | 78.2% | 0.824 |
+| **VAR** | Varanasi (Indo-Gangetic Plain) | 4 | 0 | 8 | Clean Baseline | 100% TN | Baseline |
 
 ---
 
@@ -160,64 +162,61 @@ Benchmarked across all **28 Automatic Weather Stations** (60,480 total rows, 59,
 
 ```text
 SkyGuardAI/
-├── docker/                                # Containerization & reverse proxy configs
+├── docker/                                # Docker container configurations
 │   ├── Dockerfile.backend                 # Python 3.11 FastAPI image
-│   ├── Dockerfile.frontend                # Multi-stage React builder + Nginx image
-│   └── nginx.conf                         # Reverse proxy for /api and /ws
-├── model/                                 # Core Machine Learning & Physics Pipeline
-│   ├── evaluate.py                        # Benchmark evaluation pipeline & scoring
-│   ├── detect.py                          # Real-time multi-tier anomaly detector
-│   ├── features.py                        # 13-dimensional rolling & residual feature engineering
-│   ├── train.py                           # Unsupervised Isolation Forest model training
-│   ├── simulator.py                       # Real-time WebSocket streaming simulation loop
-│   ├── state.py                           # Per-station historical buffers & health trackers
-│   ├── explain.py                         # SHAP tree explainer & attribution engine
-│   ├── seasonal_baseline.py               # Diurnal hour-of-day seasonal baseline model
-│   └── fault_helper.py                    # ExtraTrees supervised pattern helper
-├── frontend/                              # Production React 18 TypeScript Dashboard
-│   ├── src/                               # UI Components, hooks, services, and maps
-│   ├── package.json                       # Frontend dependencies (React, Vite, Leaflet)
+│   ├── Dockerfile.frontend                # Multi-stage React build + Nginx image
+│   └── nginx.conf                         # Reverse proxy configuration
+├── model/                                 # Machine learning & detection logic
+│   ├── evaluate.py                        # Benchmark evaluation pipeline
+│   ├── detect.py                          # Real-time multi-stage anomaly detector
+│   ├── features.py                        # Feature extraction functions
+│   ├── train.py                           # Isolation Forest model training script
+│   ├── simulator.py                       # Simulation loop for live / replay streaming
+│   ├── state.py                           # Telemetry history buffer and state tracker
+│   ├── explain.py                         # SHAP tree explainer module
+│   ├── seasonal_baseline.py               # Diurnal expected rate-of-change models
+│   └── fault_helper.py                    # ExtraTrees pattern helper
+├── frontend/                              # React 18 TypeScript web dashboard
+│   ├── src/                               # UI components, pages, hooks, and services
+│   ├── package.json                       # Frontend dependencies
 │   └── vite.config.ts                     # Vite build configuration
-├── evaluation/                            # Validation & ablation scripts
-│   ├── run_fault_helper_eval.py           # Supervised helper benchmark
-│   ├── run_rules_only_eval.py             # Rule engine ablation study
-│   ├── validate_data.py                   # Data quality sanity check
-│   └── fetch_uscrn_validation_slice.py    # NOAA USCRN ground-truth fetcher
-├── scripts/                               # Operational utilities & debug scripts
-│   ├── debug/                             # Ad-hoc debug scripts (debug_*.py)
-│   ├── patches/                           # One-time migration & patch scripts
-│   ├── keep_alive.py                      # Server supervisor daemon
-│   └── view_db.py                         # Historical SQLite database viewer
-├── docs/                                  # Architectural specifications & audits
-│   ├── assets/                            # Screenshots & architecture diagrams
-│   ├── BACKEND_BLUEPRINT.md               # API contracts & technical blueprints
-│   └── FRONTEND_ARCHITECTURE.md           # Dashboard component hierarchy
-├── data/                                  # Historical station CSVs & benchmark artifacts
+├── evaluation/                            # Secondary evaluation & data scripts
+│   ├── run_fault_helper_eval.py           # Helper offline test script
+│   ├── run_rules_only_eval.py             # Rule engine ablation script
+│   ├── validate_data.py                   # Data validation check
+│   └── fetch_uscrn_validation_slice.py    # USCRN reference data fetcher
+├── scripts/                               # Maintenance & debug utilities
+│   ├── debug/                             # Ad-hoc debug scripts
+│   ├── patches/                           # Historical patch scripts
+│   ├── keep_alive.py                      # Process supervisor script
+│   └── view_db.py                         # SQLite database inspector
+├── docs/                                  # Documentation and architectural specs
+├── data/                                  # Historical weather CSVs & eval logs
 ├── model_artifacts/                       # Serialized models (.pkl)
-├── config.py                              # Central configuration & physics thresholds
-├── data_fetch.py                          # Automated Open-Meteo archive data harvester
-├── history_store.py                       # SQLite database for persistent sensor history
-├── main.py                                # FastAPI ASGI server entrypoint
-├── requirements.txt                       # Pinned Python dependencies
-├── docker-compose.yml                     # Unified multi-container orchestrator
-└── README.md                              # Flagship project documentation
+├── config.py                              # Central configuration & thresholds
+├── data_fetch.py                          # Open-Meteo archive data harvester
+├── history_store.py                       # SQLite database for sensor history
+├── main.py                                # FastAPI application entrypoint
+├── requirements.txt                       # Backend Python dependencies
+├── docker-compose.yml                     # Multi-container Docker compose definition
+└── README.md                              # Project documentation
 ```
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Getting Started
 
 ### Option 1: Docker Compose (Recommended)
 
-Ensure [Docker Desktop](https://www.docker.com/products/docker-desktop/) is installed and running, then execute a single command from the project root:
+Make sure [Docker Desktop](https://www.docker.com/products/docker-desktop/) is running, then start the services from the project root:
 
 ```bash
 docker compose up --build
 ```
 
-- 🌐 **Web Dashboard:** [http://localhost:5173](http://localhost:5173) (or [http://localhost](http://localhost))
-- ⚡ **FastAPI Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- 📡 **Telemetry WebSocket:** `ws://localhost:8000/ws`
+- **Dashboard:** [http://localhost:5173](http://localhost:5173) (or [http://localhost](http://localhost))
+- **API Documentation:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Telemetry WebSocket:** `ws://localhost:8000/ws`
 
 ---
 
@@ -244,80 +243,72 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```bash
 cd frontend
 
-# Install Node dependencies
+# Install dependencies
 npm install
 
-# Start Vite development server
+# Start development server
 npm run dev
 ```
 
-Visit [http://localhost:5173](http://localhost:5173) to view the live dashboard.
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 🧪 Running the Benchmark Suite
+## 🧪 Running the Evaluation Benchmark
 
-To evaluate SkyGuard AI across all 28 labeled station datasets:
+To run the offline evaluation against all 28 labeled station datasets:
 
 ```bash
-# Run the executive benchmark
+# Run the summary benchmark
 python model/evaluate.py
 
-# Run with verbose station-by-station confusion matrices
+# Run with per-station confusion matrices printed
 python model/evaluate.py --verbose
 ```
 
-All evaluation runs export structured audit artifacts directly to `data/`:
-- `data/eval_station_breakdown.csv`: Comprehensive per-station metrics (TP, FP, FN, TN, precision, recall, F1).
-- `data/eval_per_sensor_fault_log.csv`: Granular log of every flagged sensor parameter.
-- `data/eval_recovery_diagnostic.csv`: Real-time auto-recovery episode tracking.
-- `data/eval_evidence_samples.csv`: Deep-dive audit samples comparing model, rule, and fusion contributions.
+Evaluation results and diagnostics are exported to `data/`:
+- `data/eval_station_breakdown.csv`: Per-station metrics (TP, FP, FN, TN, precision, recall, F1).
+- `data/eval_per_sensor_fault_log.csv`: Breakdown of every flagged reading by parameter and fault type.
+- `data/eval_recovery_diagnostic.csv`: Recovery episode tracking.
+- `data/eval_evidence_samples.csv`: Sample scores comparing model, rule, and fusion contributions.
 
 ---
 
 ## 🔌 API Reference
 
-The backend exposes a fully typed REST & WebSocket API documented via interactive Swagger UI at `/docs`.
+FastAPI provides an interactive OpenAPI / Swagger UI at `/docs`. Core endpoints include:
 
-| Method | Endpoint | Description | Sample Response / Params |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/stations` | Returns current telemetry, health status, and coordinates for all 28 AWS units. | `[{"station_id": "AWS-CHN-024", "status": "normal", "temperature": 28.4, ...}]` |
-| `GET` | `/api/anomalies/latest` | Fetches the most recent verified anomaly events with severity and attribution. | `[{"id": "EVT-8472", "fault_type": "drift", "severity": "high", "decision_basis": "weighted_fusion"}]` |
-| `GET` | `/api/sensor-health` | Retrieves per-parameter health states (`HEALTHY`, `WARNING`, `OFFLINE`). | `{"AWS-CHN-024": {"temp": "HEALTHY", "pressure": "HEALTHY", "humidity": "HEALTHY"}}` |
-| `GET` | `/api/explain/{anomaly_id}` | Computes SHAP decision explanation feature importance for a flagged event. | `{"features": [{"feature": "temp_roc_1h", "importance": 0.42}], "method": "shap"}` |
-| `GET` | `/api/suggested-reading/{id}` | Physics-grounded suggested reading with uncertainty bounds during sensor failure. | `{"parameter": "temperature_c", "suggested_value": 29.1, "confidence": 0.94}` |
-| `POST` | `/api/inject-anomaly` | Triggers replay simulation mode with controlled ground-truth synthetic faults. | `{"mode": "replay", "status": "started"}` |
-| `POST` | `/api/repair-sensor` | Operator endpoint to manually clear sensor fault counters and force recovery. | `{"station_id": "AWS-BHO-030", "parameter": "temp"}` |
-| `WS` | `/ws` | Real-time WebSocket broadcasting tick-by-tick telemetry across the network. | Live streaming JSON packets at 1-second intervals. |
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/stations` | Returns current readings, health status, and coordinates for all 28 stations. |
+| `GET` | `/api/anomalies/latest` | Returns recent anomaly detections with severity and decision route. |
+| `GET` | `/api/sensor-health` | Returns per-parameter health states (`HEALTHY`, `WARNING`, `OFFLINE`). |
+| `GET` | `/api/explain/{anomaly_id}` | Computes feature attribution for a flagged anomaly. |
+| `GET` | `/api/suggested-reading/{id}` | Provides imputed reading with confidence bounds during sensor failure. |
+| `POST` | `/api/inject-anomaly` | Starts replay mode with injected ground-truth faults for testing. |
+| `POST` | `/api/repair-sensor` | Manually resets fault counters for a sensor parameter. |
+| `WS` | `/ws` | Real-time WebSocket streaming live telemetry packets. |
 
 ---
 
-## 🩺 Sensor Health & Auto-Recovery Lifecycle
+## 🩺 Sensor Health State Machine
 
-SkyGuard AI treats sensor monitoring as a dynamic, self-healing state machine rather than an irreversible binary flag:
+Sensor status is managed as a finite state machine:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> HEALTHY: Telemetry Normal
+    [*] --> HEALTHY: Normal Telemetry
     HEALTHY --> WARNING: 1 Isolated Anomaly Detected
-    WARNING --> HEALTHY: Clean Reading Confirmed
+    WARNING --> HEALTHY: Next Reading Normal
     WARNING --> SUSPECT: 2-3 Consecutive Anomalies
     SUSPECT --> OFFLINE: Persistent Failure (e.g. 4+ hours or Rail Short)
-    OFFLINE --> RECOVERING: Sensor Repaired / Normal Data Resumes
-    RECOVERING --> HEALTHY: 3+ Consecutive Clean Diurnal Steps
-    RECOVERING --> OFFLINE: Anomaly Re-appears During Clean Streak
+    OFFLINE --> RECOVERING: Readings Resume Normal Range
+    RECOVERING --> HEALTHY: 3+ Consecutive Clean Steps
+    RECOVERING --> OFFLINE: Anomaly Detected During Clean Streak
 ```
 
 ---
 
-## 👥 Contributing & License
+## 📄 License
 
-Contributions, issue reports, and feature requests are welcome! Feel free to check the [issues page](https://github.com/inf-pranjal-01/LULLABY-SKYGUARD/issues).
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
-
----
-
-<div align="center">
-  <sub>Built with ❤️ for resilient, climate-critical atmospheric infrastructure.</sub>
-</div>
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
