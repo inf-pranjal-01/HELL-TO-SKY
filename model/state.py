@@ -388,7 +388,13 @@ class StateManager:
         """Frontend 'force recovery' affordance (Draft 2 §6 Frontend TODO) -- see StationBuffer.force_recover()."""
         self.buffers[station_id].force_recover()
 
-    def ingest_reading(self, station_id: str, raw_reading: dict, timestamp) -> dict:
+    def ingest_reading(
+        self,
+        station_id: str,
+        raw_reading: dict,
+        timestamp,
+        current_network_readings: Optional[dict] = None,
+    ) -> dict:
         buf = self.buffers[station_id]
         history_df = buf.raw_history_df()
 
@@ -398,10 +404,20 @@ class StateManager:
             if not history_df.empty else pd.DataFrame([current_row])
         )
 
-        neighbor_buffers = {
-            nid: self.buffers[nid].raw_history_df()
-            for nid in self.neighbor_map.get(station_id, [])
-        }
+        neighbor_buffers = {}
+        for nid in self.neighbor_map.get(station_id, []):
+            nbuf_df = self.buffers[nid].raw_history_df()
+            if current_network_readings and nid in current_network_readings:
+                n_raw, n_ts = current_network_readings[nid]
+                if n_raw is not None:
+                    n_ts_dt = pd.to_datetime(n_ts, utc=True)
+                    has_ts = False
+                    if not nbuf_df.empty and "timestamp" in nbuf_df.columns:
+                        has_ts = (pd.to_datetime(nbuf_df["timestamp"], utc=True) == n_ts_dt).any()
+                    if not has_ts:
+                        n_row = dict(n_raw, station_id=nid, timestamp=n_ts)
+                        nbuf_df = pd.concat([nbuf_df, pd.DataFrame([n_row])], ignore_index=True) if not nbuf_df.empty else pd.DataFrame([n_row])
+            neighbor_buffers[nid] = nbuf_df
 
         verdict = score_reading(
             raw_reading,

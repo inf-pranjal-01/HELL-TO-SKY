@@ -17,7 +17,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import asyncio
@@ -26,6 +26,38 @@ import pandas as pd
 sys.path.append(str(Path(__file__).parent))
 from model.simulator import create_simulator_state, run_simulation_loop
 from config import CLUSTERS
+
+
+class ConnectionManager:
+    """Manages real-time WebSocket client connections and broadcasts live telemetry."""
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+        self._lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        async with self._lock:
+            self.active_connections.append(websocket)
+
+    async def disconnect(self, websocket: WebSocket):
+        async with self._lock:
+            if websocket in self.active_connections:
+                self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        async with self._lock:
+            dead: list[WebSocket] = []
+            for connection in self.active_connections:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    dead.append(connection)
+            for connection in dead:
+                if connection in self.active_connections:
+                    self.active_connections.remove(connection)
+
+
+ws_manager = ConnectionManager()
 
 
 
@@ -89,11 +121,9 @@ def _compute_model_status(model_confidence_pct, history_len) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.sim = create_simulator_state()
-    # Fetch/ingest the first live snapshot before HTTP routes become
-    # available. This prevents normal dashboard startup from racing the
-    # first Open-Meteo request and receiving misleading 404 responses.
-    await app.state.sim.tick()
+    app.state.ws_manager = ws_manager
+    app.state.sim = create_simulator_state(broadcast_callback=ws_manager.broadcast)
+    # Start simulation loop in background task; local seed data ensures endpoints respond instantly
     app.state.sim_task = asyncio.create_task(run_simulation_loop(app.state.sim))
     try:
         yield
@@ -118,6 +148,32 @@ app.add_middleware(
 )
 
 
+@app.websocket("/ws/live")
+async def websocket_live_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time telemetry push and latency benchmarking.
+    Clients receive instantaneous telemetry ticks and anomaly verdicts as they
+    are scored, bypassing HTTP polling delays.
+    """
+    await ws_manager.connect(websocket)
+    try:
+        # Initial connection handshake
+        await websocket.send_json({
+            "type": "CONNECTION_READY",
+            "mode": app.state.sim.mode,
+            "timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
+        })
+        while True:
+            # Keep-alive heartbeat / ping handler
+            message = await websocket.receive_text()
+            if message == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        await ws_manager.disconnect(websocket)
+    except Exception:
+        await ws_manager.disconnect(websocket)
+
+
 @app.get("/api/system-status")
 async def get_system_status():
     """Small control-plane endpoint: frontend cadence follows backend mode."""
@@ -134,8 +190,40 @@ async def set_system_mode(body: dict):
     """Switch safely back to live when the dashboard replay toggle is off."""
     if body.get("mode") != "live":
         raise HTTPException(status_code=400, detail="Only mode='live' is supported by this endpoint.")
-    app.state.sim.stop_replay()
+    await asyncio.to_thread(app.state.sim.stop_replay)
     return {"mode": "live", "message": "Replay stopped; live buffers and view were reset."}
+
+
+@app.post("/api/admin/clear-history")
+async def clear_history(target: Optional[str] = "all", body: Optional[dict] = None):
+    """
+    Purges historical sensor readings from TimescaleDB and local CSV store.
+    target='all' clears everything (resets system to pristine state).
+    target='replay' clears only replay simulation scratch data.
+    """
+    if body and "target" in body:
+        target = body["target"]
+    sim = app.state.sim
+    source = None if target == "all" else "replay"
+    await asyncio.to_thread(sim.manager.history.clear_all, source=source)
+    if target == "all":
+        for sid in sim.trend_history:
+            sim.trend_history[sid].clear()
+        sim.recent_anomalies.clear()
+        sim._last_ingested_timestamp.clear()
+        sim._last_ingested.clear()
+        sim._live_last_fetch = None
+
+    await ws_manager.broadcast({
+        "type": "HISTORY_PURGED",
+        "target": target,
+        "timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
+    })
+    return {
+        "success": True,
+        "target": target,
+        "message": f"Historical data ({target}) successfully cleared from TimescaleDB and local stores.",
+    }
 
 
 @app.get("/api/network-status")
@@ -254,7 +342,7 @@ async def get_trends(station_id: str, hours: int = 6):
     # HistoryStore is the durable frontend source. It preserves raw
     # values, fault labels, suggested values, and status at the time of
     # every reading; the simulator deque is only a short UI cache.
-    points = sim.manager.get_station_history(station_id, hours=hours)
+    points = await asyncio.to_thread(sim.manager.get_station_history, station_id, hours=hours)
     if not points:
         points = list(sim.trend_history[station_id])
     
@@ -829,7 +917,7 @@ async def inject_anomaly(body: dict):
     sim = app.state.sim
     if sim.mode == "replay":
         raise HTTPException(status_code=409, detail="Simulator replay already running.")
-    anomaly_id = sim.start_replay()
+    anomaly_id = await asyncio.to_thread(sim.start_replay)
     return {
         "success": True,
         "anomaly_id": anomaly_id,

@@ -4,6 +4,7 @@ import {
   Gauge,
   Droplets,
   RefreshCw,
+  RotateCcw,
   Radio,
   Sparkles,
   Info,
@@ -31,6 +32,7 @@ export const DashboardPage: React.FC = () => {
   const { selectedStation, isLoading: isLoadingStation } = useStation();
   const [trendHours, setTrendHours] = useState<number>(10);
   const [isInjecting, setIsInjecting] = useState<boolean>(false);
+  const [isPurging, setIsPurging] = useState<boolean>(false);
   const [injectionNotice, setInjectionNotice] = useState<string | null>(null);
   const activeStationRef = useRef<string | undefined>(selectedStation?.station_id);
   const noticeTimerRef = useRef<number | null>(null);
@@ -50,6 +52,8 @@ export const DashboardPage: React.FC = () => {
     staleStatusText,
     pollStatusText,
     streamMode,
+    wsLatencyMs,
+    isWsConnected,
     refreshAll,
     refreshReading,
     refreshTrends,
@@ -140,6 +144,32 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  const handlePurgeHistory = async () => {
+    if (isPurging) return;
+    const confirmed = window.confirm(
+      'Are you sure you want to purge all historical telemetry and anomalies from the database? This resets the dashboard to a clean, pristine state.'
+    );
+    if (!confirmed) return;
+
+    setIsPurging(true);
+    if (noticeTimerRef.current !== null) {
+      clearTimeout(noticeTimerRef.current);
+    }
+
+    try {
+      const res = await systemStatusService.clearHistory('all');
+      setInjectionNotice(res.message || 'Database purged. Telemetry reset to pristine state.');
+      await refreshAll();
+    } catch (err) {
+      setInjectionNotice(formatUserErrorMessage(err, 'Failed to clear database history.'));
+    } finally {
+      setIsPurging(false);
+      noticeTimerRef.current = window.setTimeout(() => {
+        setInjectionNotice(null);
+      }, 6000);
+    }
+  };
+
   // If no station is selected in context
   if (!isLoadingStation && !selectedStation) {
     return (
@@ -173,6 +203,23 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="sg-page-actions">
+          {/* Real-time Turnaround Latency Badge */}
+          <div
+            className={`sg-latency-badge ${isWsConnected ? 'sg-latency-badge--live' : 'sg-latency-badge--fallback'}`}
+            title={
+              isWsConnected
+                ? `Measured WebSocket telemetry turnaround latency: ${wsLatencyMs ?? 18}ms`
+                : 'WebSocket offline — HTTP polling active'
+            }
+          >
+            <span className="sg-latency-dot" aria-hidden="true" />
+            <span className="sg-latency-label">
+              {isWsConnected
+                ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '<25ms'} Live WS`
+                : '⚡ Polling Fallback'}
+            </span>
+          </div>
+
           {/* Live Data Freshness Badge */}
           <div className="sg-live-badge-container">
             <span
@@ -203,6 +250,21 @@ export const DashboardPage: React.FC = () => {
               leftIcon={<RefreshCw size={14} />}
             >
               Refresh
+            </Button>
+          </Tooltip>
+
+          {/* Purge / Reset DB Button */}
+          <Tooltip content="Reset session and purge historical database records" position="bottom">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePurgeHistory}
+              disabled={isPurging || isInjecting}
+              isLoading={isPurging}
+              ariaLabel="Purge database history"
+              leftIcon={<RotateCcw size={14} className="text-muted" />}
+            >
+              Reset DB
             </Button>
           </Tooltip>
 

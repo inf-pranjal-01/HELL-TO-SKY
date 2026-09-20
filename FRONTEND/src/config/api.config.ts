@@ -35,11 +35,13 @@ export interface ApiEndpoints {
   systemMode: string;
   refreshLive: string;
   networkStatus: string;
+  clearHistory: string;
 }
 
 export interface ApiConfig {
   mode: ApiMode;
   baseUrl: string;
+  wsUrl: string;
   timeoutMs: number;
   realtime: {
     strategy: 'polling';
@@ -62,6 +64,14 @@ export const API_CONFIG: ApiConfig = {
   baseUrl: (
     (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:8000'
   ).replace(/\/+$/, ''),
+
+  // WebSocket Live Push URL
+  wsUrl: (
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WS_BASE_URL) ||
+    ((typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:8000')
+      .replace(/^http/, 'ws')
+      .replace(/\/+$/, '') + '/ws/live'
+  ),
   
   // Default network request timeout (10 seconds)
   timeoutMs: 10000,
@@ -89,6 +99,7 @@ export const API_CONFIG: ApiConfig = {
     systemMode: '/api/system-mode',
     refreshLive: '/api/refresh-live',
     networkStatus: '/api/network-status',
+    clearHistory: '/api/admin/clear-history',
   },
 };
 

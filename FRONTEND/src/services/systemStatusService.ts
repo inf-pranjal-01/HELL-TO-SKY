@@ -55,4 +55,16 @@ export const systemStatusService = {
     const data = await apiClient.get<unknown>(API_CONFIG.endpoints.networkStatus, undefined, options);
     return validateNetworkStatus(data);
   },
+
+  async clearHistory(target: 'all' | 'replay' = 'all', options?: RequestOptions): Promise<{ success: boolean; message: string }> {
+    if (isMockMode()) {
+      return { success: true, message: 'Mock data purged.' };
+    }
+    const data = await apiClient.post<{ success: boolean; message: string }>(
+      API_CONFIG.endpoints.clearHistory,
+      { target },
+      options
+    );
+    return data;
+  },
 };

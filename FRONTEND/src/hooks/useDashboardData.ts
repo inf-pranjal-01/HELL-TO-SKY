@@ -16,6 +16,7 @@ import { systemStatusService } from '../services/systemStatusService';
 import { ApiError, formatUserErrorMessage } from '../services/apiError';
 import { calculateFreshness, FreshnessState } from '../utils/freshness';
 import { TELEMETRY_REFRESH_EVENT } from '../utils/refreshEvents';
+import { API_CONFIG } from '../config/api.config';
 
 export interface DashboardDataState {
   currentReading: CurrentSensorReading | null;
@@ -45,6 +46,10 @@ export interface DashboardDataState {
   freshness: FreshnessState;
   pollStatusText: string;
   streamMode: 'live' | 'replay';
+
+  // Live WebSocket Ingestion & Latency Readout
+  wsLatencyMs: number | null;
+  isWsConnected: boolean;
 
   // Pause / Resume controls [FRONTEND ONLY]
   isPaused: boolean;
@@ -109,6 +114,13 @@ export function useDashboardData(
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // WebSocket Live Push & Latency Readout
+  const [wsLatencyMs, setWsLatencyMs] = useState<number | null>(null);
+  const [isWsConnected, setIsWsConnected] = useState<boolean>(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const pingIntervalRef = useRef<number | null>(null);
+
   // References to prevent overlapping polling requests and race conditions
   const activeStationIdRef = useRef(stationId);
   activeStationIdRef.current = stationId;
@@ -120,6 +132,165 @@ export function useDashboardData(
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
   const fetchAnomaliesRef = useRef<() => Promise<void>>(() => Promise.resolve());
+
+  // Real-time WebSocket connection to backend /ws/live
+  useEffect(() => {
+    let isUnmounted = false;
+
+    function connectWs() {
+      if (isUnmounted) return;
+      try {
+        const socket = new WebSocket(API_CONFIG.wsUrl);
+        wsRef.current = socket;
+
+        socket.onopen = () => {
+          if (isUnmounted) {
+            socket.close();
+            return;
+          }
+          setIsWsConnected(true);
+
+          if (pingIntervalRef.current !== null) {
+            clearInterval(pingIntervalRef.current);
+          }
+          pingIntervalRef.current = window.setInterval(() => {
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send('ping');
+            }
+          }, 15000);
+        };
+
+        socket.onmessage = (event) => {
+          if (isUnmounted) return;
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'TELEMETRY_TICK') {
+              if (data.station_id === activeStationIdRef.current) {
+                // End-to-end turnaround latency readout (real measured delta)
+                if (data.ingest_time_ms) {
+                  const measuredLatency = Math.max(1, Date.now() - data.ingest_time_ms);
+                  setWsLatencyMs(measuredLatency);
+                }
+
+                // Instantaneously update current reading
+                if (data.reading) {
+                  setCurrentReading((prev) => {
+                    if (!prev || prev.station_id !== data.station_id) {
+                      fetchReading();
+                      return prev;
+                    }
+                    return {
+                      ...prev,
+                      timestamp: data.timestamp,
+                      temperature_c: { ...prev.temperature_c, value: data.reading.temperature_c },
+                      pressure_hpa: { ...prev.pressure_hpa, value: data.reading.pressure_hpa },
+                      humidity_pct: { ...prev.humidity_pct, value: data.reading.humidity_pct },
+                      is_anomaly: data.verdict?.is_anomaly ?? false,
+                      anomaly_score_pct: data.verdict?.anomaly_score_pct ?? prev.anomaly_score_pct,
+                      model_status: data.verdict?.model_status ?? prev.model_status,
+                      fault_type: data.verdict?.fault_type ?? null,
+                      severity: data.verdict?.severity ?? null,
+                      suggested_values: data.verdict?.suggested_values ?? prev.suggested_values,
+                      source: (data.mode ?? 'live') as 'live' | 'replay',
+                    };
+                  });
+                  setReadingError(null);
+                  setIsLoadingReading(false);
+                  setLastUpdated(new Date());
+
+                  // Seamlessly append to active trend chart buffer
+                  setTrends((previous) => {
+                    if (!previous || previous.station_id !== data.station_id) return previous;
+                    const point = {
+                      timestamp: data.timestamp,
+                      temperature_c: data.reading.temperature_c,
+                      pressure_hpa: data.reading.pressure_hpa,
+                      humidity_pct: data.reading.humidity_pct,
+                      anomaly_score_pct: data.verdict?.anomaly_score_pct,
+                      is_anomaly: data.verdict?.is_anomaly ?? false,
+                      fault_type: data.verdict?.fault_type,
+                      suggested_temperature_c: data.verdict?.suggested_values?.temperature_c,
+                      suggested_pressure_hpa: data.verdict?.suggested_values?.pressure_hpa,
+                      suggested_humidity_pct: data.verdict?.suggested_values?.humidity_pct,
+                      health_status: data.verdict?.health_status,
+                      source: data.mode,
+                    };
+                    const existingSource = previous.points.at(-1)?.source;
+                    if (existingSource && point.source && existingSource !== point.source) {
+                      return { ...previous, points: [point] };
+                    }
+                    const byTimestamp = new Map(previous.points.map((item) => [item.timestamp, item]));
+                    byTimestamp.set(point.timestamp, point);
+                    const visibleHours = trendHoursRef.current;
+                    const cutoff = new Date(point.timestamp).getTime() - visibleHours * 3600 * 1000;
+                    const filtered = Array.from(byTimestamp.values()).filter(
+                      (item) => new Date(item.timestamp).getTime() >= cutoff
+                    );
+                    filtered.sort(
+                      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                    );
+                    return { ...previous, points: filtered };
+                  });
+
+                  if (data.verdict?.is_anomaly) {
+                    fetchAnomaliesRef.current();
+                  }
+                }
+              }
+            } else if (data.type === 'ANOMALY_EVENT') {
+              if (data.station_id === activeStationIdRef.current || !data.station_id) {
+                fetchAnomaliesRef.current();
+              }
+            } else if (data.type === 'MODE_CHANGE') {
+              setStreamStatus((prev) => ({
+                ...prev,
+                mode: data.mode,
+                replay_step_seconds: data.mode === 'replay' ? 2 : null,
+              }));
+            }
+          } catch {
+            // Heartbeat or non-JSON message
+          }
+        };
+
+        socket.onclose = () => {
+          setIsWsConnected(false);
+          if (pingIntervalRef.current !== null) {
+            clearInterval(pingIntervalRef.current);
+            pingIntervalRef.current = null;
+          }
+          if (!isUnmounted) {
+            reconnectTimeoutRef.current = window.setTimeout(connectWs, 2500);
+          }
+        };
+
+        socket.onerror = () => {
+          socket.close();
+        };
+      } catch {
+        setIsWsConnected(false);
+        if (!isUnmounted) {
+          reconnectTimeoutRef.current = window.setTimeout(connectWs, 3000);
+        }
+      }
+    }
+
+    connectWs();
+
+    return () => {
+      isUnmounted = true;
+      if (reconnectTimeoutRef.current !== null) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (pingIntervalRef.current !== null) {
+        clearInterval(pingIntervalRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
 
   // 1. Fetch Current Reading
   const fetchReading = useCallback(async () => {
@@ -500,6 +671,8 @@ export function useDashboardData(
     freshness,
     pollStatusText,
     streamMode: streamStatus.mode,
+    wsLatencyMs,
+    isWsConnected,
     isPaused,
     setIsPaused,
     isPreWarming: streamStatus.is_pre_warming ?? false,
