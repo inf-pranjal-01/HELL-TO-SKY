@@ -10,3 +10,5 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2025-03-31T23:00:00+00:00,AWS-CHN-024,28.3,1008.7,66.0,False,,low,0.0,,26.4,1007.6,75.0,HEALTHY,live,,0.0
 2026-09-20T14:15:00+00:00,AWS-CHN-024,28.6,1008.4,85.0,False,multivariate_inconsistency,low,45.0,,27.4,1007.4,85.0,HEALTHY,live,,45.0
 2026-09-20T14:00:00+00:00,AWS-CHN-024,28.8,1008.1,84.0,False,,low,0.0,,27.4,1007.1,84.0,HEALTHY,live,,0.0
+2026-09-20T14:45:00+00:00,AWS-CHN-024,28.3,1008.9,86.0,False,,low,0.0,,27.4,1007.9,85.0,HEALTHY,live,,0.0
+2026-09-20T15:15:00+00:00,AWS-CHN-024,28.0,1009.3,86.0,False,,low,0.0,,27.3,1008.2,85.0,HEALTHY,live,,0.0
