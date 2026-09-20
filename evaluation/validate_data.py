@@ -25,9 +25,7 @@ exactly the kind of thing that should require a human to look at it.
 
 import pandas as pd
 import numpy as np
-from pathlib import Path
-
-DATA_DIR = Path(__file__).parent
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # Physically implausible bounds for these 5 Indian city clusters.
 # Deliberately generous -- these are sanity limits, not climate norms,

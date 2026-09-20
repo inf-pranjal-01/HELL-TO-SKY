@@ -13,7 +13,7 @@ STATIONS = [
 ]
 YEAR = "2024"
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 OUTPUT_FILE = DATA_DIR / "uscrn_validation_slice.csv"
 
 # Columns as per NOAA readme

@@ -1,6 +1,8 @@
-"""Reproducible held-out evaluation for the network-aware fault helper."""
-
+import sys
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd
 
@@ -10,7 +12,7 @@ from model.fault_helper import (
     score_frozen_channels,
 )
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = PROJECT_ROOT / "data"
 TRAINING_SEEDS = [1101, 2202]
 ALERT_THRESHOLD = 0.75
 FROZEN_ALERT_THRESHOLD = 0.90

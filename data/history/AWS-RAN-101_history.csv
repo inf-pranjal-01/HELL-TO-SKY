@@ -3,3 +3,5 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2026-09-20T10:28:41.655203+00:00,AWS-RAN-101,25.2,939.3,88.0,False,,low,0.0,,26.0,970.5,89.0,HEALTHY,live,,0.0
 2026-09-20T10:31:20.083763+00:00,AWS-RAN-101,25.2,939.4,88.0,False,,low,0.0,,26.1,970.5,88.0,HEALTHY,live,,0.0
 2026-09-20T10:45:00+00:00,AWS-RAN-101,25.2,939.5,88.0,False,,low,0.0,,26.2,970.7,87.0,HEALTHY,live,,0.0
+2026-09-20T13:00:00+00:00,AWS-RAN-101,23.8,940.6,95.0,False,,low,0.0,,23.9,940.6,94.0,HEALTHY,live,,0.0
+2026-09-20T13:30:00+00:00,AWS-RAN-101,23.6,941.2,93.0,False,,low,0.0,,25.8,972.4,92.0,HEALTHY,live,,0.0
