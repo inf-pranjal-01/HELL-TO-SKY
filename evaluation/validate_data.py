@@ -25,6 +25,7 @@ exactly the kind of thing that should require a human to look at it.
 
 import pandas as pd
 import numpy as np
+from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # Physically implausible bounds for these 5 Indian city clusters.
@@ -120,9 +121,9 @@ def main():
 
     needs_review = [r for r in reports if any("MANUAL REVIEW" in i for i in r["issues"])]
     if needs_review:
-        print(f"\n⚠ {len(needs_review)} station(s) have issues that need your manual review before training.")
+        print(f"\n[WARNING] {len(needs_review)} station(s) have issues that need your manual review before training.")
     else:
-        print(f"\n✅ All {len(reports)} stations passed validation (or were safely auto-repaired).")
+        print(f"\n[OK] All {len(reports)} stations passed validation (or were safely auto-repaired).")
 
 
 if __name__ == "__main__":

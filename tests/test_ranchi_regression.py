@@ -1,92 +1,57 @@
 import os
 import sys
+import unittest
 import pandas as pd
-import json
+import joblib
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from model.detect import score_reading
 from model.features import add_temporal_features
-import joblib
 
-def reproduce_ranchi():
-    print("Reproducing Ranchi False Positive for 2025-01-02 08:00 to 12:00")
-    
-    csv_path = os.path.join("data", "AWS-RAN-067_labeled.csv")
-    if not os.path.exists(csv_path):
-        print(f"Error: {csv_path} not found.")
-        return
-        
-    df = pd.read_csv(csv_path)
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    
-    # Filter for the relevant period (we need some history for rolling windows)
-    # Let's get data up to 2025-01-02 12:00, starting from a few days before
-    end_time = pd.to_datetime("2025-01-02 12:00:00")
-    start_time = end_time - pd.Timedelta(days=5) # 5 days of history
-    
-    mask = (df["timestamp"] >= start_time) & (df["timestamp"] <= end_time)
-    test_df = df[mask].copy().sort_values("timestamp").reset_index(drop=True)
-    
-    # Load model artifact
-    artifact_path = os.path.join("model_artifacts", "isolation_forest.pkl")
-    if not os.path.exists(artifact_path):
-        print(f"Error: Model artifact {artifact_path} not found.")
-        return
-        
-    artifact = joblib.load(artifact_path)
-    
-    # Test timestamps
-    target_times = [
-        "2025-01-02 08:00:00",
-        "2025-01-02 09:00:00",
-        "2025-01-02 10:00:00",
-        "2025-01-02 11:00:00",
-        "2025-01-02 12:00:00",
-    ]
-    
-    for target in target_times:
-        target_dt = pd.to_datetime(target)
-        # History up to this point
-        hist = test_df[test_df["timestamp"] <= target_dt].copy()
-        
-        if len(hist) == 0:
-            print(f"Not enough history for {target}, len={len(hist)}")
-            continue
+class TestRanchiRegression(unittest.TestCase):
+    def test_ranchi_diurnal_drift_robustness(self):
+        csv_path = os.path.join("data", "AWS-RAN-067_labeled.csv")
+        self.assertTrue(os.path.exists(csv_path), f"{csv_path} should exist")
             
-        raw_reading = hist.iloc[-1].to_dict()
-        raw_reading["timestamp"] = str(raw_reading["timestamp"])
+        df = pd.read_csv(csv_path)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
         
-        # We pass history_df EXCLUDING the current reading, so the model predicts on it.
-        # Wait, score_reading expects history_df to INCLUDE the reading? No, let's look at simulator.py
-        # Actually in simulator.py: history_df includes the current reading at the end.
+        end_time = pd.to_datetime("2025-01-02 12:00:00")
+        start_time = end_time - pd.Timedelta(days=5)
         
-        feature_row = add_temporal_features(hist).iloc[-1]
-        verdict = score_reading(raw_reading, hist, artifact)
+        mask = (df["timestamp"] >= start_time) & (df["timestamp"] <= end_time)
+        test_df = df[mask].copy().sort_values("timestamp").reset_index(drop=True)
         
-        print(f"\n--- Timestamp: {target} ---")
-        print(f"Raw Reading: T={raw_reading['temperature_c']}°C, P={raw_reading['pressure_hpa']}hPa, H={raw_reading['humidity_pct']}%")
+        artifact_path = os.path.join("model_artifacts", "isolation_forest.pkl")
+        self.assertTrue(os.path.exists(artifact_path), f"{artifact_path} should exist")
+        artifact = joblib.load(artifact_path)
         
-        # Manually reconstruct the drift calculation steps for temp
-        raw_roc = feature_row.get("temp_roc_1h")
-        from model.seasonal_baseline import get_expected_roc
-        expected = get_expected_roc(raw_reading["station_id"], "temp", target_dt.hour)
-        scale_val = feature_row.get("temp_robust_scale")
-        residual = (raw_roc - expected) / float(scale_val) if pd.notna(scale_val) and scale_val > 0 else 0
+        target_times = [
+            "2025-01-02 08:00:00",
+            "2025-01-02 09:00:00",
+            "2025-01-02 10:00:00",
+            "2025-01-02 11:00:00",
+            "2025-01-02 12:00:00",
+        ]
         
-        print(f"[Trace] temp_roc_1h: {raw_roc:.3f}, expected_roc: {expected:.3f}, robust_scale: {scale_val:.3f}, normalized_res: {residual:.3f}")
-        
-        print(f"Verdict Is Anomaly: {verdict['is_anomaly']}")
-        print(f"Fault Type: {verdict.get('fault_type')}")
-        print(f"Model Score: {verdict.get('model_confidence_pct')}%")
-        print(f"Rule Score: {verdict.get('rule_confidence_pct')}%")
-        
-        rules_fired = verdict.get('rules_fired', [])
-        if rules_fired:
-            print("Rules Fired:")
-            for r in rules_fired:
-                print(f"  - {r['type']} ({r['parameter']}): {r.get('confidence')}% - {r.get('reason')}")
-        else:
-            print("Rules Fired: None")
+        for target in target_times:
+            target_dt = pd.to_datetime(target)
+            hist = test_df[test_df["timestamp"] <= target_dt].copy()
+            self.assertGreater(len(hist), 0)
+                
+            raw_reading = hist.iloc[-1].to_dict()
+            raw_reading["timestamp"] = str(raw_reading["timestamp"])
+            
+            verdict = score_reading(raw_reading, hist, artifact)
+            self.assertIn("is_anomaly", verdict)
+            
+            # Crucial verification: Sunrise warming (hours 8-11) must NOT falsely trigger temperature drift!
+            rules_fired = verdict.get("rules_fired", [])
+            temp_drift_rules = [
+                r for r in rules_fired
+                if (isinstance(r, dict) and r.get("type") == "drift" and r.get("parameter") == "temperature_c")
+            ]
+            self.assertEqual(len(temp_drift_rules), 0, f"Temperature sunrise warming at {target} must not trigger drift rule!")
 
 if __name__ == "__main__":
-    reproduce_ranchi()
+    unittest.main()

@@ -63,7 +63,7 @@ SkyGuard AI addresses this with a **hybrid detection pipeline**:
 
 ## 🚀 Key Features
 
-- **Unsupervised Anomaly Detection**: Isolation Forest trained on uncorrupted baseline weather data across 13 engineered rolling and rate-of-change features.
+- **Unsupervised Anomaly Detection**: Isolation Forest trained on uncorrupted baseline weather data across 50 engineered rolling, rate-of-change, thermodynamic, and cyclical harmonic features.
 - **Spatial Consensus**: 7 geographic clusters (Chennai, Delhi, Mumbai, Kolkata, Bhopal, Varanasi, Ranchi) cross-reference peer station movements, suppressing false alarms caused by regional fronts.
 - **Explainability (SHAP & Decision Attribution)**: Exposes feature contributions for flagged anomalies so operators can inspect why an alert fired.
 - **Sensor Health Tracking**: Tracks per-sensor state (`HEALTHY`, `WARNING`, `SUSPECT`, `OFFLINE`, `RECOVERING`) with streak requirements before taking sensors offline or recovering them.
@@ -78,7 +78,7 @@ SkyGuard AI addresses this with a **hybrid detection pipeline**:
 flowchart TD
     subgraph Ingestion ["1. Data Ingestion & Features"]
         RAW["Station Telemetry<br/>(Temperature, Pressure, Humidity)"] --> QC["Range Checks & Missing Value Filters"]
-        QC --> FEAT["Feature Matrix<br/>(13 Rolling, Deviation & ROC Features)"]
+        QC --> FEAT["Feature Matrix<br/>(50 Temporal, Thermodynamic & Cyclical Features)"]
     end
 
     subgraph Detection ["2. Hybrid Detection Layer"]

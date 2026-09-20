@@ -6,3 +6,5 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2025-03-31T23:00:00+00:00,AWS-BHO-030,26.4,954.5,19.0,False,,low,0.0,,25.05,957.65,20.5,HEALTHY,live,,0.0
 2026-09-20T13:30:00+00:00,AWS-BHO-030,25.0,956.8,90.0,False,multivariate_inconsistency,low,45.0,,24.5,962.5,91.0,HEALTHY,live,,45.0
 2026-09-20T13:45:00+00:00,AWS-BHO-030,24.1,957.1,93.0,False,,low,0.0,,23.5,962.9,95.0,HEALTHY,live,,0.0
+2026-09-20T14:13:53.424674+00:00,AWS-BHO-030,23.6,957.4,95.0,False,,low,0.0,,23.3,963.2,96.0,HEALTHY,live,,0.0
+2026-09-20T14:00:00+00:00,AWS-BHO-030,23.6,957.4,95.0,False,,low,0.0,,23.3,963.2,96.0,HEALTHY,live,,0.0
