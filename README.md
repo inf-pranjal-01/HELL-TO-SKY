@@ -13,10 +13,6 @@
 
 [**Live Demo**](http://localhost:5173) • [**API Docs**](http://localhost:8000/docs) • [**Architecture Blueprint**](docs/BACKEND_BLUEPRINT.md) • [**Evaluation Benchmark**](evaluation/evaluate.py)
 
-<br/>
-
-![SkyGuard AI Dashboard Preview](docs/assets/dashboard_preview.jpeg)
-
 </div>
 
 ---
