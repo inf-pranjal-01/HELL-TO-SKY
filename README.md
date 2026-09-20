@@ -1,7 +1,7 @@
 <div align="center">
 
-# 🛰️ SkyGuard AI
-### Autonomous Meteorological Anomaly Detection, Spatial Corroboration & Fault-Tolerant Monitoring for Distributed Automatic Weather Station (AWS) Networks
+# SkyGuard AI
+### Autonomous Meteorological Telemetry Anomaly Detection for Distributed Automatic Weather Station (AWS) Networks
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
