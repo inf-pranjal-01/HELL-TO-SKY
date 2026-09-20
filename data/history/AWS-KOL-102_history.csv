@@ -2,3 +2,4 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2026-09-20T10:15:00+00:00,AWS-KOL-102,27.6,1007.6,84.0,False,,low,0.0,,27.9,1007.7,83.0,HEALTHY,live,,0.0
 2026-09-20T10:28:41.655203+00:00,AWS-KOL-102,27.6,1007.6,84.0,False,,low,0.0,,27.9,1007.7,83.0,HEALTHY,live,,0.0
 2026-09-20T10:31:20.083763+00:00,AWS-KOL-102,27.5,1007.6,85.0,False,,low,0.0,,27.8,1007.7,83.0,HEALTHY,live,,0.0
+2026-09-20T10:45:00+00:00,AWS-KOL-102,27.5,1007.6,86.0,False,,low,0.0,,27.8,1007.7,84.0,HEALTHY,live,,0.0

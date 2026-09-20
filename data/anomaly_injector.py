@@ -89,7 +89,7 @@ ANOMALY_DENSITY_MULTIPLIER = 2.5
 # Held-out replay seed: distinct placements and fault directions from
 # the initial calibration replay. Change deliberately and record it in
 # evaluation output; train.py never consumes these labelled files.
-RANDOM_SEED = 42
+RANDOM_SEED = 45456231412727229999
 
 # Fixed (not randomized) fail-low window length. §5b's detector rule
 # triggers reclassification at 2-3 consecutive hours -- 3 sits right at
@@ -468,6 +468,56 @@ def inject_multivariate(df: pd.DataFrame, idx: int, column: str, rng: np.random.
     return "multivariate_inconsistency", idx, end_idx
 
 
+def inject_unstructured_anomaly(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
+    """
+    Unstructured / miscellaneous anomaly -- specifically designed to test
+    UNSUPERVISED model-only detection performance.
+
+    Real-world field sensors occasionally suffer complex chaotic faults (e.g.
+    erratic analog preamplifier oscillation, power supply ripple, or partial
+    bridge degradation) that DO NOT fit any simple 1D pattern:
+      - NOT a spike: remains strictly within normal 2.0-sigma bounds and physical limits.
+      - NOT frozen: continually fluctuates with natural variance.
+      - NOT fail-low: nowhere near the electrical 0 rail.
+      - NOT a drift: fluctuates chaotically with 0 cumulative directional ramp.
+      - NOT a simple 1D bound violation.
+
+    Instead, it induces high-dimensional covariance breakdown:
+    perturbs temperature, pressure, and humidity simultaneously with
+    decorrelated high-frequency fluctuations. In feature space, this
+    fractures the joint probability density P(T, P, RH, ROC), testing
+    whether our unsupervised Isolation Forest model can independently
+    detect the fault without any heuristic rule triggering.
+    """
+    window = rng.integers(3, 8)
+    end_idx = min(idx + window, len(df) - 1)
+    n_steps = end_idx - idx + 1
+
+    t_std = df["temperature_c"].std()
+    p_std = df["pressure_hpa"].std()
+    h_std = df["humidity_pct"].std()
+
+    # Rapid alternating perturbations:
+    sign_t = rng.choice([-1.0, 1.0], size=n_steps)
+    sign_p = -sign_t  # counter-correlated to break barometric pressure-temperature relation
+    sign_h = rng.choice([-1.0, 1.0], size=n_steps)
+
+    # Moderate magnitude: 1.8 to 2.4 sigma (well below 3-sigma spike threshold, within physical limits)
+    t_pert = sign_t * rng.uniform(1.8, 2.4, size=n_steps) * t_std
+    p_pert = sign_p * rng.uniform(1.6, 2.2, size=n_steps) * p_std
+    h_pert = sign_h * rng.uniform(1.8, 2.4, size=n_steps) * h_std
+
+    df.loc[idx:end_idx, "temperature_c"] += t_pert
+    df.loc[idx:end_idx, "pressure_hpa"] += p_pert
+    df.loc[idx:end_idx, "humidity_pct"] += h_pert
+
+    clip_to_physical_limits(df, "temperature_c", idx, end_idx)
+    clip_to_physical_limits(df, "pressure_hpa", idx, end_idx)
+    clip_to_physical_limits(df, "humidity_pct", idx, end_idx)
+
+    return "unstructured_anomaly", idx, end_idx
+
+
 # Upper bound on window length per fault type, used to pre-check
 # overlap BEFORE mutating df -- must stay in sync with each function's
 # own rng.integers(...) upper bound (exclusive), or its fixed length.
@@ -479,26 +529,16 @@ FAULT_MAX_LEN = {
     inject_dropout: 1,
     inject_multivariate: 4,
     inject_fail_low: FAIL_LOW_LENGTH,
+    inject_unstructured_anomaly: 8,
 }
 
-# inject_multivariate ignores its `column` arg and touches all three
-# parameters at once (see its docstring) -- it must claim all three
-# columns' spans, not just the sampled one, or it can silently overlap
-# a same-timestamp fault injected on a different column.
-MULTI_COLUMN_FAULTS = {inject_multivariate}
+# Faults that touch all three parameters at once -- they must claim
+# all three columns' spans, not just the sampled one.
+MULTI_COLUMN_FAULTS = {inject_multivariate, inject_unstructured_anomaly}
 
 # Relative frequency weights for how often each fault type actually
-# occurs on a real AWS network -- these are NOT row quotas, just
-# relative draw probabilities. Transient sensor/comms glitches (spike,
-# dropout) are the most common real-world failure mode. Slow-developing
-# calibration drift and multi-column agreement events (multivariate)
-# are rarer in practice. Numbers don't need to sum to 1 -- normalized
-# at draw time.
+# occurs on a real AWS network.
 FAULT_WEIGHTS = {
-    # inject_spike + inject_spike_decay together keep "spike" at roughly
-    # its old combined relative frequency (3.0), split across the two
-    # real-world subtypes (instant bit-flip vs. decaying transient)
-    # rather than adding a net-new fault category's worth of weight.
     inject_spike: 1.8,
     inject_spike_decay: 1.2,
     inject_dropout: 3.0,
@@ -506,6 +546,7 @@ FAULT_WEIGHTS = {
     inject_fail_low: 1.5,
     inject_drift: 1.0,
     inject_multivariate: 1.0,
+    inject_unstructured_anomaly: 1.2,
 }
 
 # Every fault type gets AT LEAST this many injected EVENTS, regardless
@@ -553,6 +594,7 @@ def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
     fault_functions = [
         inject_spike, inject_spike_decay, inject_frozen, inject_drift,
         inject_dropout, inject_multivariate, inject_fail_low,
+        inject_unstructured_anomaly,
     ]
 
     # FIX 1: per-column timelines instead of one global list -- a
@@ -663,8 +705,8 @@ def main():
     # Separate seed from RANDOM_SEED (which controls fault content/
     # placement) so "which stations fail" and "what the fault looks
     # like" are independently reproducible.
-    STATION_SELECTION_SEED = 7
-    N_FAULTY_STATIONS = 3
+    STATION_SELECTION_SEED = 5
+    N_FAULTY_STATIONS = 5
 
     station_files = sorted(
         p for p in DATA_DIR.glob("AWS-*.csv") if "_labeled" not in p.name

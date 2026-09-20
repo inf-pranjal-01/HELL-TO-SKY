@@ -2,3 +2,4 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2026-09-20T10:15:00+00:00,AWS-MUM-102,30.3,1007.1,71.0,False,,low,0.0,,29.9,1007.5,72.0,HEALTHY,live,,0.0
 2026-09-20T10:28:41.655203+00:00,AWS-MUM-102,30.3,1007.1,71.0,False,,low,0.0,,29.9,1007.5,72.0,HEALTHY,live,,0.0
 2026-09-20T10:31:20.083763+00:00,AWS-MUM-102,29.7,1007.2,74.0,False,,low,0.0,,30.0,1007.5,72.0,HEALTHY,live,,0.0
+2026-09-20T10:45:00+00:00,AWS-MUM-102,29.2,1007.2,76.0,False,,low,0.0,,30.0,1007.5,73.0,HEALTHY,live,,0.0

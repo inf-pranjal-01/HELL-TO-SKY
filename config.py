@@ -381,10 +381,10 @@ SEVERITY_MEDIUM_FLOOR = 55.0
 # the offline eval numbers and the live demo path stay in sync.
 # Moving them here is the explicit fix the blueprint calls for.
 # ---------------------------------------------------------------------
-# ExtraTrees binary fault-helper classifier alert threshold.
-HELPER_ALERT_THRESHOLD = 0.60
+# ExtraTrees binary fault-helper classifier alert threshold (high-certainty bar).
+HELPER_ALERT_THRESHOLD = 0.85
 # Per-channel frozen-specialist alert threshold.
-FROZEN_HELPER_ALERT_THRESHOLD = 0.55
+FROZEN_HELPER_ALERT_THRESHOLD = 0.85
 
 
 def score_to_severity(score_pct: float) -> str:

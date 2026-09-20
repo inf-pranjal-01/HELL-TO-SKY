@@ -2,3 +2,4 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2026-09-20T10:15:00+00:00,AWS-BHO-101,29.3,954.1,70.0,False,,low,0.0,,27.1,959.9,82.0,HEALTHY,live,,0.0
 2026-09-20T10:28:41.655203+00:00,AWS-BHO-101,29.3,954.1,70.0,False,,low,0.0,,27.1,959.9,82.0,HEALTHY,live,,0.0
 2026-09-20T10:31:20.083763+00:00,AWS-BHO-101,29.4,954.3,69.0,False,,low,0.0,,27.1,960.1,82.0,HEALTHY,live,,0.0
+2026-09-20T10:45:00+00:00,AWS-BHO-101,29.5,954.4,69.0,False,,low,0.0,,27.1,960.4,82.0,HEALTHY,live,,0.0

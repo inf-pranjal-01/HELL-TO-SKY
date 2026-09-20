@@ -1300,7 +1300,11 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
             from model.fault_helper import feature_columns, build_network_features
             # Minimal single-station "network" for live scoring (no peer rows).
             single_row = pd.DataFrame([{**raw_reading, "is_anomaly": False, "fault_type": None}])
-            fh_model, fh_cols = fault_helper_artifact
+            if isinstance(fault_helper_artifact, dict):
+                fh_model = fault_helper_artifact.get("helper_model")
+                fh_cols = fault_helper_artifact.get("helper_columns")
+            else:
+                fh_model, fh_cols = fault_helper_artifact[:2]
             # build_network_features requires cluster context; skip if columns missing
             fh_featured = build_network_features(single_row)
             available_cols = [c for c in fh_cols if c in fh_featured.columns]

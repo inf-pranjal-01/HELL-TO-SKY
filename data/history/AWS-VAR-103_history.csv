@@ -2,3 +2,4 @@ timestamp,station_id,temperature_c,pressure_hpa,humidity_pct,is_anomaly,fault_ty
 2026-09-20T10:15:00+00:00,AWS-VAR-103,31.5,998.1,68.0,False,,low,0.0,,31.7,998.8,72.0,HEALTHY,live,,0.0
 2026-09-20T10:28:41.655203+00:00,AWS-VAR-103,31.5,998.1,68.0,False,,low,0.0,,31.7,998.8,72.0,HEALTHY,live,,0.0
 2026-09-20T10:31:20.083763+00:00,AWS-VAR-103,31.5,998.2,69.0,False,,low,0.0,,31.1,999.1,75.0,HEALTHY,live,,0.0
+2026-09-20T10:45:00+00:00,AWS-VAR-103,31.5,998.4,70.0,False,,low,0.0,,30.4,999.4,79.0,HEALTHY,live,,0.0
