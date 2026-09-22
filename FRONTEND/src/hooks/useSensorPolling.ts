@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SystemStatusSummary } from '../types';
 import { anomalyService } from '../services/anomalyService';
-import { systemStatusService } from '../services/systemStatusService';
 import { requestTelemetryRefresh } from '../utils/refreshEvents';
-import { isMockMode } from '../config/api.config';
 
 export interface UseSensorPollingResult {
   readings: never[];
@@ -26,16 +24,9 @@ export function useSensorPolling(autoPoll: boolean = false): UseSensorPollingRes
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const timerRef = useRef<number | null>(null);
 
-  const fetchData = useCallback(async (alsoRefreshLive = false) => {
+  const fetchData = useCallback(async () => {
     try {
       setError(null);
-      if (alsoRefreshLive && !isMockMode()) {
-        try {
-          await systemStatusService.refreshLive();
-        } catch {
-          // Network status should still update even if Open-Meteo refresh fails.
-        }
-      }
       const statusData = await anomalyService.getSystemStatus();
       setSystemStatus(statusData);
       setLastUpdated(new Date());
@@ -47,10 +38,10 @@ export function useSensorPolling(autoPoll: boolean = false): UseSensorPollingRes
   }, []);
 
   useEffect(() => {
-    fetchData(false);
+    fetchData();
     if (autoPoll) {
       timerRef.current = window.setInterval(() => {
-        fetchData(false);
+        fetchData();
       }, 5000);
     }
     return () => {
@@ -61,7 +52,7 @@ export function useSensorPolling(autoPoll: boolean = false): UseSensorPollingRes
   }, [fetchData, autoPoll]);
 
   const refresh = useCallback(async () => {
-    await fetchData(true);
+    await fetchData();
     requestTelemetryRefresh();
   }, [fetchData]);
 

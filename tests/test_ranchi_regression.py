@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from pathlib import Path
 import pandas as pd
 import joblib
 
@@ -8,9 +9,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from model.detect import score_reading
 from model.features import add_temporal_features
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 class TestRanchiRegression(unittest.TestCase):
     def test_ranchi_diurnal_drift_robustness(self):
-        csv_path = os.path.join("data", "AWS-RAN-067_labeled.csv")
+        csv_path = PROJECT_ROOT / "data" / "AWS-RAN-067_labeled.csv"
         self.assertTrue(os.path.exists(csv_path), f"{csv_path} should exist")
             
         df = pd.read_csv(csv_path)
@@ -22,7 +25,7 @@ class TestRanchiRegression(unittest.TestCase):
         mask = (df["timestamp"] >= start_time) & (df["timestamp"] <= end_time)
         test_df = df[mask].copy().sort_values("timestamp").reset_index(drop=True)
         
-        artifact_path = os.path.join("model_artifacts", "isolation_forest.pkl")
+        artifact_path = PROJECT_ROOT / "model_artifacts" / "isolation_forest.pkl"
         self.assertTrue(os.path.exists(artifact_path), f"{artifact_path} should exist")
         artifact = joblib.load(artifact_path)
         

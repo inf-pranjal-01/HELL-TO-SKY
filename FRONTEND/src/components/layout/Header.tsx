@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, RefreshCw, Bell, ShieldCheck, User, LogOut, Settings, UserCheck, Search } from 'lucide-react';
+import { Menu, RefreshCw, Bell, ShieldCheck, User, LogOut, Settings, UserCheck, Search, Info, Radio, Database } from 'lucide-react';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { StatusBadge } from '../common/StatusBadge';
@@ -57,8 +57,8 @@ export const Header: React.FC<HeaderProps> = ({
         </Tooltip>
 
         <div className="sg-header__title-group">
-          <h1 className="sg-header__title">SkyGuard AI Station Telemetry</h1>
-          <span className="sg-header__subtitle">Real-time Meteorological Operational Center</span>
+          <h1 className="sg-header__title">Operations Center</h1>
+          <span className="sg-header__subtitle">Real-time Station Telemetry</span>
         </div>
       </div>
 
@@ -77,14 +77,54 @@ export const Header: React.FC<HeaderProps> = ({
           <kbd className="sg-header__search-kbd">Ctrl K</kbd>
         </button>
 
+        <div className="sg-header__divider" aria-hidden="true" />
+
         {/* Overall Health Status Indicator */}
         <div className="sg-header__status">
-          <span className="sg-header__status-label">Network Health:</span>
           <StatusBadge
             status={overallStatus ?? 'NORMAL'}
-            label={overallStatus ? `STATUS: ${overallStatus}` : 'STATUS: …'}
+            label={overallStatus ? `HEALTH: ${overallStatus}` : 'HEALTH: …'}
           />
         </div>
+
+        {/* Pipeline Ingestion Mode Indicator */}
+        {systemStatus?.mode === 'replay' ? (
+          <div className="sg-header__mode-badge sg-header__mode-badge--replay" role="status">
+            <Radio size={13} className="sg-header__mode-icon" aria-hidden="true" />
+            <span className="sg-header__mode-text">HTTP Polling (Replay)</span>
+            <Tooltip
+              position="bottom"
+              content="Replay: benchmark dataset (2s/step)"
+            >
+              <button
+                type="button"
+                className="sg-header__mode-info-btn"
+                aria-label="Replay stream mode details"
+              >
+                <Info size={12} />
+              </button>
+            </Tooltip>
+          </div>
+        ) : (
+          <div className="sg-header__mode-badge sg-header__mode-badge--live" role="status">
+            <Database size={13} className="sg-header__mode-icon" aria-hidden="true" />
+            <span className="sg-header__mode-text">Live WS (TimescaleDB)</span>
+            <Tooltip
+              position="bottom"
+              content="Live: WebSocket & TimescaleDB ingestion"
+            >
+              <button
+                type="button"
+                className="sg-header__mode-info-btn"
+                aria-label="Live operational mode details"
+              >
+                <Info size={12} />
+              </button>
+            </Tooltip>
+          </div>
+        )}
+
+        <div className="sg-header__divider" aria-hidden="true" />
 
         {/* Action Controls */}
         <div className="sg-header__actions">

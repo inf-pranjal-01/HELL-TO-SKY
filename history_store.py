@@ -12,6 +12,7 @@ Supports dual-store architecture:
 import csv
 import os
 import threading
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -49,11 +50,17 @@ class HistoryStore:
         self.max_days = max_days
         self._locks: dict[str, threading.Lock] = {}
         self._append_counts: dict[str, int] = {}
+        self._sync_lock = threading.Lock()
+        self._sync_in_progress = False
+        self._last_reconnect_attempt = 0.0
 
         # TimescaleDB pool initialization
         self.use_db = False
         self._db_pool = None
         self._init_timescale_pool()
+        if self.use_db:
+            # Sync any historical CSV records that may not yet be in TimescaleDB
+            self.trigger_background_sync()
 
     def _init_timescale_pool(self):
         db_url = os.environ.get("DATABASE_URL") or os.environ.get("TIMESCALE_SERVICE_URL")
@@ -64,12 +71,21 @@ class HistoryStore:
         try:
             import psycopg2
             from psycopg2.pool import ThreadedConnectionPool
-
-            self._db_pool = ThreadedConnectionPool(minconn=1, maxconn=10, dsn=db_url)
+            self._db_pool = ThreadedConnectionPool(
+                minconn=2,
+                maxconn=30,
+                dsn=db_url,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
+                connect_timeout=10
+            )
             # Test connection
             conn = self._db_pool.getconn()
             try:
                 with conn.cursor() as cur:
+                    cur.execute("SET statement_timeout = '3000ms';")
                     cur.execute("SELECT 1;")
                 conn.commit()
                 self.use_db = True
@@ -87,9 +103,17 @@ class HistoryStore:
         if not self.use_db or not self._db_pool:
             yield None
             return
+
         conn = None
         try:
             conn = self._db_pool.getconn()
+        except Exception as e:
+            print(f"[HistoryStore DB Pool Error] {e!r}")
+            self.use_db = False
+            yield None
+            return
+
+        try:
             yield conn
         except Exception as e:
             if conn:
@@ -98,12 +122,200 @@ class HistoryStore:
                 except Exception:
                     pass
             print(f"[HistoryStore DB Error] {e!r}")
+            err_str = str(e).lower()
+            if any(k in err_str for k in ("closed", "connection", "terminat", "timeout", "broken", "network", "operationalerror", "canceling")):
+                self.use_db = False
         finally:
             if conn and self._db_pool:
                 try:
                     self._db_pool.putconn(conn)
                 except Exception:
                     pass
+
+    def check_and_reconnect(self) -> bool:
+        """
+        Tests DB connectivity or attempts reconnection if currently offline.
+        If DB reconnects, immediately triggers background sync from CSV mirror.
+        """
+        was_offline = not self.use_db
+        if not self.use_db:
+            now = time.time()
+            if now - self._last_reconnect_attempt < 10.0:
+                return False
+            self._last_reconnect_attempt = now
+
+            # Clean up any stale pool before attempting reconnect
+            if self._db_pool:
+                try:
+                    self._db_pool.closeall()
+                except Exception:
+                    pass
+                self._db_pool = None
+
+            self._init_timescale_pool()
+            if self.use_db:
+                print("[HistoryStore] Database connection restored! Reconnected to TimescaleDB.")
+                self.trigger_background_sync()
+        else:
+            # Quick health ping on existing pool
+            try:
+                with self._get_db_conn() as conn:
+                    if conn:
+                        with conn.cursor() as cur:
+                            cur.execute("SET statement_timeout = '2000ms';")
+                            cur.execute("SELECT 1;")
+                        conn.commit()
+            except Exception:
+                self.use_db = False
+
+        return self.use_db
+
+    def trigger_background_sync(self, station_id: Optional[str] = None):
+        """Spawns a daemon background thread to sync local CSV mirror data to TimescaleDB."""
+        if not self.use_db:
+            return
+        t = threading.Thread(target=self.sync_csv_to_db, args=(station_id,), daemon=True)
+        t.start()
+
+    def sync_csv_to_db(self, station_id: Optional[str] = None) -> int:
+        """
+        Reads historical readings from local CSV files and backfills any rows
+        missing from TimescaleDB (for source == 'live').
+        Returns total number of rows synced.
+        """
+        if not self.use_db or not self._db_pool:
+            return 0
+
+        with self._sync_lock:
+            if self._sync_in_progress:
+                return 0
+            self._sync_in_progress = True
+
+        total_synced = 0
+        try:
+            from psycopg2.extras import execute_values
+
+            # Determine station list
+            if station_id:
+                files = [self._path(station_id)]
+            else:
+                files = list(self.base_dir.glob("*_history.csv"))
+
+            for path in files:
+                if not path.exists():
+                    continue
+                sid = path.stem.replace("_history", "")
+                df = self._read_csv(path)
+                if df.empty or "timestamp" not in df.columns or "source" not in df.columns:
+                    continue
+
+                # Filter live rows only (replay rows must never be inserted into TimescaleDB)
+                live_df = df[df["source"] == "live"].copy()
+                if live_df.empty:
+                    continue
+
+                # Query latest timestamp already in DB for this station
+                latest_db_time = None
+                try:
+                    with self._get_db_conn() as conn:
+                        if conn:
+                            with conn.cursor() as cur:
+                                cur.execute("SET statement_timeout = '5000ms';")
+                                cur.execute(
+                                    "SELECT time FROM sensor_readings WHERE station_id = %s AND source = 'live' ORDER BY time DESC LIMIT 1;",
+                                    (sid,),
+                                )
+                                row = cur.fetchone()
+                                if row and row[0]:
+                                    latest_db_time = pd.Timestamp(row[0]).tz_convert("UTC")
+                except Exception as e:
+                    print(f"[HistoryStore] Could not query MAX(time) for {sid}: {e!r}")
+                    continue
+
+                if latest_db_time is not None:
+                    to_sync = live_df[live_df["timestamp"] > latest_db_time]
+                else:
+                    to_sync = live_df
+
+                if to_sync.empty:
+                    continue
+
+                records = []
+                for _, r in to_sync.iterrows():
+                    ts = r["timestamp"]
+                    if isinstance(ts, str):
+                        ts = pd.Timestamp(ts)
+                    if ts.tzinfo is None:
+                        ts = ts.tz_localize("UTC")
+
+                    records.append((
+                        ts.to_pydatetime(),
+                        sid,
+                        None if pd.isna(r.get("temperature_c")) else r.get("temperature_c"),
+                        None if pd.isna(r.get("pressure_hpa")) else r.get("pressure_hpa"),
+                        None if pd.isna(r.get("humidity_pct")) else r.get("humidity_pct"),
+                        bool(r.get("is_anomaly", False)),
+                        None if pd.isna(r.get("fault_type")) else r.get("fault_type"),
+                        None if pd.isna(r.get("severity")) else r.get("severity"),
+                        None if pd.isna(r.get("anomaly_score_pct")) else r.get("anomaly_score_pct"),
+                        None if pd.isna(r.get("suggested_temperature_c")) else r.get("suggested_temperature_c"),
+                        None if pd.isna(r.get("suggested_pressure_hpa")) else r.get("suggested_pressure_hpa"),
+                        None if pd.isna(r.get("suggested_humidity_pct")) else r.get("suggested_humidity_pct"),
+                        None if pd.isna(r.get("health_status")) else r.get("health_status"),
+                        "live",
+                        None if pd.isna(r.get("decision_basis")) else r.get("decision_basis"),
+                        None if pd.isna(r.get("model_confidence_pct")) else r.get("model_confidence_pct"),
+                        None if pd.isna(r.get("rule_confidence_pct")) else r.get("rule_confidence_pct"),
+                    ))
+
+                if not records:
+                    continue
+
+                insert_sql = """
+                    INSERT INTO sensor_readings (
+                        time, station_id, temperature_c, pressure_hpa, humidity_pct,
+                        is_anomaly, fault_type, severity, anomaly_score_pct,
+                        suggested_temperature_c, suggested_pressure_hpa, suggested_humidity_pct,
+                        health_status, source, decision_basis,
+                        model_confidence_pct, rule_confidence_pct
+                    ) VALUES %s
+                    ON CONFLICT (station_id, time) DO UPDATE SET
+                        temperature_c = EXCLUDED.temperature_c,
+                        pressure_hpa = EXCLUDED.pressure_hpa,
+                        humidity_pct = EXCLUDED.humidity_pct,
+                        is_anomaly = EXCLUDED.is_anomaly,
+                        fault_type = EXCLUDED.fault_type,
+                        severity = EXCLUDED.severity,
+                        anomaly_score_pct = EXCLUDED.anomaly_score_pct,
+                        suggested_temperature_c = EXCLUDED.suggested_temperature_c,
+                        suggested_pressure_hpa = EXCLUDED.suggested_pressure_hpa,
+                        suggested_humidity_pct = EXCLUDED.suggested_humidity_pct,
+                        health_status = EXCLUDED.health_status,
+                        source = EXCLUDED.source,
+                        decision_basis = EXCLUDED.decision_basis,
+                        model_confidence_pct = EXCLUDED.model_confidence_pct,
+                        rule_confidence_pct = EXCLUDED.rule_confidence_pct;
+                """
+
+                try:
+                    with self._get_db_conn() as conn:
+                        if conn:
+                            with conn.cursor() as cur:
+                                cur.execute("SET statement_timeout = '15000ms';")
+                                execute_values(cur, insert_sql, records, page_size=200)
+                            conn.commit()
+                            total_synced += len(records)
+                            print(f"[HistoryStore] Successfully synced {len(records)} readings from CSV to TimescaleDB for {sid}.")
+                except Exception as e:
+                    print(f"[HistoryStore] Error syncing batch for {sid}: {e!r}")
+
+        except Exception as e:
+            print(f"[HistoryStore] Error during CSV -> DB sync: {e!r}")
+        finally:
+            with self._sync_lock:
+                self._sync_in_progress = False
+
+        return total_synced
 
     def _path(self, station_id: str) -> Path:
         return self.base_dir / f"{station_id}_history.csv"
@@ -159,12 +371,13 @@ class HistoryStore:
             "rule_confidence_pct": verdict.get("rule_confidence_pct"),
         }
 
-        # 1. TimescaleDB Write
-        if self.use_db:
+        # 1. TimescaleDB Write (ONLY for production live mode, NEVER in replay simulation)
+        if self.use_db and source == "live":
             try:
                 with self._get_db_conn() as conn:
                     if conn:
                         with conn.cursor() as cur:
+                            cur.execute("SET statement_timeout = '3500ms';")
                             cur.execute(
                                 """
                                 INSERT INTO sensor_readings (
@@ -220,19 +433,34 @@ class HistoryStore:
                         conn.commit()
             except Exception as e:
                 print(f"[HistoryStore] TimescaleDB insert error: {e!r}")
+                err_str = str(e).lower()
+                if any(k in err_str for k in ("closed", "connection", "terminat", "timeout", "broken", "network", "operationalerror")):
+                    self.use_db = False
 
         # 2. Local CSV Mirror Write
         path = self._path(station_id)
         write_header = not path.exists()
         with self._lock_for(station_id):
-            if path.exists():
-                existing = pd.read_csv(path, usecols=["timestamp", "source"])
-                duplicate = (
-                    (existing["timestamp"].astype(str) == row["timestamp"])
-                    & (existing["source"].astype(str) == source)
-                )
-                if duplicate.any():
-                    return
+            if not hasattr(self, "_last_appended"):
+                self._last_appended = {}
+            if self._last_appended.get(station_id) == (row["timestamp"], source):
+                return
+            
+            if path.exists() and station_id not in self._last_appended:
+                try:
+                    with open(path, "rb") as f:
+                        f.seek(0, 2)
+                        size = f.tell()
+                        if size > 256:
+                            f.seek(size - 256)
+                        lines = f.read().decode("utf-8").splitlines()
+                        if lines and row["timestamp"] in lines[-1] and source in lines[-1]:
+                            self._last_appended[station_id] = (row["timestamp"], source)
+                            return
+                except Exception:
+                    pass
+            
+            self._last_appended[station_id] = (row["timestamp"], source)
             with open(path, "a", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=HISTORY_COLUMNS)
                 if write_header:
@@ -368,19 +596,21 @@ class HistoryStore:
                 with self._get_db_conn() as conn:
                     if conn:
                         with conn.cursor() as cur:
+                            cur.execute("SET statement_timeout = '3500ms';")
                             # 1. Determine anchor timestamp
                             if relative_to == "latest":
                                 if source:
                                     cur.execute(
-                                        "SELECT MAX(time) FROM sensor_readings WHERE station_id = %s AND source = %s;",
+                                        "SELECT time FROM sensor_readings WHERE station_id = %s AND source = %s ORDER BY time DESC LIMIT 1;",
                                         (station_id, source),
                                     )
                                 else:
                                     cur.execute(
-                                        "SELECT MAX(time) FROM sensor_readings WHERE station_id = %s;",
+                                        "SELECT time FROM sensor_readings WHERE station_id = %s ORDER BY time DESC LIMIT 1;",
                                         (station_id,),
                                     )
-                                anchor = cur.fetchone()[0]
+                                row = cur.fetchone()
+                                anchor = row[0] if row else None
                             else:
                                 anchor = datetime.now(timezone.utc)
 
@@ -469,6 +699,7 @@ class HistoryStore:
                 with self._get_db_conn() as conn:
                     if conn:
                         with conn.cursor() as cur:
+                            cur.execute("SET statement_timeout = '3500ms';")
                             cur.execute(
                                 """
                                 SELECT
@@ -511,7 +742,7 @@ class HistoryStore:
 
     def clear_source(self, station_id: str, source: str, sync_db: bool = True):
         """Purges every row tagged with source in DB and CSV."""
-        if sync_db and self.use_db:
+        if sync_db and self.use_db and source != "replay":
             try:
                 with self._get_db_conn() as conn:
                     if conn:
@@ -541,7 +772,7 @@ class HistoryStore:
 
     def clear_all(self, source: str = None):
         """Purges source rows or truncates the store across all stations."""
-        if self.use_db:
+        if self.use_db and source != "replay":
             try:
                 with self._get_db_conn() as conn:
                     if conn:

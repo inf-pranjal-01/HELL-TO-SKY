@@ -4,6 +4,8 @@ import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
 import { TrendsResponse, CurrentSensorReading, TrendPoint } from '../../types';
+import { windowTrendPoints } from '../../utils/chartWindow';
+import { formatChartTime } from '../../utils/chartTime';
 import './AnalyticsTrendChart.css';
 
 export interface AnalyticsTrendChartProps {
@@ -19,14 +21,10 @@ export interface AnalyticsTrendChartProps {
 const isMetricAnomalous = (pt: TrendPoint, metric: 'temperature_c' | 'pressure_hpa' | 'humidity_pct'): boolean => {
   const isOverall = (pt.anomaly_score_pct || 0) > 75 || pt.is_anomaly === true;
   if (!isOverall) return false;
-  const hasSuggested = {
-    temperature_c: pt.suggested_temperature_c != null,
-    pressure_hpa: pt.suggested_pressure_hpa != null,
-    humidity_pct: pt.suggested_humidity_pct != null,
-  };
-  if (hasSuggested.temperature_c || hasSuggested.pressure_hpa || hasSuggested.humidity_pct) {
-    return Boolean(hasSuggested[metric]);
-  }
+  if (metric === 'temperature_c' && pt.suggested_temperature_c != null) return true;
+  if (metric === 'pressure_hpa' && pt.suggested_pressure_hpa != null) return true;
+  if (metric === 'humidity_pct' && pt.suggested_humidity_pct != null) return true;
+
   const ft = (pt.fault_type || '').toLowerCase();
   if (ft.includes('temp')) return metric === 'temperature_c';
   if (ft.includes('press')) return metric === 'pressure_hpa';
@@ -45,7 +43,11 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
 }) => {
   const [showTable, setShowTable] = useState<boolean>(false);
 
-  const points = trends?.points || [];
+  const rawPoints = trends?.points || [];
+  const { points: windowedPoints, windowStart, windowEnd } = useMemo(
+    () => windowTrendPoints(rawPoints, hours),
+    [rawPoints, hours]
+  );
 
   // Metric configuration
   const metricConfig = useMemo(() => {
@@ -84,17 +86,22 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
     }
   }, [selectedMetric, currentReading]);
 
-  // Descriptive text summary for accessibility
+  // Descriptive text summary for accessibility (computed on windowed points)
   const summaryText = useMemo(() => {
-    if (points.length === 0) {
+    if (windowedPoints.length === 0) {
       return 'No telemetry trend records available for this observation window.';
     }
-    const values = points.map(metricConfig.valueAccessor);
+    const values = windowedPoints
+      .map(metricConfig.valueAccessor)
+      .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
+    if (values.length === 0) {
+      return 'No valid telemetry values recorded for this observation window.';
+    }
     const min = Math.min(...values);
     const max = Math.max(...values);
     const latest = values[values.length - 1];
     return `${metricConfig.title} over the last ${hours} hours ranged from ${min.toFixed(1)} ${metricConfig.unit} to ${max.toFixed(1)} ${metricConfig.unit}. The latest observed value is ${latest.toFixed(1)} ${metricConfig.unit}. Reference baseline: ${metricConfig.normalMin} to ${metricConfig.normalMax} ${metricConfig.unit}.`;
-  }, [points, metricConfig, hours]);
+  }, [windowedPoints, metricConfig, hours]);
 
   if (isLoading) {
     return (
@@ -108,7 +115,7 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
     );
   }
 
-  if (points.length === 0) {
+  if (windowedPoints.length === 0) {
     return (
       <Card variant="glass" className={`sg-analytics-chart-card ${className}`}>
         <EmptyState
@@ -126,24 +133,22 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
   const chartWidth = svgWidth - padding.left - padding.right;
   const chartHeight = svgHeight - padding.top - padding.bottom;
 
-  const rawValues = points.map(metricConfig.valueAccessor);
-  const dataMin = Math.min(...rawValues, metricConfig.normalMin);
-  const dataMax = Math.max(...rawValues, metricConfig.normalMax);
+  const rawValues = windowedPoints
+    .map(metricConfig.valueAccessor)
+    .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
+  const dataMin = rawValues.length > 0 ? Math.min(...rawValues, metricConfig.normalMin) : metricConfig.normalMin;
+  const dataMax = rawValues.length > 0 ? Math.max(...rawValues, metricConfig.normalMax) : metricConfig.normalMax;
   const buffer = (dataMax - dataMin) * 0.1 || 2;
   const scaleMin = Math.floor(dataMin - buffer);
   const scaleMax = Math.ceil(dataMax + buffer);
   const scaleRange = scaleMax - scaleMin || 1;
 
-  const timestamps = points.map((point) => new Date(point.timestamp).getTime());
-  const minTime = Math.min(...timestamps);
-  const maxTime = Math.max(...timestamps);
-  const coordinates = points.map((pt) => {
+  const span = windowEnd - windowStart || 1;
+  const coordinates = windowedPoints.map((pt) => {
     const val = metricConfig.valueAccessor(pt);
     const timestamp = new Date(pt.timestamp).getTime();
-    const x = maxTime === minTime
-      ? padding.left + chartWidth / 2
-      : padding.left + ((timestamp - minTime) / (maxTime - minTime)) * chartWidth;
-    const y = padding.top + chartHeight - ((val - scaleMin) / scaleRange) * chartHeight;
+    const x = padding.left + Math.max(0, Math.min(1, (timestamp - windowStart) / span)) * chartWidth;
+    const y = padding.top + chartHeight - Math.max(0, Math.min(1, (val - scaleMin) / scaleRange)) * chartHeight;
     const isAnomaly = isMetricAnomalous(pt, selectedMetric);
     return { x, y, val, timestamp: pt.timestamp, isAnomaly, score: pt.anomaly_score_pct };
   });
@@ -173,6 +178,15 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
     const val = scaleMin + pct * scaleRange;
     const y = padding.top + chartHeight - pct * chartHeight;
     return { val: Number(val.toFixed(1)), y };
+  });
+
+  // X-axis time increments (5 levels)
+  const xTicks = [0, 0.25, 0.5, 0.75, 1].map((pct) => {
+    const time = windowStart + pct * span;
+    return {
+      x: padding.left + pct * chartWidth,
+      label: formatChartTime(new Date(time).toISOString(), pct === 0 || hours > 24),
+    };
   });
 
   return (
@@ -288,6 +302,26 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
                 {tick.val}
               </text>
             </g>
+          ))}
+
+          {/* X-Axis Gridline and Labels */}
+          <line
+            x1={padding.left}
+            y1={padding.top + chartHeight}
+            x2={svgWidth - padding.right}
+            y2={padding.top + chartHeight}
+            className="sg-analytics-chart__grid-line"
+          />
+          {xTicks.map((tick, i) => (
+            <text
+              key={`xtick-${i}`}
+              x={tick.x}
+              y={svgHeight - 8}
+              textAnchor={i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'}
+              className="sg-analytics-chart__axis-text"
+            >
+              {tick.label}
+            </text>
           ))}
 
           {/* Area Fill */}

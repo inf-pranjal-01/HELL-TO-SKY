@@ -45,21 +45,21 @@ export const ReportsPage: React.FC = () => {
   // ── No station selected ──────────────────────────────────────────────────────
   if (!isLoading && !selectedStation) {
     return (
-      <main className="sg-reports-page" aria-label="Reports & Operational Review">
+      <div className="page-container sg-reports-page" role="main" aria-label="Reports & Operational Review">
         <div className="sg-reports-page__no-station">
           <EmptyState
             title="No Station Selected"
             description="Please select a meteorological station from the navigation bar to generate an operational report."
           />
         </div>
-      </main>
+      </div>
     );
   }
 
   // ── Error state ──────────────────────────────────────────────────────────────
   if (error && !isLoading) {
     return (
-      <main className="sg-reports-page" aria-label="Reports & Operational Review">
+      <div className="page-container sg-reports-page" role="main" aria-label="Reports & Operational Review">
         <ReportHeader
           station={selectedStation}
           metadata={report?.metadata ?? null}
@@ -74,12 +74,12 @@ export const ReportsPage: React.FC = () => {
             <p>{error}</p>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="sg-reports-page" aria-label="Station Operational Report & Export">
+    <div className="page-container sg-reports-page" role="main" aria-label="Station Operational Report & Export">
       {/* ── Page & Document Header ── */}
       <ReportHeader
         station={selectedStation}
@@ -145,9 +145,43 @@ export const ReportsPage: React.FC = () => {
 
           {/* Section 7: Incident Records Log */}
           <ReportIncidentTable incidents={report.anomalies.incidents} />
+
+          {/* Section 8: Official Operational Certification & Sign-off */}
+          <footer className="sg-report-certification" role="contentinfo" aria-label="Official Certification">
+            <div className="sg-report-certification__header">
+              <span className="sg-report-certification__badge">AUDIT VERIFICATION</span>
+              <span className="sg-report-certification__classification">OFFICIAL METEOROLOGICAL RECORD</span>
+            </div>
+            <p className="sg-report-certification__statement">
+              This automated observational data quality assurance report was computed by the SkyGuard AI
+              Distributed Telemetry Engine. All anomalies, thermodynamic boundary checks, and spatial neighbor
+              deviations have been compiled in accordance with WMO-No. 8 meteorological sensor standards.
+            </p>
+            <div className="sg-report-certification__grid">
+              <div className="sg-report-certification__col">
+                <span className="sg-report-certification__label">Authorized Operator Signature:</span>
+                <div className="sg-report-certification__sig-line" />
+                <span className="sg-report-certification__sub">Meteorological Systems Engineer</span>
+              </div>
+              <div className="sg-report-certification__col">
+                <span className="sg-report-certification__label">Station Dispatch Action:</span>
+                <div className="sg-report-certification__val">
+                  {report.sensorHealth && (report.sensorHealth.sensor_health_status === 'CRITICAL' || report.sensorHealth.sensor_health_status === 'OFFLINE' || report.sensorHealth.sensor_health_status === 'WARNING')
+                    ? 'ACTION REQUIRED — SENSOR CALIBRATION / FIELD MAINTENANCE'
+                    : 'ROUTINE MONITORING — SYSTEM NOMINAL'}
+                </div>
+              </div>
+              <div className="sg-report-certification__col">
+                <span className="sg-report-certification__label">Verification Timestamp:</span>
+                <div className="sg-report-certification__val sg-font-mono">
+                  {new Date(report.metadata.generatedAt).toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </footer>
         </article>
       )}
-    </main>
+    </div>
   );
 };
 

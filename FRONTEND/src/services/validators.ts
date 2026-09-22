@@ -46,6 +46,7 @@ const VALID_ANOMALY_TYPES: readonly AnomalyType[] = [
   'multivariate_inconsistency',
   'physical_bounds',
   'statistical_anomaly',
+  'unstructured_anomaly',
 ];
 
 // ---------------------------------------------------------------------------
@@ -148,11 +149,14 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
   if (typeof data.timestamp !== 'string' || data.timestamp.trim() === '') {
     throw ApiError.validationError('Current reading missing valid timestamp string.');
   }
+  if (Number.isNaN(new Date(data.timestamp).getTime())) {
+    throw ApiError.validationError('Current reading has an invalid timestamp.');
+  }
 
   const validateMetric = (metric: unknown, name: string) => {
     if (
       !isObject(metric) ||
-      typeof metric.value !== 'number' ||
+      (metric.value !== null && typeof metric.value !== 'number') ||
       typeof metric.normal_min !== 'number' ||
       typeof metric.normal_max !== 'number'
     ) {
@@ -161,7 +165,9 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
       );
     }
     return {
-      value: Number(metric.value),
+      value: (metric.value !== null && typeof metric.value === 'number' && !Number.isNaN(metric.value))
+        ? Number(metric.value)
+        : Number(metric.normal_min ?? 0),
       normal_min: Number(metric.normal_min),
       normal_max: Number(metric.normal_max),
     };
@@ -248,21 +254,17 @@ export function validateTrends(data: unknown, fallbackHours: number = 6): Trends
       throw ApiError.validationError(`Trend point at index ${idx} has an invalid timestamp.`);
     }
 
-    if (
-      typeof pt.temperature_c !== 'number' ||
-      typeof pt.pressure_hpa !== 'number' ||
-      typeof pt.humidity_pct !== 'number'
-    ) {
-      throw ApiError.validationError(
-        `Trend point at index ${idx} is missing valid numeric metrics (temperature_c, pressure_hpa, humidity_pct).`
-      );
-    }
+    const parseNumber = (val: unknown, fallback: number = 0): number => {
+      if (typeof val === 'number' && !Number.isNaN(val)) return Number(val);
+      const n = Number(val);
+      return !Number.isNaN(n) ? n : fallback;
+    };
 
     return {
       timestamp: String(pt.timestamp),
-      temperature_c: Number(pt.temperature_c),
-      pressure_hpa: Number(pt.pressure_hpa),
-      humidity_pct: Number(pt.humidity_pct),
+      temperature_c: parseNumber(pt.temperature_c, 25.0),
+      pressure_hpa: parseNumber(pt.pressure_hpa, 1013.0),
+      humidity_pct: parseNumber(pt.humidity_pct, 50.0),
       ...(typeof pt.anomaly_score_pct === 'number'
         ? { anomaly_score_pct: Number(pt.anomaly_score_pct) }
         : {}),
@@ -279,17 +281,16 @@ export function validateTrends(data: unknown, fallbackHours: number = 6): Trends
     };
   });
 
-  // Legacy development servers wrote several "live" samples per
-  // minute. Live Open-Meteo is intentionally a 30-minute cadence, so
-  // retain only the latest sample in each 30-minute live bucket. Replay
-  // points retain every original hourly timestamp unchanged.
+  // Keep every distinct observation.  Earlier versions collapsed all live
+  // readings inside a 30-minute bucket, which silently discarded legitimate
+  // samples and made the right-most chart timestamp appear to change between
+  // refreshes.  An API/WS duplicate is identified by its exact timestamp.
   const pointMap = new Map<string, TrendPoint>();
   for (const point of parsedPoints) {
     const timestamp = new Date(point.timestamp).getTime();
-    const key = point.source === 'live'
-      ? `live-${Math.floor(timestamp / (30 * 60 * 1000))}`
-      : `timestamp-${point.timestamp}`;
-    pointMap.set(key, point);
+    const key = `timestamp-${timestamp}`;
+    const existing = pointMap.get(key);
+    pointMap.set(key, existing ? { ...existing, ...point } : point);
   }
   const points = Array.from(pointMap.values()).sort(
     (left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime()
@@ -809,5 +810,6 @@ export function validateNetworkStatus(data: unknown): SystemStatusSummary {
     active_anomalies_count: data.active_anomalies_count,
     avg_sensor_health_pct: avg,
     last_updated: typeof data.last_updated === 'string' ? data.last_updated : new Date().toISOString(),
+    mode: data.mode === 'replay' ? 'replay' : 'live',
   };
 }

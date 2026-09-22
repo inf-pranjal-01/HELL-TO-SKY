@@ -294,7 +294,7 @@ DRIFT_MIN_MODEL_CORROBORATION = 25.0
 # can apply them independently. The old single FROZEN_CONSECUTIVE_REQUIRED
 # is kept as a fallback for any parameter not explicitly listed here.
 # ---------------------------------------------------------------------
-FROZEN_CONSECUTIVE_REQUIRED = 5          # default for temp + humidity
+FROZEN_CONSECUTIVE_REQUIRED = 4          # default for temp + humidity
 FROZEN_CONSECUTIVE_REQUIRED_PRESSURE = 8  # pressure is far more stable in real weather
 # Minimum model_pct required for a frozen streak to contribute to the
 # anomaly verdict (Pass 6). At frozen_value confidence=80 (below bypass),

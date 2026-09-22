@@ -119,8 +119,9 @@ def compute_bounds(series: pd.Series, z_thresh: float = 3.0):
 # fixed sentinel to represent total sensor failure -- a different, valid
 # fault archetype) or inject_dropout (NaN has no numeric bound to violate).
 HARD_PHYSICAL_LIMITS = {
+    "temperature_c": (-50.0, 60.0),
     "humidity_pct": (0.0, 100.0),
-    "pressure_hpa": (800.0, 1100.0),
+    "pressure_hpa": (850.0, 1085.0),
 }
 
 # FIX 2/3/5: real transducers never sit at a bit-exact repeated value or
@@ -214,9 +215,8 @@ def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
     label.
     """
     mean, std, upper, lower = compute_bounds(df[column])
-    # Push well beyond the clean-data tail. The detector then confirms
-    # the expected one-reading reversion before labeling it a spike.
-    magnitude = rng.uniform(8.0, 10.0)
+    # Push well beyond the clean-data tail (3.5-5.0 sigma) while staying within physical bounds
+    magnitude = rng.uniform(3.5, 5.0)
     low, high = HARD_PHYSICAL_LIMITS.get(column, (-np.inf, np.inf))
     candidates = [
         mean + magnitude * std,
@@ -229,7 +229,7 @@ def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
     # An injected spike must be visibly distinct from both of its
     # neighbours. The future neighbour is checked by the detector; this
     # guard prevents an already-flat source point from being mislabeled.
-    if abs(value - float(df.loc[idx, column])) < max(std * 4.0, 0.5):
+    if abs(value - float(df.loc[idx, column])) < max(std * 2.5, 0.5):
         return None
     df.loc[idx, column] = value
     return "spike"
@@ -338,7 +338,9 @@ def inject_drift(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
     drift_length = rng.integers(20, 50)
     end_idx = min(idx + drift_length, len(df) - 1)
     direction = rng.choice([-1.0, 1.0])
-    max_offset = df[column].std() * rng.uniform(20.0, 30.0)
+    # Realistic calibration drift: 2.5 to 4.5 sigma offset
+    param_std = min(float(df[column].std()), 3.0 if column == "temperature_c" else 5.0)
+    max_offset = param_std * rng.uniform(2.5, 4.5)
     steps = end_idx - idx + 1
 
     # Linear or curved, but strictly monotonic offset.
@@ -430,14 +432,14 @@ def inject_multivariate(df: pd.DataFrame, idx: int, column: str, rng: np.random.
     end_idx = min(idx + window, len(df) - 1)
     n_steps = end_idx - idx + 1
 
-    temp_std = df["temperature_c"].std()
-    pressure_std = df["pressure_hpa"].std()
+    temp_std = min(float(df["temperature_c"].std()), 3.0)
+    pressure_std = min(float(df["pressure_hpa"].std()), 4.0)
 
     temp_before = df.loc[idx:end_idx, "temperature_c"].to_numpy(dtype=float)
     rh_before = df.loc[idx:end_idx, "humidity_pct"].to_numpy(dtype=float)
 
-    temp_delta = rng.uniform(4.0, 6.0) * temp_std
-    temp_after = temp_before + temp_delta
+    temp_delta = rng.uniform(2.2, 3.5) * temp_std
+    temp_after = np.clip(temp_before + temp_delta, -5.0, 48.0)
 
     # What a REAL heat event would do to humidity, holding actual vapor
     # pressure constant (the physically-consistent case this fault must
@@ -462,6 +464,7 @@ def inject_multivariate(df: pd.DataFrame, idx: int, column: str, rng: np.random.
     # magnitude would typically show a pressure change too.
     df.loc[idx:end_idx, "pressure_hpa"] += rng.normal(0, pressure_std * 0.1, n_steps)
 
+    clip_to_physical_limits(df, "temperature_c", idx, end_idx)
     clip_to_physical_limits(df, "humidity_pct", idx, end_idx)
     clip_to_physical_limits(df, "pressure_hpa", idx, end_idx)
 
@@ -493,9 +496,9 @@ def inject_unstructured_anomaly(df: pd.DataFrame, idx: int, column: str, rng: np
     end_idx = min(idx + window, len(df) - 1)
     n_steps = end_idx - idx + 1
 
-    t_std = df["temperature_c"].std()
-    p_std = df["pressure_hpa"].std()
-    h_std = df["humidity_pct"].std()
+    t_std = min(float(df["temperature_c"].std()), 3.0)
+    p_std = min(float(df["pressure_hpa"].std()), 4.0)
+    h_std = min(float(df["humidity_pct"].std()), 8.0)
 
     # Rapid alternating perturbations:
     sign_t = rng.choice([-1.0, 1.0], size=n_steps)
@@ -511,9 +514,12 @@ def inject_unstructured_anomaly(df: pd.DataFrame, idx: int, column: str, rng: np
     df.loc[idx:end_idx, "pressure_hpa"] += p_pert
     df.loc[idx:end_idx, "humidity_pct"] += h_pert
 
-    clip_to_physical_limits(df, "temperature_c", idx, end_idx)
-    clip_to_physical_limits(df, "pressure_hpa", idx, end_idx)
-    clip_to_physical_limits(df, "humidity_pct", idx, end_idx)
+    # Unstructured anomalies must strictly remain within realistic meteorological bounds
+    # so deterministic physical_bounds rules (temp in [-10, 55], pres in [850, 1080], hum in [0, 100])
+    # do NOT fire on them -- testing purely unsupervised ML covariance breakdown:
+    df.loc[idx:end_idx, "temperature_c"] = df.loc[idx:end_idx, "temperature_c"].clip(5.0, 45.0)
+    df.loc[idx:end_idx, "pressure_hpa"] = df.loc[idx:end_idx, "pressure_hpa"].clip(920.0, 1040.0)
+    df.loc[idx:end_idx, "humidity_pct"] = df.loc[idx:end_idx, "humidity_pct"].clip(15.0, 95.0)
 
     return "unstructured_anomaly", idx, end_idx
 
@@ -705,24 +711,29 @@ def main():
     # Separate seed from RANDOM_SEED (which controls fault content/
     # placement) so "which stations fail" and "what the fault looks
     # like" are independently reproducible.
-    STATION_SELECTION_SEED = 5
-    N_FAULTY_STATIONS = 5
-
     station_files = sorted(
         p for p in DATA_DIR.glob("AWS-*.csv") if "_labeled" not in p.name
     )
 
-    if len(station_files) < N_FAULTY_STATIONS:
+    if len(station_files) < 7:
         print(f"Only {len(station_files)} station CSVs found -- check DATA_DIR / that data_fetch.py has run.")
 
-    selection_rng = np.random.default_rng(STATION_SELECTION_SEED)
-    faulty_indices = selection_rng.choice(
-        len(station_files), size=min(N_FAULTY_STATIONS, len(station_files)), replace=False
-    )
-    faulty_files = {station_files[i] for i in faulty_indices}
+    # Target the 7 regional cluster center stations to receive injected faults.
+    # All 21 neighbor stations (AWS-*-101/102/103) stay 100% clean to act as trustworthy spatial neighbors.
+    CENTER_STATION_IDS = {
+        "AWS-DEL-011", "AWS-CHN-024", "AWS-MUM-007", "AWS-KOL-015",
+        "AWS-BHO-030", "AWS-RAN-067", "AWS-VAR-052",
+    }
+    faulty_files = {p for p in station_files if p.stem in CENTER_STATION_IDS}
+    if not faulty_files:
+        selection_rng = np.random.default_rng(5)
+        faulty_indices = selection_rng.choice(
+            len(station_files), size=min(7, len(station_files)), replace=False
+        )
+        faulty_files = {station_files[i] for i in faulty_indices}
 
     print(f"Selected {len(faulty_files)} of {len(station_files)} stations to receive injected faults:")
-    for f in faulty_files:
+    for f in sorted(faulty_files):
         print(f"  -> {f.stem}")
     print(f"Remaining {len(station_files) - len(faulty_files)} stations stay clean (real data only) -- these are your trustworthy spatial-consistency neighbors.\n")
 

@@ -3,6 +3,7 @@ import { MOCK_SENSOR_HEALTH, generateMockHealthHistory } from '../mock/sensorHea
 import { API_CONFIG, isMockMode } from '../config/api.config';
 import { apiClient, RequestOptions } from './apiClient';
 import { validateSensorHealth, validateRepairSensorResponse } from './validators';
+import { trendsService } from './trendsService';
 
 /**
  * Sensor Health Service
@@ -57,7 +58,6 @@ export const sensorHealthService = {
       });
     }
 
-    const { trendsService } = await import('./trendsService');
     const trends = await trendsService.getTrends(stationId, hours);
     const healthFromStatus = (status: string | undefined): number => {
       if (status === 'OFFLINE') return 0;

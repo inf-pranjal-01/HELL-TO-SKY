@@ -142,7 +142,7 @@ export const AlertsPage: React.FC = () => {
   );
 
   return (
-    <div className="sg-alerts-page" role="main" aria-label="Anomaly Alerts & Incident Investigation">
+    <div className="page-container sg-alerts-page" role="main" aria-label="Anomaly Alerts & Incident Investigation">
       {/* Page Header */}
       <header className="sg-alerts-page__header">
         <div className="sg-alerts-page__title-area">

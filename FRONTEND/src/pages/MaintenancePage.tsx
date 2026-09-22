@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { AlertCircle, RefreshCw, MapPin } from 'lucide-react';
 import { useMaintenanceData } from '../hooks/useMaintenanceData';
 import { MaintenanceHeader } from '../components/maintenance/MaintenanceHeader';
@@ -30,7 +30,7 @@ export const MaintenancePage: React.FC = () => {
   } = useMaintenanceData();
 
   return (
-    <div className="sg-maintenance-page">
+    <div className="page-container sg-maintenance-page" role="main" aria-label="Maintenance & Dispatch">
       <MaintenanceHeader
         selectedStation={selectedStation}
         onRefresh={refreshAnomalies}

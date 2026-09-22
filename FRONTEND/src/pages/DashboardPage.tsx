@@ -115,13 +115,6 @@ export const DashboardPage: React.FC = () => {
   };
 
   const handleRefresh = async () => {
-    if (streamMode === 'live') {
-      try {
-        await systemStatusService.refreshLive();
-      } catch {
-        // Still re-fetch cached latest even if the provider refresh fails.
-      }
-    }
     await refreshAll();
   };
 
@@ -203,22 +196,48 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="sg-page-actions">
-          {/* Real-time Turnaround Latency Badge */}
-          <div
-            className={`sg-latency-badge ${isWsConnected ? 'sg-latency-badge--live' : 'sg-latency-badge--fallback'}`}
-            title={
-              isWsConnected
-                ? `Measured WebSocket telemetry turnaround latency: ${wsLatencyMs ?? 18}ms`
-                : 'WebSocket offline — HTTP polling active'
-            }
-          >
-            <span className="sg-latency-dot" aria-hidden="true" />
-            <span className="sg-latency-label">
-              {isWsConnected
-                ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '<25ms'} Live WS`
-                : '⚡ Polling Fallback'}
-            </span>
-          </div>
+          {/* Real-time Stream & Ingestion Mode Badge */}
+          {streamMode === 'replay' ? (
+            <div className="sg-latency-badge sg-latency-badge--replay">
+              <Radio size={13} aria-hidden="true" />
+              <span className="sg-latency-label">Replay Stream (2s)</span>
+              <Tooltip
+                position="bottom"
+                content="Replay: benchmark dataset (2s/step)"
+              >
+                <button
+                  type="button"
+                  className="sg-badge-info-btn"
+                  aria-label="HTTP Polling details"
+                >
+                  <Info size={11} />
+                </button>
+              </Tooltip>
+            </div>
+          ) : (
+            <div
+              className={`sg-latency-badge ${isWsConnected ? 'sg-latency-badge--live' : 'sg-latency-badge--fallback'}`}
+            >
+              <span className="sg-latency-dot" aria-hidden="true" />
+              <span className="sg-latency-label">
+                {isWsConnected
+                  ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '<25ms'} Live WS (TimescaleDB)`
+                  : '⚡ Polling Fallback'}
+              </span>
+              <Tooltip
+                position="bottom"
+                content="Live: WebSocket & TimescaleDB ingestion"
+              >
+                <button
+                  type="button"
+                  className="sg-badge-info-btn"
+                  aria-label="Live Mode details"
+                >
+                  <Info size={11} />
+                </button>
+              </Tooltip>
+            </div>
+          )}
 
           {/* Live Data Freshness Badge */}
           <div className="sg-live-badge-container">
@@ -310,7 +329,7 @@ export const DashboardPage: React.FC = () => {
         <div className="sg-metric-grid">
           {/* Temperature Overview */}
           <SensorMetricCard
-            title="Ambient Temperature"
+            title="Temperature"
             icon={<Thermometer size={18} />}
             value={currentReading?.temperature_c?.value}
             unit="°C"
@@ -327,7 +346,7 @@ export const DashboardPage: React.FC = () => {
 
           {/* Atmospheric Pressure Overview */}
           <SensorMetricCard
-            title="Atmospheric Pressure"
+            title="Pressure"
             icon={<Gauge size={18} />}
             value={currentReading?.pressure_hpa?.value}
             unit="hPa"
@@ -344,7 +363,7 @@ export const DashboardPage: React.FC = () => {
 
           {/* Relative Humidity Overview */}
           <SensorMetricCard
-            title="Relative Humidity"
+            title="Humidity"
             icon={<Droplets size={18} />}
             value={currentReading?.humidity_pct?.value}
             unit="%"

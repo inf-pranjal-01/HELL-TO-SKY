@@ -100,9 +100,8 @@ export const SensorHealthPage: React.FC = () => {
   };
 
   return (
-    <div className="page-container">
-      <div className="sg-health-page" role="main" aria-label="Sensor Health &amp; Hardware Reliability">
-        {/* Page Header */}
+    <div className="page-container sg-health-page" role="main" aria-label="Sensor Health &amp; Hardware Reliability">
+      {/* Page Header */}
         <header className="sg-health-page__header">
           <div className="sg-health-page__title-area">
             <div className="sg-health-page__title-row">
@@ -206,7 +205,6 @@ export const SensorHealthPage: React.FC = () => {
           isDanger={true}
           isLoading={isRepairing}
         />
-      </div>
     </div>
   );
 };

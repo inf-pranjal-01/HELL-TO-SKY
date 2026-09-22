@@ -1,10 +1,11 @@
-import React, { useState, useId, useRef } from 'react';
+import React, { useState, useRef, useId } from 'react';
 import { createPortal } from 'react-dom';
-import { LineChart, Clock } from 'lucide-react';
+import { LineChart as LineChartIcon, Clock } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { TrendPoint } from '../../types';
 import { windowTrendPoints } from '../../utils/chartWindow';
+import { formatChartTime } from '../../utils/chartTime';
 import { suggestedFromTrendPoint } from '../../utils/suggestedValues';
 import { SuggestedValues } from '../common/SuggestedValues';
 import './TrendChart.css';
@@ -25,50 +26,38 @@ const METRIC_CONFIG = {
   temperature: {
     label: 'Temperature',
     unit: '°C',
-    color: '#3b82f6', // Accent blue
+    color: '#3b82f6',
     key: 'temperature_c' as const,
-    normalMin: 18,
-    normalMax: 35,
   },
   pressure: {
     label: 'Pressure',
     unit: 'hPa',
-    color: '#06b6d4', // Accent cyan
+    color: '#06b6d4',
     key: 'pressure_hpa' as const,
-    normalMin: 990,
-    normalMax: 1025,
   },
   humidity: {
     label: 'Humidity',
     unit: '%',
-    color: '#10b981', // Emerald green
+    color: '#10b981',
     key: 'humidity_pct' as const,
-    normalMin: 30,
-    normalMax: 80,
   },
-};
-
-/** Uses only mutually compatible Intl options (dateStyle cannot be mixed
- * with hour/minute options in several Chromium/Windows combinations). */
-const formatChartTime = (timestamp: string, includeDate = false): string => {
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return 'Unknown time';
-  return new Intl.DateTimeFormat(undefined, includeDate
-    ? { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }
-    : { hour: '2-digit', minute: '2-digit' }
-  ).format(date);
 };
 
 const isMetricAnomalous = (pt: TrendPoint, metric: MetricType): boolean => {
   if (!pt.is_anomaly) return false;
-  const hasSuggested = {
-    temperature: pt.suggested_temperature_c != null,
-    pressure: pt.suggested_pressure_hpa != null,
-    humidity: pt.suggested_humidity_pct != null,
-  };
-  if (hasSuggested.temperature || hasSuggested.pressure || hasSuggested.humidity) {
-    return Boolean(hasSuggested[metric]);
+
+  const hasAnySuggested = (
+    pt.suggested_temperature_c != null ||
+    pt.suggested_pressure_hpa != null ||
+    pt.suggested_humidity_pct != null
+  );
+
+  if (hasAnySuggested) {
+    if (metric === 'temperature') return pt.suggested_temperature_c != null;
+    if (metric === 'pressure') return pt.suggested_pressure_hpa != null;
+    if (metric === 'humidity') return pt.suggested_humidity_pct != null;
   }
+
   const ft = (pt.fault_type || '').toLowerCase();
   if (ft.includes('temp')) return metric === 'temperature';
   if (ft.includes('press')) return metric === 'pressure';
@@ -86,14 +75,10 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   className = '',
 }) => {
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('temperature');
-  const [hoveredPoint, setHoveredPoint] = useState<{
-    point: TrendPoint;
-    x: number;
-    y: number;
-  } | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
+  const [hoveredPoint, setHoveredPoint] = useState<{ point: TrendPoint; x: number; y: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const chartId = useId();
+
   const activeCfg = METRIC_CONFIG[selectedMetric];
   const { points: windowedPoints, windowStart, windowEnd } = windowTrendPoints(points, hours);
 
@@ -101,7 +86,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     <div className="sg-trend-header">
       <div className="sg-trend-title-group">
         <div className="sg-trend-title">
-          <LineChart size={18} className="text-accent" aria-hidden="true" />
+          <LineChartIcon size={18} className="text-accent" aria-hidden="true" />
           <h3 id={chartId}>Sensor Telemetry Trends</h3>
         </div>
         <span className="sg-trend-notice">● {hours}H WINDOW</span>
@@ -151,18 +136,16 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     </div>
   );
 
-  if (isLoading) {
+  if (isLoading && (!points || points.length === 0)) {
     return (
       <Card variant="glass" className={`sg-trend-card ${className}`}>
         {renderToolbar()}
-        <div style={{ padding: '2rem 0' }}>
-          <Skeleton width="100%" height="240px" borderRadius="var(--radius-md)" />
-        </div>
+        <Skeleton className="sg-chart-skeleton" style={{ height: 240, width: '100%' }} />
       </Card>
     );
   }
 
-  if (error) {
+  if (error && (!points || points.length === 0)) {
     return (
       <Card variant="glass" className={`sg-trend-card sg-trend-card--error ${className}`}>
         {renderToolbar()}
@@ -190,23 +173,28 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   }
 
   const values = windowedPoints.map((p) => p[activeCfg.key]);
-  const minVal = Math.floor(Math.min(...values) - 1);
-  const maxVal = Math.ceil(Math.max(...values) + 1);
+  const minVal = Math.floor(Math.min(...values) - 0.5);
+  const maxVal = Math.ceil(Math.max(...values) + 0.5);
   const valRange = maxVal - minVal || 1;
 
   const width = 800;
   const height = 240;
-  const padLeft = 48;
-  const padRight = 20;
-  const padTop = 20;
-  const padBottom = 30;
+  const padLeft = 40;
+  const padRight = 14;
+  const padTop = 16;
+  const padBottom = 26;
 
   const plotWidth = width - padLeft - padRight;
   const plotHeight = height - padTop - padBottom;
 
-  const span = windowEnd - windowStart || 1;
+  const span = Math.max(windowEnd - windowStart, 1000);
   const getX = (timestamp: string) => {
-    return padLeft + ((new Date(timestamp).getTime() - windowStart) / span) * plotWidth;
+    if (windowedPoints.length === 1) {
+      return padLeft + plotWidth / 2;
+    }
+    const t = new Date(timestamp).getTime();
+    const ratio = Math.max(0, Math.min(1, (t - windowStart) / span));
+    return padLeft + ratio * plotWidth;
   };
 
   const getY = (val: number) => {
@@ -220,7 +208,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
   }, '');
 
-  const areaD = `${pathD} L ${getX(windowedPoints[windowedPoints.length - 1].timestamp)} ${padTop + plotHeight} L ${getX(windowedPoints[0].timestamp)} ${padTop + plotHeight} Z`;
+  const areaD = windowedPoints.length > 1
+    ? `${pathD} L ${getX(windowedPoints[windowedPoints.length - 1].timestamp)} ${padTop + plotHeight} L ${getX(windowedPoints[0].timestamp)} ${padTop + plotHeight} Z`
+    : '';
 
   // Horizontal Grid Lines & Y Labels (4 steps)
   const yTicks = [0, 0.33, 0.66, 1].map((ratio) => {
@@ -229,11 +219,13 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     return { val: Number(val.toFixed(1)), y };
   });
 
-  // These labels make the chart's time basis visible. They are calculated
-  // from the same real timestamps used for the plotted x coordinates.
+  // Real timestamp x-axis
   const xTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
     const time = windowStart + ratio * span;
-    return { x: padLeft + ratio * plotWidth, label: formatChartTime(new Date(time).toISOString(), ratio === 0 || hours > 24) };
+    return {
+      x: padLeft + ratio * plotWidth,
+      label: formatChartTime(new Date(time).toISOString(), ratio === 0 || hours > 24),
+    };
   });
 
   return (
@@ -260,7 +252,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 className="sg-chart-grid-line"
               />
               <text
-                x={padLeft - 8}
+                x={padLeft - 6}
                 y={tick.y + 4}
                 textAnchor="end"
                 className="sg-chart-axis-text"
@@ -270,7 +262,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             </g>
           ))}
 
-          {/* Real timestamp x-axis; replay is one historical hour per point. */}
+          {/* Bottom axis line */}
           <line
             x1={padLeft}
             y1={padTop + plotHeight}
@@ -293,22 +285,24 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           {/* Gradient Fill under curve */}
           <defs>
             <linearGradient id={`grad-${selectedMetric}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={activeCfg.color} stopOpacity="0.25" />
+              <stop offset="0%" stopColor={activeCfg.color} stopOpacity="0.3" />
               <stop offset="100%" stopColor={activeCfg.color} stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
-          <path d={areaD} fill={`url(#grad-${selectedMetric})`} />
+          {areaD && <path d={areaD} fill={`url(#grad-${selectedMetric})`} />}
 
           {/* Line stroke */}
-          <path
-            d={pathD}
-            fill="none"
-            stroke={activeCfg.color}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          {pathD && (
+            <path
+              d={pathD}
+              fill="none"
+              stroke={activeCfg.color}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
 
           {/* Points & Interactive Tooltip Anchors */}
           {windowedPoints.map((pt, i) => {
@@ -318,14 +312,14 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
             return (
               <circle
-                key={i}
+                key={`${pt.timestamp}-${i}`}
                 cx={cx}
                 cy={cy}
-                r={isAnomaly ? 5 : 3.5}
+                r={isAnomaly ? 3.5 : 2.5}
                 className={`sg-chart-point ${isAnomaly ? 'sg-chart-point--anomaly' : ''}`}
-                fill={isAnomaly ? 'var(--status-critical-text)' : activeCfg.color}
-                stroke="var(--bg-surface)"
-                strokeWidth="1.5"
+                fill={isAnomaly ? '#ef4444' : activeCfg.color}
+                stroke="#ffffff"
+                strokeWidth={isAnomaly ? 1.5 : 1}
                 onMouseEnter={() => setHoveredPoint({ point: pt, x: cx, y: cy })}
                 onMouseLeave={() => setHoveredPoint(null)}
                 tabIndex={0}
@@ -338,14 +332,22 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           })}
         </svg>
 
-        {/* This portal prevents the chart card or adjacent sections from
-            clipping a tooltip at its boundary. */}
+        {/* Floating tooltip anchored to hovered point */}
         {hoveredPoint && svgRef.current && createPortal(
           <div
             className="sg-chart-tooltip"
             style={{
-              left: svgRef.current.getBoundingClientRect().left + (hoveredPoint.x / width) * svgRef.current.getBoundingClientRect().width,
-              top: svgRef.current.getBoundingClientRect().top + (hoveredPoint.y / height) * svgRef.current.getBoundingClientRect().height,
+              position: 'fixed',
+              left: Math.min(
+                window.innerWidth - 260,
+                svgRef.current.getBoundingClientRect().left + (hoveredPoint.x / width) * svgRef.current.getBoundingClientRect().width + 10
+              ),
+              top: Math.max(
+                10,
+                svgRef.current.getBoundingClientRect().top + (hoveredPoint.y / height) * svgRef.current.getBoundingClientRect().height - 70
+              ),
+              zIndex: 9999,
+              pointerEvents: 'none',
             }}
           >
             <div className="sg-tooltip-time">
@@ -395,7 +397,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             </thead>
             <tbody>
               {windowedPoints.map((pt, i) => (
-                <tr key={i}>
+                <tr key={`${pt.timestamp}-${i}`}>
                   <td>{formatChartTime(pt.timestamp)}</td>
                   <td>{pt[activeCfg.key]}</td>
                 </tr>

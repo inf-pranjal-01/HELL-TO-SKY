@@ -23,20 +23,20 @@ export const StationsPage: React.FC = () => {
 
   if (!isLoading && !selectedStation) {
     return (
-      <main className="sg-stations-page" aria-label="Station network page">
+      <div className="page-container sg-stations-page" role="main" aria-label="Station network page">
         <div className="sg-stations-page__no-station">
           <EmptyState
             title="No Station Selected"
             description="Please select a meteorological station from the navigation bar to view the network map."
           />
         </div>
-      </main>
+      </div>
     );
   }
 
   if (error && !isLoading) {
     return (
-      <main className="sg-stations-page" aria-label="Station network page">
+      <div className="page-container sg-stations-page" role="main" aria-label="Station network page">
         <StationNetworkHeader selectedStation={selectedStation} onRefresh={refresh} isLoading={false} />
         <div className="sg-stations-page__error">
           <div className="sg-stations-page__error-box" role="alert">
@@ -44,12 +44,12 @@ export const StationsPage: React.FC = () => {
             <p>{error}</p>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="sg-stations-page" aria-label="Station Network Map">
+    <div className="page-container sg-stations-page" role="main" aria-label="Station Network Map">
       <StationNetworkHeader
         selectedStation={selectedStation}
         onRefresh={refresh}
@@ -76,7 +76,7 @@ export const StationsPage: React.FC = () => {
         onSelectStation={selectStation}
         isLoading={isLoading}
       />
-    </main>
+    </div>
   );
 };
 

@@ -3,8 +3,6 @@
   flex-direction: column;
   gap: 1.5rem;
   width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
 }
 
 .sg-alerts-page__header {
@@ -12,8 +10,9 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 1rem;
-  padding-bottom: 0.5rem;
+  gap: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .sg-alerts-page__title-area {

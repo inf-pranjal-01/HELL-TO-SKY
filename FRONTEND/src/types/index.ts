@@ -19,6 +19,7 @@ export type AnomalyType =
   | 'multivariate_inconsistency'
   | 'physical_bounds'
   | 'statistical_anomaly'
+  | 'unstructured_anomaly'
   | (string & {});
 
 export type NetworkCorroborationState = 'LOCALIZED' | 'REGIONAL' | 'INSUFFICIENT_CORROBORATION';
@@ -345,6 +346,7 @@ export interface SystemStatusSummary {
   active_anomalies_count: number;
   avg_sensor_health_pct: number;
   last_updated: string;
+  mode?: 'live' | 'replay';
 }
 
 /**

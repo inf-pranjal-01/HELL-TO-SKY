@@ -58,7 +58,12 @@ export const NetworkOverview: React.FC<NetworkOverviewProps> = ({ stations, sele
     <p className="sg-network-overview__desc"><MapPinned size={14} /> Standard map view — wheel to zoom geographically, drag to pan, and select a station marker.</p>
     <div className="sg-network-overview__map-shell">
       <MapContainer ref={mapRef} center={[22.8, 79.5]} zoom={5} minZoom={3} maxZoom={18} scrollWheelZoom className="sg-network-overview__map" aria-label="Map of SkyGuard weather stations">
-        <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <TileLayer
+          attribution='&copy; <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>'
+          url="https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&gl=IN"
+          subdomains={['0', '1', '2', '3']}
+          maxZoom={18}
+        />
         <StationViewport stations={validStations} selectedStation={selectedStation} /><ZoomReporter onZoomChange={setZoom} />
         {validStations.map((station) => {
           const selected = selectedStation?.station_id === station.station_id;

@@ -19,7 +19,7 @@ class TestCusumDrift(unittest.TestCase):
             'temp_roc_1h': [1.5] * 12,
             'temp_robust_scale': [0.5] * 12
         })
-        res = _cusum_evidence(df, 'temp', 'temperature_c', station_id='AWS-CHN-024', current_hour=12)
+        res = _cusum_evidence(df, 'temp', 'temperature_c', station_id='FAKE-TEST-000', current_hour=12)
         self.assertIsNotNone(res, "CUSUM drift should trigger on persistent climbing residuals")
         self.assertEqual(res["type"], "drift")
         self.assertEqual(res["parameter"], "temperature_c")
@@ -35,7 +35,7 @@ class TestCusumDrift(unittest.TestCase):
             'temp_roc_1h': [0.0] * 12,
             'temp_robust_scale': [1.0] * 12
         })
-        res = _cusum_evidence(df, 'temp', 'temperature_c', station_id='AWS-CHN-024', current_hour=12)
+        res = _cusum_evidence(df, 'temp', 'temperature_c', station_id='FAKE-TEST-000', current_hour=12)
         self.assertIsNone(res, "CUSUM should not trigger on normal stable weather")
 
     def test_direction_streak_required(self):
@@ -49,7 +49,7 @@ class TestCusumDrift(unittest.TestCase):
             'temp_roc_1h': rocs,
             'temp_robust_scale': [0.5] * 12
         })
-        res = _cusum_evidence(df, 'temp', 'temperature_c', station_id='AWS-CHN-024', current_hour=12)
+        res = _cusum_evidence(df, 'temp', 'temperature_c', station_id='FAKE-TEST-000', current_hour=12)
         self.assertIsNone(res, "CUSUM requires persistent direction streak and should not fire on oscillating noise")
 
 if __name__ == '__main__':

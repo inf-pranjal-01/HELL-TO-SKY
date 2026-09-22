@@ -29,7 +29,7 @@ export const trendsService = {
     const rawData = await apiClient.get<unknown>(
       API_CONFIG.endpoints.trends,
       { station_id: stationId, hours },
-      options
+      { timeoutMs: 15000, ...options }
     );
     return validateTrends(rawData, hours);
   },

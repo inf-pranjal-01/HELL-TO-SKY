@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   TrendsResponse,
   CurrentSensorReading,
@@ -64,6 +64,7 @@ export function useAnalyticsData(
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const hasLoadedRef = useRef<boolean>(false);
 
   // Fetch all prerequisite feeds
   const loadData = useCallback(async () => {
@@ -73,10 +74,13 @@ export function useAnalyticsData(
       setAnomalies([]);
       setHealthHistory([]);
       setIsLoading(false);
+      hasLoadedRef.current = false;
       return;
     }
 
-    setIsLoading(true);
+    if (!hasLoadedRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -107,11 +111,13 @@ export function useAnalyticsData(
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load analytics telemetry.');
     } finally {
+      hasLoadedRef.current = true;
       setIsLoading(false);
     }
   }, [stationId, hours]);
 
   useEffect(() => {
+    hasLoadedRef.current = false;
     loadData();
   }, [loadData]);
 

@@ -1,7 +1,8 @@
 .sg-analytics-page {
-  padding: var(--spacing-lg, 1.5rem) var(--spacing-xl, 2rem);
-  max-width: 1400px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
 }
 
 .sg-analytics-page__error {

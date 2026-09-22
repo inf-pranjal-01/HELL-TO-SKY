@@ -20,12 +20,15 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
+import os
+os.environ['OPENBLAS_NUM_THREADS']='1'
+os.environ['OMP_NUM_THREADS']='1'
 import asyncio
 import pandas as pd
 
 sys.path.append(str(Path(__file__).parent))
 from model.simulator import create_simulator_state, run_simulation_loop
-from config import CLUSTERS
+from config import CLUSTERS, get_station_normal_ranges
 
 
 class ConnectionManager:
@@ -119,16 +122,35 @@ def _compute_model_status(model_confidence_pct, history_len) -> str:
     return "UNAVAILABLE_MISSING_FEATURES"
 
 
+async def _db_monitor_loop(history_store):
+    """Periodically verifies database connectivity; auto-reconnects and syncs CSV to DB on recovery."""
+    while True:
+        try:
+            await asyncio.sleep(20)
+            await asyncio.to_thread(history_store.check_and_reconnect)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[_db_monitor_loop] Monitor tick error: {e!r}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.ws_manager = ws_manager
     app.state.sim = create_simulator_state(broadcast_callback=ws_manager.broadcast)
     # Start simulation loop in background task; local seed data ensures endpoints respond instantly
     app.state.sim_task = asyncio.create_task(run_simulation_loop(app.state.sim))
+    # Start DB health monitor & auto-reconnect task
+    app.state.db_monitor_task = asyncio.create_task(_db_monitor_loop(app.state.sim.manager.history))
     try:
         yield
     finally:
+        app.state.db_monitor_task.cancel()
         app.state.sim_task.cancel()
+        try:
+            await app.state.db_monitor_task
+        except asyncio.CancelledError:
+            pass
         try:
             await app.state.sim_task
         except asyncio.CancelledError:
@@ -207,12 +229,24 @@ async def clear_history(target: Optional[str] = "all", body: Optional[dict] = No
     source = None if target == "all" else "replay"
     await asyncio.to_thread(sim.manager.history.clear_all, source=source)
     if target == "all":
+        if sim.mode == "replay":
+            sim._stop_replay()
+        else:
+            sim.manager.switch_to_live()
+
+        for buf in sim.manager.buffers.values():
+            buf.reset_detection_state()
+
+        sim.latest.clear()
+        sim._last_live_latest.clear()
         for sid in sim.trend_history:
             sim.trend_history[sid].clear()
         sim.recent_anomalies.clear()
         sim._last_ingested_timestamp.clear()
         sim._last_ingested.clear()
         sim._live_last_fetch = None
+        sim._live_refresh_requested = True
+        asyncio.create_task(sim.refresh_live_now())
 
     await ws_manager.broadcast({
         "type": "HISTORY_PURGED",
@@ -268,6 +302,23 @@ async def refresh_live_snapshot():
     return {"mode": sim.mode, "message": "Live provider snapshot refreshed."}
 
 
+@app.post("/api/admin/sync-db")
+async def trigger_csv_db_sync(station_id: Optional[str] = None):
+    """Manually or externally trigger CSV mirror to TimescaleDB synchronization."""
+    sim = app.state.sim
+    history = sim.manager.history
+    if not history.use_db:
+        connected = await asyncio.to_thread(history.check_and_reconnect)
+        if not connected:
+            return {"status": "error", "message": "TimescaleDB is offline. Could not reconnect."}
+    count = await asyncio.to_thread(history.sync_csv_to_db, station_id)
+    return {
+        "status": "success",
+        "synced_rows": count,
+        "message": f"Successfully updated TimescaleDB with {count} readings from CSV mirror.",
+    }
+
+
 # ---------------- GET /api/stations ----------------
 
 @app.get("/api/stations")
@@ -298,6 +349,12 @@ async def get_current_reading(station_id: str):
     entry = sim.latest.get(station_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"No reading yet for {station_id}")
+    if sim.mode == "live" and entry.get("source") == "replay":
+        live_entry = sim._last_live_latest.get(station_id)
+        if live_entry and live_entry.get("source") == "live":
+            entry = live_entry
+        else:
+            raise HTTPException(status_code=404, detail=f"No live reading yet for {station_id}")
 
     raw = entry["raw_reading"]
     verdict = entry["verdict"]
@@ -308,12 +365,13 @@ async def get_current_reading(station_id: str):
     # that import instead of duplicating the values.
     station_health = sim.manager.get_station_status(station_id)
     parameter_status = sim.manager.buffers[station_id].health.param_status
+    nominal = get_station_normal_ranges(station_id)
     return {
         "station_id": station_id,
         "timestamp": entry["timestamp"].isoformat(),
-        "temperature_c": {"value": raw.get("temperature_c"), "normal_min": 10.0, "normal_max": 45.0},
-        "pressure_hpa": {"value": raw.get("pressure_hpa"), "normal_min": 950.0, "normal_max": 1050.0},
-        "humidity_pct": {"value": raw.get("humidity_pct"), "normal_min": 10.0, "normal_max": 100.0},
+        "temperature_c": {"value": raw.get("temperature_c"), **nominal["temperature_c"]},
+        "pressure_hpa": {"value": raw.get("pressure_hpa"), **nominal["pressure_hpa"]},
+        "humidity_pct": {"value": raw.get("humidity_pct"), **nominal["humidity_pct"]},
         "anomaly_score_pct": verdict["anomaly_score_pct"],
         "is_anomaly": bool(verdict.get("is_anomaly", False)),
         "fault_type": verdict.get("fault_type"),
@@ -325,7 +383,7 @@ async def get_current_reading(station_id: str):
         "sensor_health_status": station_health["status"],
         "sensor_parameters": parameter_status,
         "suggested_values": verdict.get("suggested_values", {}),
-        "source": sim.manager.mode,
+        "source": entry.get("source", sim.mode),
     }
 
 
@@ -339,21 +397,58 @@ async def get_trends(station_id: str, hours: int = 6):
     if not 1 <= hours <= 24 * 30:
         raise HTTPException(status_code=400, detail="hours must be between 1 and 720")
 
-    # HistoryStore is the durable frontend source. It preserves raw
-    # values, fault labels, suggested values, and status at the time of
-    # every reading; the simulator deque is only a short UI cache.
-    points = await asyncio.to_thread(sim.manager.get_station_history, station_id, hours=hours)
-    if not points:
-        points = list(sim.trend_history[station_id])
-    
+    # In replay mode, serve directly from high-speed local memory/SSD trend_history (0ms latency, zero DB saturation)
+    # In live mode, query TimescaleDB hypertable with 3.5s timeout and fallback to local CSV mirror / memory
+    if sim.mode == "replay":
+        raw_points = list(sim.trend_history.get(station_id, []))
+        if raw_points:
+            try:
+                latest_t = pd.to_datetime(raw_points[-1]["timestamp"])
+                cutoff = latest_t - pd.Timedelta(hours=hours)
+                points = [p for p in raw_points if pd.to_datetime(p["timestamp"]) >= cutoff]
+            except Exception:
+                points = raw_points
+        else:
+            points = []
+    else:
+        try:
+            points = await asyncio.wait_for(
+                asyncio.to_thread(sim.manager.get_station_history, station_id, hours=hours),
+                timeout=3.5,
+            )
+        except Exception as e:
+            print(f"[/api/trends] TimescaleDB query timeout/error ({e!r}), falling back to local history.")
+            err_str = str(e).lower()
+            if any(k in err_str for k in ("timeout", "connection", "closed", "terminat", "operationalerror")):
+                sim.manager.history.use_db = False
+            points = []
 
+        if not points:
+            # Fallback to local CSV mirror on SSD (strictly live source)
+            try:
+                df_fallback = sim.manager.history._read_csv(sim.manager.history._path(station_id))
+                if not df_fallback.empty and "timestamp" in df_fallback.columns:
+                    if "source" in df_fallback.columns:
+                        df_fallback = df_fallback[df_fallback["source"] == "live"]
+                    if not df_fallback.empty:
+                        cutoff = df_fallback["timestamp"].max() - pd.Timedelta(hours=hours)
+                        points = df_fallback[df_fallback["timestamp"] >= cutoff].to_dict(orient="records")
+                    else:
+                        points = []
+                else:
+                    points = []
+            except Exception:
+                points = []
+
+        if not points:
+            points = [p for p in list(sim.trend_history.get(station_id, [])) if p.get("source", "live") == "live"]
 
     trend_points = [
         {
-            "timestamp": p["timestamp"].isoformat(),
-            "temperature_c": _json_nullable(p["temperature_c"]),
-            "pressure_hpa": _json_nullable(p["pressure_hpa"]),
-            "humidity_pct": _json_nullable(p["humidity_pct"]),
+            "timestamp": p["timestamp"].isoformat() if hasattr(p["timestamp"], "isoformat") else str(p["timestamp"]),
+            "temperature_c": _json_nullable(p.get("temperature_c")),
+            "pressure_hpa": _json_nullable(p.get("pressure_hpa")),
+            "humidity_pct": _json_nullable(p.get("humidity_pct")),
             "is_anomaly": bool(p.get("is_anomaly", False)),
             "fault_type": _json_nullable(p.get("fault_type")),
             "severity": _json_nullable(p.get("severity")),
@@ -369,21 +464,24 @@ async def get_trends(station_id: str, hours: int = 6):
 
     anomaly_windows = []
     in_window = False
+    window_start = None
     for p in points:
+        ts = p["timestamp"].isoformat() if hasattr(p["timestamp"], "isoformat") else str(p["timestamp"])
         if bool(p.get("is_anomaly", False)) and not in_window:
-            window_start = p["timestamp"]
+            window_start = ts
             in_window = True
         elif not bool(p.get("is_anomaly", False)) and in_window:
             anomaly_windows.append({
-                "start": window_start.isoformat(),
-                "end": p["timestamp"].isoformat(),
+                "start": window_start,
+                "end": ts,
                 "label": "Anomaly Detected",
             })
             in_window = False
-    if in_window:
+    if in_window and window_start is not None and len(points) > 0:
+        last_ts = points[-1]["timestamp"].isoformat() if hasattr(points[-1]["timestamp"], "isoformat") else str(points[-1]["timestamp"])
         anomaly_windows.append({
-            "start": window_start.isoformat(),
-            "end": points[-1]["timestamp"].isoformat(),
+            "start": window_start,
+            "end": last_ts,
             "label": "Anomaly Detected",
         })
 
@@ -474,7 +572,7 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
     return [
         {
             "anomaly_id": a["anomaly_id"],
-            "timestamp": a["timestamp"].isoformat(),
+            "timestamp": a["timestamp"].isoformat() if hasattr(a["timestamp"], "isoformat") else str(a["timestamp"]),
             "station_id": a["station_id"],
             "anomaly_score_pct": a["anomaly_score_pct"],
             "severity": a["severity"],
@@ -552,21 +650,23 @@ def _compute_dynamic_spatial_threshold(
 
     # Align on the minimum shared history length (use last N readings)
     min_len = min(len(v) for v in station_series.values())
-    if min_len < 8:
+    if min_len < 3:
         return default, "default"
 
     sids = list(station_series.keys())
     aligned = {sid: station_series[sid][-min_len:] for sid in sids}
 
-    # Build distribution of |station_val - cluster_mean_at_timestep|
+    # Station-relative deviations: subtract each station's dynamic rolling mean so elevation
+    # offsets (e.g. 600m plateau vs 300m valley) do not distort dynamic spatial variation.
+    st_means = {sid: sum(aligned[sid]) / len(aligned[sid]) for sid in sids}
     deviations: list[float] = []
     for i in range(min_len):
-        step_vals = [aligned[sid][i] for sid in sids]
-        mean_val = sum(step_vals) / len(step_vals)
-        for v in step_vals:
-            deviations.append(abs(v - mean_val))
+        step_residuals = [aligned[sid][i] - st_means[sid] for sid in sids]
+        mean_residual = sum(step_residuals) / len(step_residuals)
+        for r in step_residuals:
+            deviations.append(abs(r - mean_residual))
 
-    if len(deviations) < 12:
+    if len(deviations) < 6:
         return default, "default"
 
     # 90th percentile — robust against the top 10% of any residual spikes
@@ -611,7 +711,7 @@ def _compute_spatial_context(sim, match: dict) -> dict:
         "pressure_hpa": ("barometric pressure", "hPa"),
         "humidity_pct": ("relative humidity", "%"),
     }
-    DEFAULT_SIG = {"temperature_c": 3.0, "pressure_hpa": 5.0, "humidity_pct": 5.0}
+    DEFAULT_SIG = {"temperature_c": 3.0, "pressure_hpa": 3.0, "humidity_pct": 5.0}
 
     match_ts = None
     if match.get("timestamp"):
@@ -686,12 +786,36 @@ def _compute_spatial_context(sim, match: dict) -> dict:
 
         p_peers = [_lookup_peer_val(pm["station_id"], p, p_target) for pm in peer_metas]
         avg_peer = round(sum(p_peers) / len(p_peers), 1) if p_peers else p_target
-        p_delta = round(p_target - avg_peer, 1)
+
+        # Dynamically compute elevation/station-normalized delta for pressure
+        if p == "pressure_hpa":
+            def _station_p_norm(sid, val):
+                buf = sim.manager.buffers.get(sid)
+                if buf and buf._raw_rows:
+                    p_vals = [float(r["pressure_hpa"]) for r in buf._raw_rows if r.get("pressure_hpa") is not None]
+                    if p_vals:
+                        return val - (sum(p_vals) / len(p_vals))
+                bounds = get_station_normal_ranges(sid)["pressure_hpa"]
+                mid = (bounds["normal_min"] + bounds["normal_max"]) / 2.0
+                return val - mid
+
+            target_res = _station_p_norm(target_sid, p_target)
+            peer_res_list = [_station_p_norm(pm["station_id"], p_peers[i]) for i, pm in enumerate(peer_metas)]
+            avg_peer_res = sum(peer_res_list) / len(peer_res_list) if peer_res_list else 0.0
+            p_delta = round(target_res - avg_peer_res, 1)
+        else:
+            p_delta = round(p_target - avg_peer, 1)
 
         thresh, src = _compute_dynamic_spatial_threshold(sim, all_sids, p, default=DEFAULT_SIG.get(p, 3.0))
         divergence_ratio = abs(p_delta) / (thresh if thresh > 0 else 1.0)
-        is_aff = any(p in str(aff) or (p == "temperature_c" and "temp" in str(aff)) or (p == "humidity_pct" and "humid" in str(aff)) or (p == "pressure_hpa" and "press" in str(aff)) for aff in affected)
-        divergence_score = divergence_ratio * (1.5 if is_aff else 1.0)
+        is_aff = any(
+            p in str(aff)
+            or (p == "temperature_c" and "temp" in str(aff))
+            or (p == "humidity_pct" and "humid" in str(aff))
+            or (p == "pressure_hpa" and "press" in str(aff))
+            for aff in affected
+        )
+        divergence_score = divergence_ratio * (5.0 if is_aff else 1.0)
 
         param_evals[p] = {
             "target": p_target,
@@ -908,20 +1032,28 @@ def repair_sensor(body: dict):
 @app.post("/api/inject-anomaly")
 async def inject_anomaly(body: dict):
     """
-    Repurposed as the REPLAY-MODE trigger -- see simulator.py's
-    start_replay() docstring. body's station_id/type are accepted for
-    contract-shape compatibility but not used to target one station;
-    replay always drives all 20 simultaneously from their own
-    pre-injected faults, then auto-reverts to live mode when exhausted.
+    Triggers simulator replay and dynamically targets the requested station and fault type.
+    If replay is already running, dynamically injects the fault at the current replay position.
     """
     sim = app.state.sim
+    station_id = body.get("station_id")
+    fault_type = body.get("type")
+
     if sim.mode == "replay":
+        if station_id:
+            await asyncio.to_thread(sim.inject_fault_dynamic, station_id, fault_type)
+            return {
+                "success": True,
+                "anomaly_id": f"anom_{sim._anomaly_counter + 1:05d}",
+                "message": f"Injected {fault_type or 'anomaly'} into active replay for {station_id}.",
+            }
         raise HTTPException(status_code=409, detail="Simulator replay already running.")
-    anomaly_id = await asyncio.to_thread(sim.start_replay)
+
+    anomaly_id = await asyncio.to_thread(sim.start_replay, station_id, fault_type)
     return {
         "success": True,
         "anomaly_id": anomaly_id,
-        "message": "Simulator started: replaying labeled historical data with injected faults across all stations.",
+        "message": f"Simulator started: replaying data with {fault_type or 'anomaly'} targeted on {station_id or 'all stations'}.",
     }
 
 
@@ -956,3 +1088,19 @@ def _health_pct(parameter_status: dict[str, str]) -> int:
         return 100
     score_by_status = {"HEALTHY": 100, "WARNING": 50, "OFFLINE": 0}
     return round(sum(score_by_status.get(value, 0) for value in parameter_status.values()) / len(parameter_status))
+import traceback, sys, threading
+@app.get("/api/debug")
+def dump_debug():
+    stacks = []
+    for thread_id, frame in sys._current_frames().items():
+        stacks.append(f"Thread {thread_id}:\n" + "".join(traceback.format_stack(frame)))
+    
+    sim = app.state.sim
+    tasks = []
+    try:
+        import asyncio
+        for t in asyncio.all_tasks():
+            tasks.append(str(t))
+    except:
+        pass
+    return {"threads": stacks, "tasks": tasks, "cursor": getattr(sim, "_replay_cursor_idx", -1)}

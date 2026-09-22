@@ -1,8 +1,8 @@
 .sg-trend-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: clamp(1rem, 1.8vw, 1.5rem);
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
 }
 
 .sg-trend-header {
@@ -10,7 +10,7 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--space-4);
+  gap: 1rem;
 }
 
 .sg-trend-title-group {
@@ -158,29 +158,32 @@
 }
 
 .sg-chart-point--anomaly {
+  filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.7));
   animation: pulsePoint 1.5s infinite alternate;
 }
 
 @keyframes pulsePoint {
-  from { stroke-width: 1.5; }
-  to { stroke-width: 3.5; }
+  from {
+    stroke-width: 1;
+    r: 3.5;
+  }
+  to {
+    stroke-width: 1.5;
+    r: 4.8;
+  }
 }
 
 /* Tooltip Overlay */
 .sg-chart-tooltip {
-  position: fixed;
-  transform: translate(-50%, -120%);
   background-color: var(--bg-surface);
   border: 1px solid var(--border-medium);
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
   padding: 0.55rem 0.7rem;
-  pointer-events: none;
   font-size: 0.76rem;
   line-height: 1.45;
   max-width: min(250px, 78vw);
   white-space: normal;
-  z-index: 3000;
 }
 
 .sg-tooltip-time {
@@ -200,7 +203,6 @@
   .sg-trend-actions { width: 100%; justify-content: space-between; }
   .sg-metric-tabs { width: 100%; justify-content: space-between; }
   .sg-metric-tab { padding: 0.36rem 0.42rem; font-size: 0.72rem; }
-  .sg-chart-tooltip { transform: translate(-50%, -105%); }
 }
 
 .sg-tooltip-score {

@@ -56,34 +56,26 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
 
   return (
     <Card variant="glass" className="sg-status-overview-card">
-      <div className="sg-status-overview-card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="sg-status-overview-card__header">
         <span className="sg-status-overview-card__title">Anomaly Score</span>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {modelStatus && (
-            <span style={{
-              fontSize: '0.65rem',
-              fontWeight: 600,
-              padding: '2px 6px',
-              borderRadius: '4px',
-              backgroundColor: modelStatus === 'AVAILABLE' ? 'var(--status-optimal-bg)' : 'var(--status-warning-bg)',
-              color: modelStatus === 'AVAILABLE' ? 'var(--status-optimal-text)' : 'var(--status-warning-text)',
-              border: `1px solid ${modelStatus === 'AVAILABLE' ? 'var(--status-optimal-border)' : 'var(--status-warning-border)'}`
-            }}>
-              MODEL: {modelStatus}
-            </span>
-          )}
-          <ShieldAlert
-            size={18}
-            className={riskLevel === 'critical' || riskLevel === 'high' ? 'text-critical' : 'text-accent'}
-            aria-hidden="true"
-          />
-        </div>
+        <ShieldAlert
+          size={18}
+          className={riskLevel === 'critical' || riskLevel === 'high' ? 'text-critical' : 'text-accent'}
+          aria-hidden="true"
+        />
       </div>
 
       <div className="sg-status-overview-card__body">
         <div className="sg-status-overview-card__number-row">
           <span className="sg-status-overview-card__number">{hasScore ? `${scoreVal}%` : '—'}</span>
-          <StatusBadge status={riskBadgeType} label={`${riskLevel.toUpperCase()} RISK`} size="sm" />
+          <div className="sg-status-overview-card__badges">
+            <StatusBadge status={riskBadgeType} label={`${riskLevel.toUpperCase()} RISK`} size="sm" />
+            {modelStatus && (
+              <span className={`sg-model-badge sg-model-badge--${modelStatus.toLowerCase()}`}>
+                MODEL: {modelStatus}
+              </span>
+            )}
+          </div>
         </div>
 
         <p className="sg-status-overview-card__sub">

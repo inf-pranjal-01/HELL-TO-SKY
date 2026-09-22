@@ -59,35 +59,9 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
   const [explanation, setExplanation] = useState<AnomalyExplanation | null>(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fallbackAnomalies, setFallbackAnomalies] = useState<RecentAnomalyItem[]>([]);
-
-  // Keep selectedId in sync when initialAnomalyId prop changes
-  useEffect(() => {
-    if (initialAnomalyId) {
-      setSelectedId(initialAnomalyId);
-    }
-  }, [initialAnomalyId]);
-
-  // If station has no recent anomalies in 24h, automatically fetch network-wide recent anomalies
-  useEffect(() => {
-    let active = true;
-    if (anomalies.length === 0) {
-      anomalyService.getRecentAnomalies(undefined, 25)
-        .then((items) => {
-          if (active && items && items.length > 0) {
-            setFallbackAnomalies(items);
-          }
-        })
-        .catch(() => {});
-    } else {
-      setFallbackAnomalies([]);
-    }
-    return () => { active = false; };
-  }, [anomalies.length]);
-
   const effectiveAnomalies = useMemo(() => {
-    return anomalies.length > 0 ? anomalies : fallbackAnomalies;
-  }, [anomalies, fallbackAnomalies]);
+    return anomalies;
+  }, [anomalies]);
 
   const selected = useMemo(() => {
     if (selectedId) {
@@ -176,7 +150,7 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
         <div className="sg-explain-card__empty">
           <CheckCircle2 size={24} />
           <strong>Decision X-Ray is standing by</strong>
-          <span>When an anomaly is detected across the network, SkyGuard will display the evidence behind its decision here.</span>
+          <span>When an anomaly is detected for this station, SkyGuard will display the evidence behind its decision here.</span>
         </div>
       </Card>
     );

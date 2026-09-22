@@ -113,7 +113,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 ARTIFACTS_PATH = Path(__file__).parent.parent / "model_artifacts" / "isolation_forest.pkl"
 
 REPLAY_STEP_SECONDS = 2  # one historical hour is streamed every two wall-clock seconds
-LIVE_FETCH_INTERVAL_SECONDS = 30 * 60  # Open-Meteo hourly data: poll no more than twice per hour
+LIVE_FETCH_INTERVAL_SECONDS = 15 * 60  # Open-Meteo current weather: poll every 15 minutes
 TREND_HISTORY_MAXLEN = 2000
 RECENT_ANOMALIES_MAXLEN = 200
 
@@ -232,15 +232,12 @@ class SimulatorState:
                 if frame.empty:
                     continue
                 row = frame.iloc[-1]
-                timestamp = pd.Timestamp(row["timestamp"])
-                if timestamp.tzinfo is None:
-                    timestamp = timestamp.tz_localize("UTC")
                 self._live_cache[station_id] = {
                     "temperature_c": float(row["temperature_c"]),
                     "pressure_hpa": float(row["pressure_hpa"]),
                     "humidity_pct": float(row["humidity_pct"]),
                 }
-                self._live_observed_at[station_id] = timestamp.to_pydatetime()
+                self._live_observed_at[station_id] = datetime.now(timezone.utc)
             except (FileNotFoundError, ValueError, KeyError, pd.errors.ParserError):
                 # The provider remains the primary source. Missing/corrupt
                 # local seed data should not prevent server startup.
@@ -262,7 +259,7 @@ class SimulatorState:
 
     # ---------------- mode control ----------------
 
-    def start_replay(self) -> str:
+    def start_replay(self, target_station_id: str | None = None, target_fault_type: str | None = None) -> str:
         """
         Called from main.py's POST /api/inject-anomaly handler. Loads
         every *_labeled.csv fresh (so repeated demo runs always replay
@@ -383,6 +380,7 @@ class SimulatorState:
         self._force_live_ingest = True
         self._last_ingested_timestamp.clear()
         self._last_ingested.clear()
+        await self._maybe_refresh_live_cache()
         await self.tick()
 
     # ---------------- per-tick data sourcing ----------------
@@ -457,13 +455,18 @@ class SimulatorState:
             if current_mode == "replay":
                 r_reading = self._next_replay_row(sid)
                 r_row = self._replay_frames[sid].iloc[self._replay_cursor_idx]
-                r_ts = pd.Timestamp(r_row["timestamp"]).to_pydatetime()
+                r_ts = pd.Timestamp(r_row["timestamp"])
+                if r_ts.tzinfo is None:
+                    r_ts = r_ts.tz_localize("UTC")
+                r_ts = r_ts.to_pydatetime()
             else:
                 r_reading = self._next_live_row(sid)
                 if getattr(self, "_force_live_ingest", False):
                     r_ts = now
                 else:
                     r_ts = self._live_observed_at.get(sid, now)
+                if hasattr(r_ts, "year") and r_ts.year <= 2025:
+                    r_ts = now
             if r_reading is not None:
                 network_snapshot[sid] = (r_reading, r_ts)
 
@@ -503,6 +506,7 @@ class SimulatorState:
                 "raw_reading": raw_reading,
                 "verdict": verdict,
                 "timestamp": reading_timestamp,
+                "source": current_mode,
             }
 
             # UI receives replay points at stream cadence, but plots
@@ -514,6 +518,7 @@ class SimulatorState:
                 "humidity_pct": raw_reading.get("humidity_pct"),
                 "is_anomaly": verdict["is_anomaly"],
                 "health_status": verdict.get("health_status"),
+                "source": current_mode,
             })
 
             # Broadcast live push over WebSocket with precise turnaround timestamp

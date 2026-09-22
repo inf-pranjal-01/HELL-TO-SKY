@@ -62,21 +62,21 @@ const AnalyticsPage: React.FC = () => {
   // ── No station selected ──────────────────────────────────────────────────────
   if (!isLoadingStation && !selectedStation) {
     return (
-      <main className="sg-analytics-page" aria-label="Analytics page">
+      <div className="page-container sg-analytics-page" role="main" aria-label="Analytics page">
         <div className="sg-analytics-page__no-station">
           <EmptyState
             title="No Station Selected"
             description="Please select a weather station from the navigation bar to view analytics data."
           />
         </div>
-      </main>
+      </div>
     );
   }
 
   // ── Data error ───────────────────────────────────────────────────────────────
   if (error && !isLoading) {
     return (
-      <main className="sg-analytics-page" aria-label="Analytics page">
+      <div className="page-container sg-analytics-page" role="main" aria-label="Analytics page">
         <AnalyticsHeader
           station={selectedStation}
           hours={hours}
@@ -91,13 +91,13 @@ const AnalyticsPage: React.FC = () => {
             <p>{error}</p>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   // ── Main layout ──────────────────────────────────────────────────────────────
   return (
-    <main className="sg-analytics-page" aria-label="Analytics & Insights Dashboard">
+    <div className="page-container sg-analytics-page" role="main" aria-label="Analytics & Insights Dashboard">
       {/* ── Header ── */}
       <AnalyticsHeader
         station={selectedStation}
@@ -156,7 +156,7 @@ const AnalyticsPage: React.FC = () => {
         insights={analyticsSummary?.insights ?? []}
         isLoading={isLoading}
       />
-    </main>
+    </div>
   );
 };
 

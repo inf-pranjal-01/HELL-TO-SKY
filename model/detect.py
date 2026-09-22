@@ -203,6 +203,10 @@ from config import (
     WINDOW_24H_TRIGGER,
     SPATIAL_CORROBORATION_MIN_PEERS,
     SPATIAL_CORROBORATION_THRESHOLD_SIGMA,
+    SPIKE_DIURNAL_MIN_PEERS,
+    SPIKE_DIURNAL_CONSENSUS_FRACTION,
+    SPIKE_DIURNAL_SUPPRESSION_FACTOR,
+    SPIKE_DIURNAL_PEER_MIN_ROC,
     graduated_confidence_frozen,
     graduated_confidence_drift,
     graduated_confidence_spike,
@@ -219,8 +223,8 @@ CALIBRATION_ARTIFACT_PATH = Path(__file__).parent.parent / "model_artifacts" / "
 # independent check (what CAN physically be true), not shared
 # fault-generation logic.
 PHYSICAL_BOUNDS = {
-    "temperature_c": (-10.0, 55.0),
-    "pressure_hpa": (850.0, 1080.0),
+    "temperature_c": (-50.0, 60.0),
+    "pressure_hpa": (850.0, 1085.0),
     "humidity_pct": (0.0, 100.0),
 }
 
@@ -423,24 +427,24 @@ def _cusum_evidence(
     
     allowance = CUSUM_DRIFT_ALLOWANCE.get(param, 0.05) if isinstance(CUSUM_DRIFT_ALLOWANCE, dict) else 0.05
     
+    residuals = []
     for raw_roc, scale_val, h in zip(raw_rocs, scales, step_hours):
         if raw_roc is None or not np.isfinite(raw_roc):
             continue
         raw_roc = float(raw_roc)
-        min_scale = 1.0 if param in ("temperature_c", "humidity_pct") else 0.3
-        scale_val = max(float(scale_val), min_scale) if (scale_val is not None and np.isfinite(scale_val) and scale_val > 0) else min_scale
+        scale_val = 1.0 if param == "temperature_c" else (0.5 if param == "pressure_hpa" else 3.5)
         expected = get_expected_roc(station_id, prefix, int(h))
         residual = float(np.clip((raw_roc - expected) / scale_val, -3.0, 3.0))
+        residuals.append(residual)
         
         s_pos = max(0.0, s_pos + residual - allowance)
         s_neg = max(0.0, s_neg - residual - allowance)
         
         ewma_val = EWMA_DRIFT_ALPHA * residual + (1.0 - EWMA_DRIFT_ALPHA) * ewma_val
 
-    raw_steps = featured_buffer[param].diff().dropna().to_numpy()
     pos_streak = neg_streak = False
-    if len(raw_steps) >= CUSUM_DIRECTION_STREAK_REQUIRED:
-        recent_steps = raw_steps[-CUSUM_DIRECTION_STREAK_REQUIRED:]
+    if len(residuals) >= CUSUM_DIRECTION_STREAK_REQUIRED:
+        recent_steps = np.array(residuals[-CUSUM_DIRECTION_STREAK_REQUIRED:])
         pos_streak = np.sum(recent_steps > 0) == CUSUM_DIRECTION_STREAK_REQUIRED
         neg_streak = np.sum(recent_steps < 0) == CUSUM_DIRECTION_STREAK_REQUIRED
 
@@ -457,7 +461,7 @@ def _cusum_evidence(
             "type": "drift",
             "parameter": param,
             "confidence": drift_conf,
-            "observed_value": raw_steps[-1] if len(raw_steps) else None,
+            "observed_value": float(featured_buffer[param].iloc[-1]) if len(featured_buffer) else None,
             "threshold": f">{thresh}",
             "reason": f"{trigger_src} accumulator ({val:.2f}) exceeded threshold ({thresh})."
         }
@@ -736,6 +740,32 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
     featured_buffer = _featurize_buffer(history_df)
     confirmed_spikes = _confirmed_spikes(featured_buffer, thresholds, station_id)
 
+    # ── Instantaneous Rate-of-Change / Candidate Spike Detection ──
+    # WMO-No. 8: Natural meteorological air temperature changes rarely exceed 8-10°C/hr.
+    # An instantaneous jump (e.g. 24 -> 38 in 1 step) is an unambiguous rate-of-change spike.
+    if len(featured_buffer) >= 2:
+        curr_row = featured_buffer.iloc[-1]
+        prev_row = featured_buffer.iloc[-2]
+        for param, prefix in PARAM_PREFIXES.items():
+            spike_thresh = get_threshold(thresholds, "spike", prefix, station_id)
+            curr_val = curr_row.get(param)
+            prev_val = prev_row.get(param)
+            if pd.notna(curr_val) and pd.notna(prev_val):
+                step_diff = abs(float(curr_val) - float(prev_val))
+                dev_val = curr_row.get(f"{prefix}_deviation")
+                abs_dev = abs(float(dev_val)) if pd.notna(dev_val) else step_diff
+
+                if step_diff >= spike_thresh and abs_dev >= (spike_thresh * SPIKE_DEVIATION_MULTIPLIER):
+                    spike_conf = graduated_confidence_spike(abs_dev, spike_thresh * SPIKE_DEVIATION_MULTIPLIER)
+                    fired.append({
+                        "type": "spike",
+                        "parameter": param,
+                        "confidence": spike_conf,
+                        "observed_value": float(curr_val),
+                        "threshold": f">{spike_thresh * SPIKE_DEVIATION_MULTIPLIER:.1f}",
+                        "reason": f"Sudden rate-of-change jump of {step_diff:.1f} (deviation {abs_dev:.1f} exceeds threshold {spike_thresh * SPIKE_DEVIATION_MULTIPLIER:.1f}).",
+                    })
+
     # Extract current hour once for the CUSUM diurnal baseline lookup.
     try:
         current_hour = pd.to_datetime(
@@ -786,6 +816,14 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     single spike at 60, a single suspicious multivariate reading at 55)
     still has to earn its way past the blend with model support, which
     is the intended, correct behavior for those two.
+
+    UNSTRUCTURED ANOMALIES (PURE ML PATH):
+    Novel, chaotic, or non-deterministic sensor patterns (e.g. erratic zig-zags,
+    high volatility, complex multi-dimensional distribution shifts) do not match
+    handcrafted deterministic physical rules. These are caught by the Isolation
+    Forest when model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD (80.0%). In this case,
+    the ML model takes ownership, overall score reflects model_pct, and fault_type
+    is designated as "unstructured_anomaly".
     """
     if rule_evidence:
         rule_confidence = max(r["confidence"] for r in rule_evidence)
@@ -807,21 +845,32 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     else:
         overall = MODEL_WEIGHT * model_pct + RULE_WEIGHT * rule_confidence
 
+    model_alone = model_pct is not None and model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD
+
     is_anomaly = (
         (overall > FUSION_ANOMALY_THRESHOLD and rule_confidence > 0.0)
-        or (model_pct is not None and model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD)
-        # Frozen floor-match is confidence 90 but remains evidence for
-        # fusion, per Draft 2 §1; it must not recreate the retired
-        # "rule fires = automatic anomaly" hard gate. Only confidence
-        # strictly above the configured boundary receives this escape
-        # hatch (physical/dropout facts and confirmed 95-point rules).
+        or model_alone
         or rule_confidence > RULE_CONFIDENCE_BYPASS
     )
 
-    if is_anomaly and fault_type is None:
-        fault_type = "UNKNOWN_STATISTICAL_ANOMALY"
+    decision_basis = "NORMAL"
+    if is_anomaly:
+        if rule_confidence > RULE_CONFIDENCE_BYPASS:
+            decision_basis = "RULE_ENGINE_BYPASS"
+        elif model_alone and rule_confidence == 0.0:
+            decision_basis = "ML_MODEL_ISOLATION"
+            overall = max(overall, model_pct)
+            if fault_type is None:
+                fault_type = "unstructured_anomaly"
+        elif model_alone:
+            decision_basis = "MODEL_OVERRIDE"
+        else:
+            decision_basis = "FUSED_CONSENSUS"
 
-    return overall, is_anomaly, fault_type, rule_confidence
+    if is_anomaly and fault_type is None:
+        fault_type = "unstructured_anomaly"
+
+    return overall, is_anomaly, fault_type, rule_confidence, decision_basis
 
 
 def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_buffers: dict, fault_type: str, implicated_params: list, artifact: dict = None) -> dict:
@@ -843,6 +892,7 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             "network_interpretation": "No peer stations available for comparison.",
             "confidence_bonus": 0.0,
             "relabel_fault_type": None,
+            "veto": False,
         }
 
     station_id = raw_reading.get("station_id") or (history_df["station_id"].iloc[-1] if not history_df.empty else None)
@@ -901,6 +951,7 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             "network_interpretation": "Target station features could not be built for comparison.",
             "confidence_bonus": 0.0,
             "relabel_fault_type": None,
+            "veto": False,
         }
 
     eligible_peers = 0
@@ -955,39 +1006,31 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             div_thresh = param_calib["divergence_threshold"] if param_calib else 1.0
 
             if fault_type == "frozen_value":
-                # Stage 3: Frozen-value spatial confirmation
-                # Check if eligible neighbor diverged while target is flat
                 if peer_delta > div_thresh:
                     diverged_peers += 1
                 elif peer_delta <= (div_thresh * 0.3):
                     flat_peers += 1
-
-            elif fault_type == "drift":
-                # Stage 4: Drift spatial corroboration
-                # Check if eligible neighbor matches direction and magnitude
-                target_roc = target_features.get(f"{prefix}_roc_1h", 0.0)
+            elif fault_type in ["drift", "spike", "multivariate_inconsistency"]:
+                dev_thresh = 4.0 if prefix == "temp" else (3.0 if prefix == "pressure" else 15.0)
                 corroborated_by_dev = (
                     pd.notna(target_dev) and pd.notna(peer_dev)
-                    and abs(peer_dev) >= SPATIAL_CORROBORATION_THRESHOLD_SIGMA
+                    and abs(peer_dev) >= dev_thresh
                     and (target_dev * peer_dev > 0)
                 )
-                corroborated_by_roc = (
-                    pd.notna(target_roc) and pd.notna(peer_roc)
-                    and abs(peer_roc) >= (div_thresh * 0.5)
-                    and (target_roc * peer_roc > 0)
-                )
-                if corroborated_by_dev or corroborated_by_roc:
+                if corroborated_by_dev:
                     corroborating_peers += 1
-                    break
-            else:
-                # For any other fault type (e.g. spike, multivariate, statistical), standard tracking
+
                 if pd.notna(target_dev) and pd.notna(peer_dev):
-                    if abs(peer_dev) >= SPATIAL_CORROBORATION_THRESHOLD_SIGMA and (target_dev * peer_dev > 0):
-                        corroborating_peers += 1
-                        break
+                    if abs(target_dev - peer_dev) >= (div_thresh * 1.5) and abs(target_dev) >= dev_thresh:
+                        diverged_peers += 1
+
 
     confidence_bonus = 0.0
     relabel_fault_type = None
+    dampen_factor = 1.0
+    veto = False
+    state = "LOCALIZED"
+    interpretation = "Peers show normal variability within bounds."
 
     if fault_type == "frozen_value":
         if eligible_peers < 1:
@@ -1000,44 +1043,31 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
         elif flat_peers >= 1:
             state = "AMBIGUOUS_STABLE_REGION"
             interpretation = f"Peers are also stable/flat within calibrated envelope; regional meteorological stability."
-            confidence_bonus = 0.0
-        else:
-            state = "LOCALIZED"
-            interpretation = "Peers show normal variability within bounds."
-            confidence_bonus = 0.0
-
     elif fault_type == "drift":
         if eligible_peers < 1:
             state = "INSUFFICIENT_CORROBORATION"
-            interpretation = "No eligible peers with fresh data to corroborate drift."
-        elif corroborating_peers >= SPATIAL_CORROBORATION_MIN_PEERS:
+            interpretation = "No eligible peers with fresh data."
+        elif corroborating_peers >= 2:
             state = "REGIONAL"
-            interpretation = f"{corroborating_peers} of {eligible_peers} eligible peers corroborate directional shift; classified as regional event."
-            confidence_bonus = 3.0
+            interpretation = "Multiple peers move the same way; regional weather front."
             relabel_fault_type = "REGIONAL_EVENT"
-        elif corroborating_peers > 0:
-            state = "PARTIAL_CORROBORATION"
-            interpretation = f"{corroborating_peers} of {eligible_peers} eligible peers corroborate shift; inconclusive regional signal."
-            confidence_bonus = 0.0
+            confidence_bonus = 3.0
         else:
-            state = "LOCALIZED"
-            interpretation = f"None of {eligible_peers} eligible peers corroborate shift; localized sensor drift."
-            confidence_bonus = 0.0
-
-    else:
-        # spike, multivariate, and others are strictly untouched by network corroboration
-        if eligible_peers < 1:
-            state = "INSUFFICIENT_CORROBORATION"
-            interpretation = "No peers with fresh data within the last hour."
-        elif corroborating_peers >= SPATIAL_CORROBORATION_MIN_PEERS:
-            state = "REGIONAL"
-            interpretation = f"{corroborating_peers} out of {eligible_peers} eligible peers show similar deviations."
-        elif corroborating_peers > 0:
-            state = "PARTIAL_CORROBORATION"
-            interpretation = f"{corroborating_peers} out of {eligible_peers} eligible peers show similar deviations."
-        else:
-            state = "LOCALIZED"
-            interpretation = f"None of the {eligible_peers} eligible peers show similar deviations."
+            diverge_ratio = diverged_peers / eligible_peers if eligible_peers > 0 else 0.0
+            if diverge_ratio >= 0.5:
+                state = "CONFIRMED_DIVERGENCE"
+                interpretation = f"Sensor clearly diverging from {diverged_peers}/{eligible_peers} peers."
+                if fault_type == "drift":
+                    confidence_bonus = 5.0
+            elif diverged_peers == 0:
+                state = "REGIONAL_STABILITY"
+                interpretation = "Cluster fully agrees with sensor; regional weather."
+                veto = True
+                relabel_fault_type = "none"
+            else:
+                state = "AMBIGUOUS_DIVERGENCE"
+                interpretation = f"Some peers diverge, some don't. Dampening confidence."
+                dampen_factor = 0.5 + 0.5 * diverge_ratio
 
     return {
         "state": state,
@@ -1046,7 +1076,10 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
         "network_interpretation": interpretation,
         "confidence_bonus": confidence_bonus,
         "relabel_fault_type": relabel_fault_type,
+        "dampen_factor": dampen_factor,
+        "veto": veto,
     }
+
 
 
 def _classify_regime(feature_row: "pd.Series", raw_reading: dict, history_df: "pd.DataFrame") -> str:
@@ -1144,6 +1177,121 @@ def _classify_regime(feature_row: "pd.Series", raw_reading: dict, history_df: "p
 
     except Exception:
         return "UNKNOWN_CONTEXT_FAILURE"
+
+
+def _apply_diurnal_consensus_filter(fired: list, neighbor_buffers: dict, feature_row: "pd.Series") -> tuple:
+    """
+    Diurnal / Environmental Spatial Consensus Filter for Spike Rules.
+
+    When a spike is detected, peers in the same cluster experience the same
+    atmospheric forcing (solar heating, frontal passage, etc.). If ≥ 60% of
+    eligible peer stations show a rate-of-change in the SAME direction as the
+    suspected spike, the event is far more likely to be environmental rather
+    than a sensor malfunction.
+
+    Action: Reduce spike confidence by SPIKE_DIURNAL_SUPPRESSION_FACTOR (×0.38).
+      - A typical spike fires at 85–89.9%. After suppression: ~32–34.
+      - Fused score becomes: 0.6*model + 0.4*32 ≈ 0.6*model + 12.8.
+      - For is_anomaly via fusion (overall > 45), model_pct must exceed ~53%.
+      - Clean weather model_pct p99 ≈ 19.87% → essentially zero FPs on real heat-up.
+      - The ML model retains full authority via MODEL_ALONE_OVERRIDE (>88%).
+
+    Guarantees:
+      - Does NOT touch physical_bounds, dropout, frozen_value, drift — ONLY spike.
+      - Does NOT suppress if fewer than SPIKE_DIURNAL_MIN_PEERS eligible peers exist.
+      - Does NOT fully zero out spike confidence — advisory dampening only.
+      - Returns (filtered_fired, suppression_map) where suppression_map maps
+        param -> {"n_eligible": int, "n_agreeing": int, "consensus_fraction": float}
+        for use in the verdict's network_corroboration context.
+    """
+    if not neighbor_buffers:
+        return fired, {}
+
+    suppression_map = {}
+
+    for param, prefix in PARAM_PREFIXES.items():
+        # Find spike entries for this param
+        param_spikes = [r for r in fired if r["type"] == "spike" and r.get("parameter") == param]
+        if not param_spikes:
+            continue
+
+        # Target station's direction: use feature_row roc_1h, falling back
+        # to the raw step difference in the fired rule.
+        target_roc_raw = feature_row.get(f"{prefix}_roc_1h")
+        if pd.isna(target_roc_raw):
+            # Try to get direction from the fired rule itself
+            spike_rule = param_spikes[0]
+            obs = spike_rule.get("observed_value")
+            if obs is None:
+                continue
+            target_roc_raw = 1.0  # direction unknown, skip
+        target_direction = 1 if float(target_roc_raw) > 0 else -1
+
+        min_roc = SPIKE_DIURNAL_PEER_MIN_ROC.get(param, 0.5)
+
+        # Count eligible peers and how many agree on direction
+        n_eligible = 0
+        n_agreeing = 0
+
+        for _nid, nbuf_df in neighbor_buffers.items():
+            if nbuf_df is None or nbuf_df.empty or param not in nbuf_df.columns:
+                continue
+            vals = pd.to_numeric(nbuf_df[param], errors="coerce").dropna()
+            if len(vals) < 2:
+                continue
+            # Use last two non-NaN readings for peer ROC
+            peer_roc = float(vals.iloc[-1]) - float(vals.iloc[-2])
+            if abs(peer_roc) < min_roc:
+                # Peer is too flat to vote (stable neighbor — not informationally useful)
+                continue
+            n_eligible += 1
+            peer_direction = 1 if peer_roc > 0 else -1
+            if peer_direction == target_direction:
+                n_agreeing += 1
+
+        if n_eligible < SPIKE_DIURNAL_MIN_PEERS:
+            # Not enough peers with meaningful change — keep spike as-is
+            continue
+
+        consensus_fraction = n_agreeing / n_eligible
+        suppression_map[param] = {
+            "n_eligible": n_eligible,
+            "n_agreeing": n_agreeing,
+            "consensus_fraction": round(consensus_fraction, 2),
+        }
+
+        if consensus_fraction >= SPIKE_DIURNAL_CONSENSUS_FRACTION:
+            # Spatial consensus: environmental change confirmed, dampen spike
+            suppression_map[param]["suppressed"] = True
+        else:
+            suppression_map[param]["suppressed"] = False
+
+    if not suppression_map:
+        return fired, {}
+
+    result = []
+    for rule in fired:
+        if rule["type"] == "spike":
+            param = rule.get("parameter")
+            info = suppression_map.get(param, {})
+            if info.get("suppressed"):
+                dampened = dict(rule)
+                frac = info["consensus_fraction"]
+                dampened["confidence"] = round(rule["confidence"] * SPIKE_DIURNAL_SUPPRESSION_FACTOR, 1)
+                dampened["reason"] = (
+                    rule["reason"]
+                    + f" [Spatial consensus: {info['n_agreeing']}/{info['n_eligible']} peer stations"
+                    f" show same-direction change (consensus={frac:.0%}) — environmental"
+                    f" change likely; spike confidence dampened to {dampened['confidence']:.1f}.]"
+                )
+                dampened["diurnal_consensus"] = True
+                result.append(dampened)
+            else:
+                result.append(rule)
+        else:
+            result.append(rule)
+
+    return result, suppression_map
 
 
 def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
@@ -1283,29 +1431,72 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     if model_pct is None or model_pct < DRIFT_MIN_MODEL_CORROBORATION:
         fired = [r for r in fired if r["type"] != "drift"]
 
-    # FUSE: The rule engine evaluates multiple hypotheses independently.
-    # We take the single most confident rule failure.
+    # ── DIURNAL SPATIAL CONSENSUS FILTER (Spike rules only) ──────────
+    # Before fusion, check if peer stations show the same direction of
+    # change. Morning solar heating, pressure fronts, and humidity swings
+    # affect all cluster stations simultaneously. If ≥60% of eligible peers
+    # agree on direction, the spike is likely environmental → dampen its
+    # confidence contribution to fusion. The ML model retains full authority.
+    diurnal_suppression_map = {}
+    has_spike = any(r["type"] == "spike" for r in fired)
+    if has_spike and neighbor_buffers:
+        fired, diurnal_suppression_map = _apply_diurnal_consensus_filter(
+            fired, neighbor_buffers, feature_row
+        )
 
-    score_pct, is_anomaly, fault_type, rule_confidence = _fuse_and_score(model_pct, fired)
+    # PRE-FUSION NETWORK CORROBORATION
+    network_state = None
+    network_interpretation = None
+    eligible_peer_count = None
+    corroborating_peer_count = None
+    
+    if fired:
+        specific_evidence = [r for r in fired if r["type"] not in ("physical_bounds", "dropout")]
+        primary_rule = max(specific_evidence, key=lambda e: e["confidence"]) if specific_evidence else max(fired, key=lambda e: e["confidence"])
+        pre_fusion_fault = primary_rule["type"]
+        implicated = list(set(r["parameter"] for r in fired))
+        
+        if pre_fusion_fault in ["frozen_value", "drift", "spike", "multivariate_inconsistency"]:
+            neighbor_buffers_safe = neighbor_buffers or {}
+            network_details = _corroborate_network(
+                raw_reading, history_df, neighbor_buffers_safe, pre_fusion_fault, implicated, artifact=artifact
+            )
+            network_state = network_details["state"]
+            network_interpretation = network_details["network_interpretation"]
+            eligible_peer_count = network_details["eligible_peer_count"]
+            corroborating_peer_count = network_details["corroborating_peer_count"]
+            
+            if network_details["veto"]:
+                fired = [r for r in fired if r["type"] not in ["frozen_value", "drift", "spike", "multivariate_inconsistency"]]
+            else:
+                bonus = network_details.get("confidence_bonus", 0.0)
+                dampen = network_details.get("dampen_factor", 1.0)
+                relabel = network_details.get("relabel_fault_type")
+                
+                for r in fired:
+                    if r["type"] == pre_fusion_fault:
+                        if bonus > 0:
+                            r["confidence"] = min(95.0, r["confidence"] + bonus) if r["type"] == "drift" else min(89.5 if r["confidence"] < 90 else 100.0, r["confidence"] + bonus)
+                        if dampen < 1.0:
+                            r["confidence"] = round(r["confidence"] * dampen, 1)
+                        if relabel:
+                            r["type"] = relabel
+
+    score_pct, is_anomaly, fault_type, rule_confidence, decision_basis = _fuse_and_score(model_pct, fired)
     severity = score_to_severity(score_pct)
 
     # Track A (blueprint §1) — fault_helper live-path wiring.
-    # OR the fault_helper's binary alert into is_anomaly so the live demo
-    # matches evaluate.py's offline pipeline exactly.  Gracefully skipped if
-    # fault_helper was not loaded (artifact["fault_helper"] is None).
     fault_helper_artifact = artifact.get("fault_helper")
     if fault_helper_artifact is not None and not is_anomaly:
         try:
             from config import HELPER_ALERT_THRESHOLD
             from model.fault_helper import feature_columns, build_network_features
-            # Minimal single-station "network" for live scoring (no peer rows).
             single_row = pd.DataFrame([{**raw_reading, "is_anomaly": False, "fault_type": None}])
             if isinstance(fault_helper_artifact, dict):
                 fh_model = fault_helper_artifact.get("helper_model")
                 fh_cols = fault_helper_artifact.get("helper_columns")
             else:
                 fh_model, fh_cols = fault_helper_artifact[:2]
-            # build_network_features requires cluster context; skip if columns missing
             fh_featured = build_network_features(single_row)
             available_cols = [c for c in fh_cols if c in fh_featured.columns]
             if available_cols:
@@ -1313,13 +1504,12 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
                 if fh_prob >= HELPER_ALERT_THRESHOLD:
                     is_anomaly = True
                     if fault_type is None:
-                        fault_type = "drift"  # conservative default label for helper-only alerts
+                        fault_type = "drift"
                     score_pct = max(score_pct, round(fh_prob * 100, 1))
                     severity = score_to_severity(score_pct)
         except Exception as _fh_exc:
             import logging
             logging.getLogger(__name__).debug("[detect] fault_helper scoring skipped: %s", _fh_exc)
-
 
     shap_features_public, likely_sensors = [], []
     explanation_method = None
@@ -1329,65 +1519,12 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
             explanation_method = explain_result.get("method")
             shap_features = explain_result.get("features", [])
             likely_sensors = likely_faulty_params(shap_features)
-            shap_features_public = [
-                {"name": f["name"], "impact": f["impact"]}
-                for f in shap_features
-            ]
+            shap_features_public = [{"name": f["name"], "impact": f["impact"]} for f in shap_features]
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"[detect] explanation failed for this reading, returning verdict without it: {e!r}")
 
-    # Regime classification — 9-state taxonomy per audit §12.5.
-    # Uses the already-computed feature_row so no extra featurization cost.
     regime = _classify_regime(feature_row, raw_reading, history_df)
-
-    # Network corroboration is only meaningful when an anomaly was detected.
-    # When is_anomaly=False, return None explicitly (not INSUFFICIENT_CORROBORATION)
-    # so the frontend and API can distinguish "no check needed" from "check ran but
-    # peers were unavailable." See audit §13.6.
-    network_state = None
-    if is_anomaly:
-        implicated = likely_sensors
-        if not implicated and rules["fired"]:
-            implicated = list(set(r["parameter"] for r in rules["fired"]))
-        neighbor_buffers_safe = neighbor_buffers or {}
-        network_details = _corroborate_network(
-            raw_reading, history_df, neighbor_buffers_safe, fault_type, implicated, artifact=artifact
-        )
-        network_state = network_details["state"]
-        network_interpretation = network_details["network_interpretation"]
-        eligible_peer_count = network_details["eligible_peer_count"]
-        corroborating_peer_count = network_details["corroborating_peer_count"]
-
-        # STAGES 3 & 4 SPATIAL CORROBORATION:
-        # Constraint: NEVER flip is_anomaly in EITHER direction (neither True->False nor False->True).
-        # Network corroboration adjusts confidence and relabels fault_type for frozen_value and drift only.
-        bonus = network_details.get("confidence_bonus", 0.0)
-        if bonus > 0:
-            if fault_type == "frozen_value":
-                # Add bounded bonus (+6.0, capped at 89.5 if base < 90)
-                if rule_confidence < RULE_CONFIDENCE_BYPASS:
-                    rule_confidence = min(89.5, rule_confidence + bonus)
-                else:
-                    rule_confidence = min(100.0, rule_confidence + bonus)
-            elif fault_type == "drift":
-                rule_confidence = min(95.0, rule_confidence + bonus)
-            
-            # Recalculate fused overall score with adjusted rule confidence
-            if model_pct is not None:
-                score_pct = MODEL_WEIGHT * model_pct + RULE_WEIGHT * rule_confidence
-            else:
-                score_pct = rule_confidence
-            severity = score_to_severity(score_pct)
-
-        # Relabel fault_type if specified (e.g. drift confirmed regional -> REGIONAL_EVENT)
-        relabel = network_details.get("relabel_fault_type")
-        if relabel:
-            fault_type = relabel
-    else:
-        network_interpretation = None
-        eligible_peer_count = None
-        corroborating_peer_count = None
 
     return {
         "anomaly_score_pct": round(score_pct, 1),
@@ -1397,7 +1534,8 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
         "is_anomaly": bool(is_anomaly),
         "severity": severity,
         "fault_type": fault_type,
-        "rules_fired": rules["fired"],
+        "decision_basis": decision_basis,
+        "rules_fired": fired,
         "fast_path_offline_params": rules["fast_path_offline_params"],
         "confirmed_spikes": rules["confirmed_spikes"],
         "suggested_values": suggested_values,
@@ -1410,6 +1548,7 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
         "network_interpretation": network_interpretation,
         "eligible_peer_count": eligible_peer_count,
         "corroborating_peer_count": corroborating_peer_count,
+        "diurnal_suppression": diurnal_suppression_map if diurnal_suppression_map else None,
     }
 
 
