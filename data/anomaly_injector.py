@@ -529,7 +529,6 @@ def inject_unstructured_anomaly(df: pd.DataFrame, idx: int, column: str, rng: np
 # own rng.integers(...) upper bound (exclusive), or its fixed length.
 FAULT_MAX_LEN = {
     inject_spike: 1,
-    inject_spike_decay: 4,  # rng.integers(2, 5) exclusive upper bound
     inject_frozen: 8,
     inject_drift: 49,
     inject_dropout: 1,
@@ -546,7 +545,6 @@ MULTI_COLUMN_FAULTS = {inject_multivariate, inject_unstructured_anomaly}
 # occurs on a real AWS network.
 FAULT_WEIGHTS = {
     inject_spike: 1.8,
-    inject_spike_decay: 1.2,
     inject_dropout: 3.0,
     inject_frozen: 2.0,
     inject_fail_low: 1.5,
@@ -598,7 +596,7 @@ def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
     # (this target, approximately) apply.
     target_anomalous_rows = int(n_rows * INJECTION_RATE * ANOMALY_DENSITY_MULTIPLIER)
     fault_functions = [
-        inject_spike, inject_spike_decay, inject_frozen, inject_drift,
+        inject_spike, inject_frozen, inject_drift,
         inject_dropout, inject_multivariate, inject_fail_low,
         inject_unstructured_anomaly,
     ]

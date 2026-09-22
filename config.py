@@ -170,7 +170,7 @@ RULE_BASE_CONFIDENCE = {
 def graduated_confidence_frozen(streak: int, req: int) -> float:
     """
     Graduated confidence for frozen_value:
-    80.0 floor for just crossing threshold up to 95.0 ceiling for 2x threshold streak.
+    80.0 floor for just crossing threshold up to 96.0 ceiling for 2x threshold streak.
     """
     if req <= 0:
         return 80.0
@@ -181,7 +181,7 @@ def graduated_confidence_frozen(streak: int, req: int) -> float:
 def graduated_confidence_drift(accumulator_val: float, threshold: float, is_ewma: bool = False) -> float:
     """
     Graduated confidence for drift (CUSUM/EWMA):
-    85.0 floor for just crossing threshold up to 95.0 ceiling at 2x threshold.
+    85.0 floor for just crossing threshold up to 97.0 ceiling at 2x threshold.
     """
     if threshold <= 0:
         return 85.0
@@ -192,7 +192,7 @@ def graduated_confidence_drift(accumulator_val: float, threshold: float, is_ewma
 def graduated_confidence_spike(abs_dev: float, spike_threshold: float, reversion_cleanliness: float = 1.0) -> float:
     """
     Graduated confidence for spike:
-    85.0 floor up to 95.0 ceiling based on deviation magnitude and reversion completeness.
+    85.0 floor up to 94.0 ceiling based on deviation magnitude and reversion completeness.
     """
     if spike_threshold <= 0:
         return 85.0
@@ -219,7 +219,7 @@ def graduated_confidence_multivariate(joint_z: float, threshold: float, confirme
     """
     Graduated confidence for multivariate_inconsistency:
     Single tier: 45.0 to 60.0.
-    Confirmed tier: 88.0 to 95.0.
+    Confirmed tier: 88.0 to 93.0.
     """
     if threshold <= 0:
         return 88.0 if confirmed else 45.0
@@ -247,9 +247,9 @@ SPATIAL_CORROBORATION_THRESHOLD_SIGMA = 1.5
 #
 # NEW: Allowance is now parameter-specific.
 CUSUM_DRIFT_ALLOWANCE = {
-    "temperature_c": 0.25,
-    "pressure_hpa": 0.05,
-    "humidity_pct": 0.25
+    "temperature_c": 0.05,
+    "pressure_hpa": 0.02,
+    "humidity_pct": 0.05
 }
 # EWMA configuration for fast multi-timescale response
 EWMA_DRIFT_ALPHA = 0.05
@@ -260,7 +260,7 @@ EWMA_DRIFT_THRESHOLD = 2.5
 # on its own -- CUSUM must handle them. 7.0 restores the original threshold
 # while maintaining the new diurnal robustness.
 # (Update: now uses strict direction and proper residual draining).
-CUSUM_THRESHOLD = 7.0
+CUSUM_THRESHOLD = 4.0
 # CUSUM_DIRECTION_STREAK_REQUIRED: LOWERED to 4 (Pass 8 final).
 # Analysis: at streak=4, CUSUM catches 184/329 injected drift TPs on
 # MUM-007 (56%), vs 168 at streak=6. The raw CUSUM fires on 26 clean
@@ -334,7 +334,7 @@ MULTIVARIATE_TEMP_DEVIATION_THRESHOLD = 3.0        # temp: |z| must clear this
 MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD = 1.5    # humidity: more lenient -- naturally noisier day to day
 MULTIVARIATE_PRESSURE_FLAT_THRESHOLD = 1.5         # pressure: must STAY under this while temp/humidity are both far outside it
 MULTIVARIATE_VAPOR_CONSISTENCY_THRESHOLD = 20.0    # RAISED 8.0->15.0->20.0: 15 left 167 multivariate FPs on clean stations; at 20 the injected fault VPD (mean=25, min>15) still fully caught while eliminating real monsoon false fires
-MULTIVARIATE_PERSISTENCE_REQUIRED = 2              # §4, final: 2 consecutive readings = confirmed
+MULTIVARIATE_PERSISTENCE_REQUIRED = 3              # §4, final: 2 consecutive readings = confirmed
 MULTIVARIATE_TEMP_ATTRIBUTION_WEIGHT = 1.5
 MULTIVARIATE_ATTRIBUTION_DOMINANCE = 0.7
 

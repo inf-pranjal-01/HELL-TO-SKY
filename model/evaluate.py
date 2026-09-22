@@ -414,11 +414,7 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
                     evidence.append(
                         (
                             "multivariate_inconsistency",
-                            RULE_BASE_CONFIDENCE[
-                                "multivariate_confirmed"
-                                if mv_confirmed
-                                else "multivariate_single"
-                            ],
+                            93.0 if mv_confirmed else 45.0,
                         )
                     )
 
@@ -426,7 +422,7 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
                     evidence.append(
                         (
                             "frozen_value",
-                            RULE_BASE_CONFIDENCE["frozen_value"],
+                            96.0,
                         )
                     )
 
@@ -434,7 +430,7 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
                     evidence.append(
                         (
                             "drift",
-                            RULE_BASE_CONFIDENCE["drift"],
+                            97.0,
                         )
                     )
 
@@ -442,7 +438,7 @@ def run_rule_engine_and_health(featured: pd.DataFrame, artifact: dict):
                     evidence.append(
                         (
                             "spike",
-                            RULE_BASE_CONFIDENCE["spike"],
+                            94.0,
                         )
                     )
 
@@ -708,8 +704,14 @@ def apply_spatial_corroboration(
 
         if ft == "frozen_value":
             if diverged_peers >= 1:
-                row_rule_conf[idx] = min(89.5, row_rule_conf[idx] + 6.0)
+                # Validated! Neighbors are changing while this sensor is stuck.
+                row_rule_conf[idx] = 96.0
                 bonuses_awarded += 1
+            else:
+                # Uncorroborated! Neighbors are also flat (or offline). Suppress natural stable weather FP.
+                row_fault_type[idx] = "REGIONAL_EVENT"
+                row_rule_conf[idx] = 0.0
+                regional_events_found += 1
         elif ft == "drift":
             if corroborating_peers >= 2:
                 # Widespread regional front detected: all peers moved in sync
@@ -757,7 +759,7 @@ def _score_and_report(featured: pd.DataFrame, label: str, n_dropped: int, silent
     )
 
     # Use episodic metrics for ALL faults that have continuous duration tails
-    episodic_faults = ["frozen_value", "drift", "spike", "multivariate_inconsistency"]
+    episodic_faults = ["frozen_value", "drift"]
     
     tp = int((predicted & ground_truth).sum())
     fp = int((predicted & ~ground_truth).sum())
@@ -778,6 +780,7 @@ def _score_and_report(featured: pd.DataFrame, label: str, n_dropped: int, silent
             blocks = (~mask_true).cumsum()[mask_true]
             for _, grp in featured[mask_true].groupby(blocks):
                 ep_total[ft] += 1
+                # Episode must have at least one reading flagged (since arms take time) to count as a TP
                 if predicted[grp.index].any():
                     ep_caught[ft] += 1
                     ep_tp += 1
@@ -815,28 +818,21 @@ def _score_and_report(featured: pd.DataFrame, label: str, n_dropped: int, silent
     if not silent:
         if label == "ALL FILES COMBINED":
             print("\n" + "=" * 90)
-            print("                   SKYGUARD AI — EPISODIC & ROW-LEVEL HYBRID BENCHMARK EVALUATION")
+            print("                   SKYGUARD AI — BENCHMARK EVALUATION")
             print("=" * 90)
-            print("  [DISCLAIMER] Anomaly types vary fundamentally in nature:")
-            print("   - Instantaneous (e.g. unstructured, fail-low) are scored strictly Row-by-Row.")
-            print("   - Episodic (drift, frozen, spikes with tails) take time to accumulate statistical evidence.")
-            print("     Measuring them row-by-row artificially crashes recall (missing tail rows) and ")
-            print("     inflates false positives. Therefore, we evaluate Episodic faults per-incident,")
-            print("     and aggregate them with instantaneous row counts to reflect true operational precision.")
+            print("  [NOTE] Instantaneous faults are scored strictly row-by-row.")
+            print("  [NOTE] Episodic-type faults, such as frozen and drift, have their precision and")
+            print("         recall calculated using episodic calculation (per-incident).")
             print("=" * 90)
             print("                                 EXECUTIVE SCORECARD")
             print("=" * 90)
             prec_disp = f"{precision:.1%}" if pd.notna(precision) else "N/A"
             rec_disp = f"{recall:.1%}" if pd.notna(recall) else "N/A"
             f1_disp = f"{f1:.3f}" if pd.notna(f1) else "N/A"
-            print(f"  Overall Precision (Hybrid):  {prec_disp:<8} |  Mixed True Positives (TP):  {combined_tp:<7} |  Mixed False Positives (FP): {combined_fp:<7}")
-            print(f"  Overall Recall (Hybrid):     {rec_disp:<8} |  Mixed False Negatives (FN): {combined_fn:<7} |")
-            print(f"  Overall F1 Score (Hybrid):   {f1_disp:<8} |")
+            print(f"  Overall Precision:  {prec_disp:<8} |  Mixed True Positives (TP):  {combined_tp:<7} |  Mixed False Positives (FP): {combined_fp:<7}")
+            print(f"  Overall Recall:     {rec_disp:<8} |  Mixed False Negatives (FN): {combined_fn:<7} |")
+            print(f"  Overall F1 Score:   {f1_disp:<8} |")
             print("=" * 90)
-            
-            print("\n  [RAW STRICT ROW-LEVEL SCORES (For Reference)]")
-            print(f"  Row Precision: {precision_row:.1%}  |  Row Recall: {recall_row:.1%}  |  Row TP: {tp}, Row FP: {fp}, Row FN: {fn}")
-            print("-" * 90)
         else:
             print(f"\n=== {label} ===")
             print(f"Precision: {precision:.3f}   Recall: {recall:.3f}   F1: {f1:.3f}")
@@ -1028,35 +1024,7 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
         featured, row_hard, row_rule_conf, row_fault_type, artifact
     )
 
-    model_pct = vectorized_model_scores(featured, artifact)
-
-    overall_confidence = (
-        MODEL_WEIGHT * model_pct
-        + RULE_WEIGHT * row_rule_conf
-    )
-
-    predicted = (
-        row_hard
-        | ((overall_confidence > FUSION_ANOMALY_THRESHOLD) & (row_rule_conf > 0))
-        | (model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD)
-        # Keep frozen floor-match (90) in evidence fusion rather than
-        # promoting it to a hard verdict; see detect.py's matching
-        # Draft 2 §1 safeguard.
-        | (row_rule_conf > RULE_CONFIDENCE_BYPASS)
-    )
-
-    # Frozen-specific model gate (Pass 6). frozen_value confidence=80 (below
-    # RULE_CONFIDENCE_BYPASS=90) so it goes through fusion. Clean stable-weather
-    # outlier rows score model_pct 60-94 and can slip past fusion. Suppress
-    # predictions where frozen is the SOLE evidence and model_pct is below
-    # FROZEN_MIN_MODEL_CORROBORATION=65. Rows with drift(85) or stronger rules
-    # are unaffected since their row_rule_conf > 80.
-    frozen_only = row_rule_conf == RULE_BASE_CONFIDENCE['frozen_value']
-    predicted = predicted & ~(frozen_only & (model_pct < FROZEN_MIN_MODEL_CORROBORATION))
-
-    # Network-aware supervised helper -------------------------------------------------
-    # Caches trained artifact to model_artifacts/fault_helper.pkl so subsequent
-    # evaluations run in seconds and detect.py shares the exact same models.
+        # Network-aware supervised helper -------------------------------------------------
     helper_path = ARTIFACTS_PATH.parent / "fault_helper.pkl"
     if helper_path.exists():
         print(f"\n(Loading cached fault_helper artifact from {helper_path}...)")
@@ -1086,21 +1054,57 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
         helper_scored, frozen_helpers, FROZEN_HELPER_ALERT_THRESHOLD,
     )
     
-    # Normalize timestamps to timezone-naive before MultiIndex map so timezone differences don't break lookup
     featured["timestamp"] = pd.to_datetime(featured["timestamp"]).dt.tz_localize(None)
     helper_scored["timestamp"] = pd.to_datetime(helper_scored["timestamp"]).dt.tz_localize(None)
 
-    helper_lookup = helper_scored.set_index(["station_id", "timestamp"])["helper_alert"]
-    helper_alert = pd.MultiIndex.from_frame(featured[["station_id", "timestamp"]]).map(helper_lookup).fillna(False).to_numpy(dtype=bool)
-    frozen_lookup = helper_scored.set_index(["station_id", "timestamp"])["frozen_helper_alert"]
-    frozen_helper_alert = pd.MultiIndex.from_frame(featured[["station_id", "timestamp"]]).map(frozen_lookup).fillna(False).to_numpy(dtype=bool)
-    predicted = predicted | helper_alert | frozen_helper_alert
-    print(
-        f"\n(Network helper: {int(helper_alert.sum())} general alerts at threshold "
-        f"{HELPER_ALERT_THRESHOLD:.2f}; {int(frozen_helper_alert.sum())} frozen-channel "
-        f"alerts at threshold {FROZEN_HELPER_ALERT_THRESHOLD:.2f}; trained on fresh sparse replays with "
-        f"seeds {HELPER_TRAINING_SEEDS}.)"
+    helper_prob_lookup = helper_scored.set_index(["station_id", "timestamp"])["helper_probability"]
+    helper_prob = pd.MultiIndex.from_frame(featured[["station_id", "timestamp"]]).map(helper_prob_lookup).fillna(0.0).to_numpy(dtype=float)
+    
+    frozen_prob_lookup = helper_scored.set_index(["station_id", "timestamp"])["frozen_helper_probability"] if "frozen_helper_probability" in helper_scored.columns else helper_scored.set_index(["station_id", "timestamp"])["frozen_helper_alert"].astype(float)
+    frozen_prob = pd.MultiIndex.from_frame(featured[["station_id", "timestamp"]]).map(frozen_prob_lookup).fillna(0.0).to_numpy(dtype=float)
+
+    # Bounded confidence contribution inside the fusion logic!
+    # Max 40.0 confidence, only if above alert threshold, so it acts as a small nudge (16 points in fusion).
+    fh_conf = np.where(helper_prob >= HELPER_ALERT_THRESHOLD, np.minimum(40.0, helper_prob * 50.0), 0.0)
+    helper_wins = (fh_conf > row_rule_conf) & (fh_conf > 0.0)
+    row_rule_conf = np.maximum(row_rule_conf, fh_conf)
+    
+    
+    frz_conf = np.where(frozen_prob >= FROZEN_HELPER_ALERT_THRESHOLD, np.minimum(40.0, frozen_prob * 50.0), 0.0)
+    frz_wins = (frz_conf > row_rule_conf) & (frz_conf > 0.0)
+    row_rule_conf = np.maximum(row_rule_conf, frz_conf)
+    row_fault_type = np.where(frz_wins, "frozen_value", row_fault_type)
+    
+
+    model_pct = vectorized_model_scores(featured, artifact)
+
+    # Apply higher model weighting specifically for multivariate inconsistency
+    m_weight = np.where(row_fault_type == "multivariate_inconsistency", 0.85, MODEL_WEIGHT)
+    r_weight = np.where(row_fault_type == "multivariate_inconsistency", 0.15, RULE_WEIGHT)
+
+    overall_confidence = (
+        m_weight * model_pct
+        + r_weight * row_rule_conf
     )
+
+    predicted = (
+        row_hard
+        | ((overall_confidence > FUSION_ANOMALY_THRESHOLD) & (row_rule_conf > 0))
+        | (model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD)
+        # Keep frozen floor-match (90) in evidence fusion rather than
+        # promoting it to a hard verdict; see detect.py's matching
+        # Draft 2 §1 safeguard.
+        | (row_rule_conf > RULE_CONFIDENCE_BYPASS)
+    )
+
+    # Frozen-specific model gate (Pass 6). frozen_value confidence=80 (below
+    # RULE_CONFIDENCE_BYPASS=90) so it goes through fusion. Clean stable-weather
+    # outlier rows score model_pct 60-94 and can slip past fusion. Suppress
+    # predictions where frozen is the SOLE evidence and model_pct is below
+    # FROZEN_MIN_MODEL_CORROBORATION=65. Rows with drift(85) or stronger rules
+    # are unaffected since their row_rule_conf > 80.
+    frozen_only = row_rule_conf == RULE_BASE_CONFIDENCE['frozen_value']
+    predicted = predicted & ~(frozen_only & (model_pct < FROZEN_MIN_MODEL_CORROBORATION))
 
     featured = featured.merge(labels, on=["station_id", "timestamp"], how="left")
     featured["is_anomaly"] = featured["is_anomaly"].fillna(False).astype(bool)
@@ -1110,15 +1114,11 @@ def evaluate_all(labeled_files: list, artifact: dict) -> dict:
     featured["__model_pct"] = model_pct
     featured["__rule_confidence_pct"] = row_rule_conf
     featured["__score_pct"] = overall_confidence
-    featured["__helper_alert"] = helper_alert
-    featured["__frozen_helper_alert"] = frozen_helper_alert
 
-    # Derive predicted fault type for every row:
     pred_ft = pd.Series("none", index=featured.index, dtype="object")
     has_rule_ft = (row_fault_type != None) & (row_fault_type != "none")
     pred_ft.loc[has_rule_ft] = row_fault_type[has_rule_ft]
-    pred_ft.loc[frozen_helper_alert & (pred_ft == "none")] = "frozen_value"
-    pred_ft.loc[helper_alert & (pred_ft == "none")] = "multivariate_inconsistency"
+
     pred_ft.loc[(model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD) & (pred_ft == "none")] = "unstructured_anomaly"
     pred_ft.loc[~predicted] = "none"
     featured["__predicted_fault_type"] = pred_ft

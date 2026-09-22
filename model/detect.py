@@ -827,7 +827,7 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     """
     if rule_evidence:
         rule_confidence = max(r["confidence"] for r in rule_evidence)
-        specific_evidence = [r for r in rule_evidence if r["type"] not in ("physical_bounds", "dropout")]
+        specific_evidence = [r for r in rule_evidence if r["type"] not in ("physical_bounds", "dropout", "network_helper")]
         if specific_evidence:
             fault_type = max(specific_evidence, key=lambda e: e["confidence"])["type"]
         else:
@@ -843,7 +843,15 @@ def _fuse_and_score(model_pct, rule_evidence: list):
         # model score as "definitely normal."
         overall = rule_confidence
     else:
-        overall = MODEL_WEIGHT * model_pct + RULE_WEIGHT * rule_confidence
+        # Give the ML model significantly higher authority for multivariate inconsistency
+        if fault_type == "multivariate_inconsistency":
+            m_weight = 0.85
+            r_weight = 0.15
+        else:
+            m_weight = MODEL_WEIGHT
+            r_weight = RULE_WEIGHT
+            
+        overall = m_weight * model_pct + r_weight * rule_confidence
 
     model_alone = model_pct is not None and model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD
 
@@ -880,7 +888,7 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
     
     Hard constraints:
     - NEVER flips is_anomaly in EITHER direction (True -> False or False -> True).
-    - NEVER touches, gates, delays, bonuses, or relabels spike or multivariate_inconsistency.
+    - Now applies to spike and multivariate_inconsistency to boost precision.
     - NEVER touches hardware rail faults (physical_bounds, dropout, sensor_fail_low).
     - Only adjusts confidence and labeling for frozen_value and drift.
     """
@@ -954,6 +962,51 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             "veto": False,
         }
 
+    # -- DYNAMIC THRESHOLD CALCULATION --
+    # Calculate dynamic limits per reading to account for gradual weather changes
+    dynamic_thresholds = {}
+    all_dfs = [history_df] + [ndf for nid, ndf in neighbor_buffers.items() if ndf is not None and not ndf.empty]
+    if len(all_dfs) >= 2:
+        min_len = min(len(df) for df in all_dfs)
+        if min_len >= 6:
+            for param in implicated_params:
+                prefix = PARAM_PREFIXES.get(param)
+                if not prefix:
+                    continue
+                
+                aligned_series = []
+                st_means = []
+                for df in all_dfs:
+                    # Get last min_len valid readings
+                    vals = df[param].dropna().astype(float).values[-min_len:]
+                    if len(vals) == min_len:
+                        aligned_series.append(vals)
+                        st_means.append(vals.mean())
+                        
+                if len(aligned_series) == len(all_dfs):
+                    deviations = []
+                    for i in range(min_len):
+                        step_residuals = [aligned_series[j][i] - st_means[j] for j in range(len(aligned_series))]
+                        mean_residual = sum(step_residuals) / len(step_residuals)
+                        for r in step_residuals:
+                            deviations.append(abs(r - mean_residual))
+                            
+                    if len(deviations) >= 6:
+                        deviations.sort()
+                        p90_idx = int(len(deviations) * 0.90)
+                        dyn_val = deviations[p90_idx]
+                        
+                        # Gradual onset adjustment
+                        target_roc = target_features.get(f"{prefix}_roc_1h")
+                        if pd.notna(target_roc) and dyn_val > 0:
+                            if abs(float(target_roc)) < (dyn_val * 0.5):
+                                dyn_val *= 3.0
+                                
+                        floor = {"temperature_c": 1.2, "pressure_hpa": 1.5, "humidity_pct": 2.0}.get(param, 1.2)
+                        dynamic_thresholds[param] = max(floor, round(dyn_val, 2))
+    # -----------------------------------
+
+
     eligible_peers = 0
     corroborating_peers = 0
     diverged_peers = 0
@@ -1003,7 +1056,12 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             # Peer delta over 1h
             peer_roc = n_features.get(f"{prefix}_roc_1h", 0.0)
             peer_delta = abs(float(peer_roc)) if pd.notna(peer_roc) else 0.0
-            div_thresh = param_calib["divergence_threshold"] if param_calib else 1.0
+            
+            # Use dynamic threshold if enough data warm-up, otherwise fallback to static artifact
+            if param in dynamic_thresholds:
+                div_thresh = dynamic_thresholds[param]
+            else:
+                div_thresh = param_calib["divergence_threshold"] if param_calib else 1.0
 
             if fault_type == "frozen_value":
                 if peer_delta > div_thresh:
@@ -1039,26 +1097,30 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
         elif diverged_peers >= 1:
             state = "CONFIRMED_DIVERGENCE"
             interpretation = f"{diverged_peers} peer(s) diverged beyond calibrated envelope while sensor remained flat."
-            confidence_bonus = 6.0
+            confidence_bonus = 16.0
         elif flat_peers >= 1:
             state = "AMBIGUOUS_STABLE_REGION"
             interpretation = f"Peers are also stable/flat within calibrated envelope; regional meteorological stability."
-    elif fault_type == "drift":
+            suppress_alarm = True
+        else:
+            state = "UNCORROBORATED_STABLE"
+            interpretation = "No peers diverged. Assuming regional stability."
+            suppress_alarm = True
+    elif fault_type in ["drift", "spike", "multivariate_inconsistency"]:
         if eligible_peers < 1:
             state = "INSUFFICIENT_CORROBORATION"
             interpretation = "No eligible peers with fresh data."
         elif corroborating_peers >= 2:
             state = "REGIONAL"
             interpretation = "Multiple peers move the same way; regional weather front."
-            relabel_fault_type = "REGIONAL_EVENT"
-            confidence_bonus = 3.0
+            veto = True
+            relabel_fault_type = "none"
         else:
             diverge_ratio = diverged_peers / eligible_peers if eligible_peers > 0 else 0.0
             if diverge_ratio >= 0.5:
                 state = "CONFIRMED_DIVERGENCE"
                 interpretation = f"Sensor clearly diverging from {diverged_peers}/{eligible_peers} peers."
-                if fault_type == "drift":
-                    confidence_bonus = 5.0
+                confidence_bonus = 5.0
             elif diverged_peers == 0:
                 state = "REGIONAL_STABILITY"
                 interpretation = "Cluster fully agrees with sensor; regional weather."
@@ -1451,7 +1513,7 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     corroborating_peer_count = None
     
     if fired:
-        specific_evidence = [r for r in fired if r["type"] not in ("physical_bounds", "dropout")]
+        specific_evidence = [r for r in fired if r["type"] not in ("physical_bounds", "dropout", "network_helper")]
         primary_rule = max(specific_evidence, key=lambda e: e["confidence"]) if specific_evidence else max(fired, key=lambda e: e["confidence"])
         pre_fusion_fault = primary_rule["type"]
         implicated = list(set(r["parameter"] for r in fired))
@@ -1487,7 +1549,7 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
 
     # Track A (blueprint §1) — fault_helper live-path wiring.
     fault_helper_artifact = artifact.get("fault_helper")
-    if fault_helper_artifact is not None and not is_anomaly:
+    if fault_helper_artifact is not None:
         try:
             from config import HELPER_ALERT_THRESHOLD
             from model.fault_helper import feature_columns, build_network_features
@@ -1501,12 +1563,26 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
             available_cols = [c for c in fh_cols if c in fh_featured.columns]
             if available_cols:
                 fh_prob = fh_model.predict_proba(fh_featured[available_cols])[:, 1][0]
-                if fh_prob >= HELPER_ALERT_THRESHOLD:
+                
+                # Case 1: Base pipeline missed it, but ExtraTrees catches it (Recall boost)
+                if not is_anomaly and fh_prob >= HELPER_ALERT_THRESHOLD:
                     is_anomaly = True
                     if fault_type is None:
                         fault_type = "drift"
                     score_pct = max(score_pct, round(fh_prob * 100, 1))
                     severity = score_to_severity(score_pct)
+                
+                # Case 2: Base pipeline flagged it, but ExtraTrees says it's natural weather (Precision boost)
+                # Only apply this veto to multivariate and unstructured as requested by user
+                elif is_anomaly and fault_type in ["multivariate_inconsistency", "unstructured_anomaly"]:
+                    # If ExtraTrees is very confident it's clean (< 0.3 probability of fault)
+                    if fh_prob < 0.3:
+                        is_anomaly = False
+                        fault_type = None
+                        score_pct = round(fh_prob * 100, 1)
+                        severity = score_to_severity(score_pct)
+                        decision_basis = "vetoed_by_fault_helper"
+                        
         except Exception as _fh_exc:
             import logging
             logging.getLogger(__name__).debug("[detect] fault_helper scoring skipped: %s", _fh_exc)
