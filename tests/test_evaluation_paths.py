@@ -4,19 +4,52 @@ from collections import deque
 from types import SimpleNamespace
 import unittest
 
+import numpy as np
 import pandas as pd
 
 from model.evaluate import (
     _latest_position_at_or_before, _metrics, _prediction_diagnostics, _raw_reading,
     _remove_ground_truth_row, _timestamp_ns,
 )
-from model.detect import PARAM_PREFIXES, _cusum_evidence, _cusum_evidence_series
+from model.detect import (
+    PARAM_PREFIXES, _cusum_evidence, _cusum_evidence_series,
+    _multiclass_fault_label,
+)
 from model.features import FEATURE_COLUMNS, build_feature_matrix, build_features_for_latest
 from model.state import StationBuffer
 from model.state import RAW_HISTORY_MAXLEN_HOURS
 
 
 class EvaluationPathTests(unittest.TestCase):
+    def test_binary_fault_helper_cannot_supply_a_fault_type(self):
+        class BinaryHelper:
+            classes_ = np.array([False, True])
+
+            def predict_proba(self, _frame):
+                raise AssertionError("binary helper must not be used as a type classifier")
+
+        label, confidence = _multiclass_fault_label(
+            BinaryHelper(), ["signal"], pd.DataFrame({"signal": [1.0]}),
+        )
+        self.assertIsNone(label)
+        self.assertIsNone(confidence)
+
+    def test_multiclass_fault_helper_only_returns_a_type_and_confidence(self):
+        class MulticlassHelper:
+            classes_ = np.array(["drift", "frozen_value", "spike"])
+
+            def predict_proba(self, frame):
+                self.assert_columns = list(frame.columns)
+                return np.array([[0.1, 0.8, 0.1]])
+
+        helper = MulticlassHelper()
+        label, confidence = _multiclass_fault_label(
+            helper, ["signal"], pd.DataFrame({"signal": [1.0]}),
+        )
+        self.assertEqual(label, "frozen_value")
+        self.assertEqual(confidence, 0.8)
+        self.assertEqual(helper.assert_columns, ["signal"])
+
     def test_oracle_peer_history_lookup_normalizes_pandas_timestamp_resolution(self):
         peer_timestamps = pd.Series(pd.date_range(
             "2025-01-01T00:00:00Z", periods=3, freq="h",

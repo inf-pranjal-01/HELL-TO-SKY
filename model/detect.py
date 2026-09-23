@@ -968,6 +968,26 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     return overall, is_anomaly, fault_type, rule_confidence, decision_basis
 
 
+def _multiclass_fault_label(model, columns: list, featured: pd.DataFrame):
+    """Classify an already-detected anomaly; never decide anomaly vs normal.
+
+    Older ``fault_helper.pkl`` artifacts are binary normal/anomaly detectors.
+    They cannot supply a fault type and must not alter the detector verdict.
+    """
+    classes = [str(value) for value in getattr(model, "classes_", [])]
+    valid = [
+        (index, label) for index, label in enumerate(classes)
+        if label.strip().lower() not in {"0", "1", "false", "true", "none", "normal", "anomaly"}
+    ]
+    if not valid or len(classes) < 2 or not all(column in featured.columns for column in columns):
+        return None, None
+    probabilities = model.predict_proba(featured[columns])
+    if probabilities.ndim != 2 or probabilities.shape[1] != len(classes):
+        return None, None
+    class_index, label = max(valid, key=lambda item: float(probabilities[0, item[0]]))
+    return label, float(probabilities[0, class_index])
+
+
 def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_buffers: dict, fault_type: str, implicated_params: list, artifact: dict = None, precomputed_features: dict = None, precomputed_neighbors: dict = None) -> dict:
     """
     Network corroboration check (Stages 3 & 4).
@@ -1704,42 +1724,26 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     score_pct, is_anomaly, fault_type, rule_confidence, decision_basis = _fuse_and_score(model_pct, fired)
     severity = score_to_severity(score_pct)
 
-    # Track A (blueprint §1) — fault_helper live-path wiring.
+    # A fault helper may classify the type of an anomaly already detected by
+    # the base detector. It must never create or suppress the binary alert.
+    fault_type_helper_confidence = None
     fault_helper_artifact = artifact.get("fault_helper")
-    if fault_helper_artifact is not None:
+    if is_anomaly and fault_helper_artifact is not None:
         try:
-            from config import HELPER_ALERT_THRESHOLD
-            from model.fault_helper import feature_columns, build_network_features
+            from model.fault_helper import build_network_features
             single_row = pd.DataFrame([{**raw_reading, "is_anomaly": False, "fault_type": None}])
             if isinstance(fault_helper_artifact, dict):
                 fh_model = fault_helper_artifact.get("helper_model")
                 fh_cols = fault_helper_artifact.get("helper_columns")
             else:
                 fh_model, fh_cols = fault_helper_artifact[:2]
-            fh_featured = build_network_features(single_row)
-            available_cols = [c for c in fh_cols if c in fh_featured.columns]
-            if available_cols:
-                fh_prob = fh_model.predict_proba(fh_featured[available_cols])[:, 1][0]
-                
-                # Case 1: Base pipeline missed it, but ExtraTrees catches it (Recall boost)
-                if not is_anomaly and fh_prob >= HELPER_ALERT_THRESHOLD:
-                    is_anomaly = True
-                    if fault_type is None:
-                        fault_type = "drift"
-                    score_pct = max(score_pct, round(fh_prob * 100, 1))
-                    severity = score_to_severity(score_pct)
-                
-                # Case 2: Base pipeline flagged it, but ExtraTrees says it's natural weather (Precision boost)
-                # Only apply this veto to multivariate and unstructured as requested by user
-                elif is_anomaly and fault_type in ["multivariate_inconsistency", "unstructured_anomaly"]:
-                    # If ExtraTrees is very confident it's clean (< 0.3 probability of fault)
-                    if fh_prob < 0.3:
-                        is_anomaly = False
-                        fault_type = None
-                        score_pct = round(fh_prob * 100, 1)
-                        severity = score_to_severity(score_pct)
-                        decision_basis = "vetoed_by_fault_helper"
-                        
+            if fh_model is not None and fh_cols:
+                fh_featured = build_network_features(single_row)
+                helper_label, fault_type_helper_confidence = _multiclass_fault_label(
+                    fh_model, list(fh_cols), fh_featured,
+                )
+                if helper_label is not None:
+                    fault_type = helper_label
         except Exception as _fh_exc:
             import logging
             logging.getLogger(__name__).debug("[detect] fault_helper scoring skipped: %s", _fh_exc)
@@ -1768,6 +1772,10 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
         "severity": severity,
         "fault_type": fault_type,
         "decision_basis": decision_basis,
+        "fault_type_helper_confidence": (
+            round(fault_type_helper_confidence * 100.0, 1)
+            if fault_type_helper_confidence is not None else None
+        ),
         "rules_fired": fired,
         "fast_path_offline_params": rules["fast_path_offline_params"],
         "confirmed_spikes": rules["confirmed_spikes"],
