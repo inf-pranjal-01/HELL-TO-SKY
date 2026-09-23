@@ -140,7 +140,9 @@ import pandas as pd
 sys.path.append(str(Path(__file__).parent.parent))
 from model.engine import DecisionEngine
 from model.detect import SensorHealthTracker, PARAMS
-from model.features import ROLLING_WINDOW_HOURS, DRIFT_LOOKBACK_HOURS
+from model.features import (
+    ROLLING_WINDOW_HOURS, DRIFT_LOOKBACK_HOURS, build_features_for_history,
+)
 from model.explain import ExplainerCache
 from config import RECOVERY_CLEAN_STREAK_REQUIRED
 from history_store import HistoryStore
@@ -412,6 +414,7 @@ class StateManager:
             pd.concat([history_df, pd.DataFrame([current_row])], ignore_index=True)
             if not history_df.empty else pd.DataFrame([current_row])
         )
+        featured_history = build_features_for_history(history_df_with_current)
 
         neighbor_buffers = {}
         for nid in self.neighbor_map.get(station_id, []):
@@ -434,6 +437,8 @@ class StateManager:
             neighbor_buffers,
             self.artifact,
             state=self.explainer,
+            precomputed_features=featured_history.iloc[-1],
+            precomputed_history_featured=featured_history,
             include_evaluation_diagnostics=include_evaluation_diagnostics,
         )
         # A spike can only be proved after the following reading

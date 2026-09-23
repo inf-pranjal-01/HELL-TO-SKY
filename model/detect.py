@@ -869,9 +869,9 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
         if cusum_hit:
             fired.append(cusum_hit)
 
-    # mv_evidence, mv_fast_path = _multivariate_evidence(featured_buffer)
-    # fired.extend(mv_evidence)
-    # fast_path_offline_params |= mv_fast_path
+    mv_evidence, mv_fast_path = _multivariate_evidence(featured_buffer)
+    fired.extend(mv_evidence)
+    fast_path_offline_params |= mv_fast_path
 
     return {
         "fired": fired,

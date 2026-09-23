@@ -6,21 +6,77 @@ import unittest
 
 import numpy as np
 import pandas as pd
+import joblib
+from pandas.testing import assert_frame_equal
 
 from model.evaluate import (
-    _latest_position_at_or_before, _metrics, _prediction_diagnostics, _raw_reading,
+    ARTIFACTS_PATH, DATA_DIR, _evaluate_stream, _latest_position_at_or_before,
+    _metrics, _prediction_diagnostics, _raw_reading,
     _remove_ground_truth_row, _timestamp_ns,
 )
 from model.detect import (
     PARAM_PREFIXES, _cusum_evidence, _cusum_evidence_series,
-    _multiclass_fault_label,
+    _multiclass_fault_label, score_reading,
 )
-from model.features import FEATURE_COLUMNS, build_feature_matrix, build_features_for_latest
+from model.features import (
+    FEATURE_COLUMNS, build_feature_matrix, build_features_for_history,
+    build_features_for_latest,
+)
 from model.state import StationBuffer
 from model.state import RAW_HISTORY_MAXLEN_HOURS
 
 
 class EvaluationPathTests(unittest.TestCase):
+    @unittest.skipUnless(ARTIFACTS_PATH.exists(), "trained detector artifact is required")
+    def test_shared_live_feature_pass_preserves_detector_decision(self):
+        source = pd.read_csv(DATA_DIR / "AWS-BHO-101.csv", parse_dates=["timestamp"]).head(80)
+        source["temperature_c"] = pd.to_numeric(source["temperature_c"], errors="coerce")
+        source.loc[source.index[-1], "temperature_c"] = 80.0
+        source["timestamp"] = pd.to_datetime(source["timestamp"], utc=True)
+        history = source.reset_index(drop=True)
+        raw_reading = history.iloc[-1].to_dict()
+        artifact = joblib.load(ARTIFACTS_PATH)
+
+        reference = score_reading(
+            raw_reading, history, artifact, include_suggestions=False,
+        )
+        featured = build_features_for_history(history)
+        optimized = score_reading(
+            raw_reading, history, artifact,
+            precomputed_features=featured.iloc[-1],
+            precomputed_history_featured=featured,
+            include_suggestions=False,
+        )
+
+        for key in (
+            "is_anomaly", "fault_type", "anomaly_score_pct", "decision_basis",
+            "rule_confidence_pct", "rules_fired", "evaluation_diagnostics",
+        ):
+            self.assertEqual(reference.get(key), optimized.get(key), key)
+
+    @unittest.skipUnless(ARTIFACTS_PATH.exists(), "trained detector artifact is required")
+    def test_cluster_parallel_production_replay_matches_single_worker(self):
+        metadata = pd.read_csv(DATA_DIR / "stations_metadata.csv")
+        cluster_ids = sorted(metadata["cluster_id"].dropna().unique())[:2]
+        station_ids = metadata.loc[metadata["cluster_id"].isin(cluster_ids), "station_id"].astype(str)
+        rows = []
+        for station_id in station_ids:
+            source = pd.read_csv(DATA_DIR / f"{station_id}.csv", parse_dates=["timestamp"]).head(3)
+            source["is_anomaly"] = False
+            source["fault_type"] = "none"
+            rows.append(source)
+        frame = pd.concat(rows, ignore_index=True)
+        frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
+        frame = frame.sort_values(["timestamp", "station_id"], kind="mergesort").reset_index(drop=True)
+        artifact = joblib.load(ARTIFACTS_PATH)
+
+        sequential, _ = _evaluate_stream(frame, artifact, "production", None, progress_every=0, workers=1)
+        parallel, report = _evaluate_stream(frame, artifact, "production", None, progress_every=0, workers=2)
+
+        self.assertEqual(report["evaluation_path"], "sequential_state_manager_parallel_clusters")
+        self.assertEqual(report["cluster_workers"], 2)
+        assert_frame_equal(sequential, parallel, check_exact=True)
+
     def test_binary_fault_helper_cannot_supply_a_fault_type(self):
         class BinaryHelper:
             classes_ = np.array([False, True])

@@ -10,7 +10,7 @@ are not the production acceptance benchmark.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import json
 import sys
 import time
@@ -475,6 +475,110 @@ def _oracle_cluster_worker(payload):
     return _evaluate_oracle_fast_serial(frame, artifact, None, progress_every, metadata)
 
 
+def _evaluate_production_cluster(payload) -> pd.DataFrame:
+    """Replay one independent network cluster through the live StateManager path."""
+    frame, artifact, metadata, progress_every = payload
+    manager = StateManager(metadata, artifact, history_store=_NullHistoryStore())
+    manager.explainer = None
+    station_sequences = {str(station): 0 for station in metadata["station_id"]}
+    results = []
+    started = time.perf_counter()
+    processed = 0
+
+    for _, timestamp_group in frame.groupby("timestamp", sort=True):
+        network_snapshot = {}
+        row_records = []
+        for row in timestamp_group.to_dict("records"):
+            station_id = str(row["station_id"])
+            raw = _raw_reading(row)
+            reading_time = pd.to_datetime(row["timestamp"], utc=True)
+            network_snapshot[station_id] = (raw, reading_time)
+            row_records.append((row, station_id, raw, reading_time))
+
+        for row, station_id, raw, reading_time in row_records:
+            verdict = manager.ingest_reading(
+                station_id, raw, reading_time, network_snapshot,
+                include_evaluation_diagnostics=True,
+            )
+            fault_type_pred = verdict.get("fault_type") or "none"
+            results.append({
+                "station_id": station_id,
+                "timestamp": reading_time,
+                "station_sequence": station_sequences[station_id],
+                "is_anomaly_gt": bool(row["is_anomaly"]),
+                "fault_type_gt": row.get("fault_type", "none") or "none",
+                "is_anomaly_pred": bool(verdict.get("is_anomaly", False)),
+                "fault_type_pred": fault_type_pred,
+                "fault_parameters_pred_json": json.dumps(_event_parameters(verdict, fault_type_pred)),
+                "anomaly_score_pct": verdict.get("anomaly_score_pct", 0),
+                "decision_basis": verdict.get("decision_basis"),
+                "network_state": verdict.get("network_corroboration"),
+                "eligible_peer_count": verdict.get("eligible_peer_count"),
+                "corroborating_peer_count": verdict.get("corroborating_peer_count"),
+                "diverged_peer_count": verdict.get("diverged_peer_count"),
+                "model_confidence_pct": verdict.get("model_confidence_pct"),
+                "rule_confidence_pct": verdict.get("rule_confidence_pct"),
+                "evaluation_diagnostics_json": json.dumps(
+                    verdict.get("evaluation_diagnostics", {}), default=str,
+                ),
+            })
+            station_sequences[station_id] += 1
+            processed += 1
+
+        if progress_every and processed and processed % progress_every < len(row_records):
+            elapsed = time.perf_counter() - started
+            cluster_id = metadata["cluster_id"].iloc[0]
+            print(f"  production[{cluster_id}]: processed {processed:,}/{len(frame):,} rows in {elapsed:.1f}s")
+
+    return pd.DataFrame(results)
+
+
+def _evaluate_production_parallel(frame: pd.DataFrame, artifact: dict, workers: int,
+                                  progress_every: int = 5000) -> tuple[pd.DataFrame, int]:
+    """Parallelize only across disjoint station clusters, never within a stream."""
+    metadata = pd.read_csv(DATA_DIR / "stations_metadata.csv")
+    frame_stations = set(frame["station_id"].astype(str))
+    tasks = []
+    for _, cluster_metadata in metadata.groupby("cluster_id", sort=True):
+        cluster_metadata = cluster_metadata[
+            cluster_metadata["station_id"].astype(str).isin(frame_stations)
+        ].copy()
+        if cluster_metadata.empty:
+            continue
+        cluster_stations = set(cluster_metadata["station_id"].astype(str))
+        cluster_frame = frame[frame["station_id"].astype(str).isin(cluster_stations)].copy()
+        tasks.append((cluster_frame, artifact, cluster_metadata, progress_every))
+
+    if not tasks:
+        raise ValueError("No evaluation rows matched stations in stations_metadata.csv")
+    worker_count = max(1, min(int(workers), len(tasks)))
+    if worker_count == 1:
+        return _evaluate_production_cluster(tasks[0]), worker_count, "sequential"
+
+    model = artifact.get("model")
+    original_n_jobs = getattr(model, "n_jobs", None)
+    if original_n_jobs is not None:
+        model.n_jobs = 1
+    try:
+        try:
+            with ProcessPoolExecutor(max_workers=worker_count) as pool:
+                predictions = list(pool.map(_evaluate_production_cluster, tasks))
+            backend = "process"
+        except PermissionError:
+            # Some Windows sandboxes deny named-pipe creation required by
+            # multiprocessing. Threads preserve cluster independence and
+            # decision parity, with lower CPU throughput under the GIL.
+            with ThreadPoolExecutor(max_workers=worker_count) as pool:
+                predictions = list(pool.map(_evaluate_production_cluster, tasks))
+            backend = "thread_fallback"
+    finally:
+        if original_n_jobs is not None:
+            model.n_jobs = original_n_jobs
+    merged = pd.concat(predictions, ignore_index=True)
+    merged = merged.sort_values(["timestamp", "station_id"], kind="mergesort").reset_index(drop=True)
+    return merged, worker_count, backend
+
+
 def _evaluate_oracle_fast(frame: pd.DataFrame, artifact: dict, ledger: list[dict] | None,
                           progress_every: int = 5000, workers: int = 1) -> tuple[pd.DataFrame, dict]:
     """Run independent station clusters in parallel, then score the merged predictions."""
@@ -519,6 +623,19 @@ def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: lis
                      progress_every: int = 5000, workers: int = 1) -> tuple[pd.DataFrame, dict]:
     if mode == "oracle":
         return _evaluate_oracle_fast(frame, artifact, ledger, progress_every, workers)
+    if workers > 1:
+        started = time.perf_counter()
+        predictions, worker_count, backend = _evaluate_production_parallel(
+            frame, artifact, workers, progress_every,
+        )
+        elapsed = time.perf_counter() - started
+        report = _metrics(predictions, ledger)
+        report["elapsed_seconds"] = round(elapsed, 3)
+        report["rows_per_second"] = round(len(predictions) / elapsed, 2) if elapsed else None
+        report["evaluation_path"] = "sequential_state_manager_parallel_clusters"
+        report["cluster_workers"] = worker_count
+        report["parallel_backend"] = backend
+        return predictions, report
     metadata = pd.read_csv(DATA_DIR / "stations_metadata.csv")
     manager = StateManager(metadata, artifact, history_store=_NullHistoryStore())
     manager.explainer = None

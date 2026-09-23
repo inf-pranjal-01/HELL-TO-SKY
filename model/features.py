@@ -611,17 +611,13 @@ def calibrate_rule_thresholds(featured_clean: pd.DataFrame) -> dict:
     return thresholds
 
 
-def build_features_for_latest(history_df: pd.DataFrame) -> pd.Series:
+def build_features_for_history(history_df: pd.DataFrame) -> pd.DataFrame:
     """
-    LIVE-MODE entry point, for detect.py -- NOT for training/eval.
+    Build the full live feature history once for a causal buffer.
 
-    Takes one station's recent history buffer (kept in-memory by
-    state.py, no CSV involved at all) and returns just the feature
-    vector for the LATEST reading in it. Includes rule-only signals too
-    (consec_diff / Nh_delta / floor_frozen_match / normalized_roc_1h),
-    since detect.py's rule layer needs them from the same computation
-    path as the model features -- same math, so training/serving/
-    rule-checking never quietly drift apart.
+    This is the shared implementation behind build_features_for_latest.
+    StateManager can pass the resulting frame to both the model and rule
+    layers, avoiding a second temporal/cross-parameter feature pass.
 
     `history_df` should NOT include an is_anomaly column in live mode.
 
@@ -633,7 +629,12 @@ def build_features_for_latest(history_df: pd.DataFrame) -> pd.Series:
     df = add_cross_parameter_features(df)
     df = add_time_features(df)
     df = add_rule_only_signals(df)
-    return df.iloc[-1]
+    return df
+
+
+def build_features_for_latest(history_df: pd.DataFrame) -> pd.Series:
+    """LIVE-MODE entry point: return the latest row from the shared feature pass."""
+    return build_features_for_history(history_df).iloc[-1]
 
 
 def build_rule_signals_recent(history_df: pd.DataFrame, n: int = 2) -> pd.DataFrame:
