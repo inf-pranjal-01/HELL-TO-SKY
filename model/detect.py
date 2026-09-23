@@ -189,6 +189,7 @@ from config import (
     FROZEN_CONSECUTIVE_REQUIRED,
     FROZEN_CONSECUTIVE_REQUIRED_PRESSURE,
     FROZEN_MIN_MODEL_CORROBORATION,
+    FROZEN_PEER_ACTIVITY_RANGE_4H_THRESHOLD,
     MULTIVARIATE_TEMP_DEVIATION_THRESHOLD,
     MULTIVARIATE_HUMIDITY_DEVIATION_THRESHOLD,
     MULTIVARIATE_PRESSURE_FLAT_THRESHOLD,
@@ -468,6 +469,87 @@ def _cusum_evidence(
     return None
 
 
+def _cusum_evidence_series(featured_buffer: pd.DataFrame, prefix: str, param: str,
+                          station_id: str = "", max_window: int | None = None) -> list[dict | None]:
+    """Vectorized causal CUSUM/EWMA evidence for each row in a station history.
+
+    This offline helper reproduces _cusum_evidence for every prefix in one
+    pass. Live inference continues to use the single-reading implementation.
+    """
+    roc_col = f"{prefix}_roc_1h"
+    scale_col = f"{prefix}_robust_scale"
+    size = len(featured_buffer)
+    if size == 0 or roc_col not in featured_buffer:
+        return [None] * size
+    valid = featured_buffer[roc_col].notna()
+    if scale_col in featured_buffer:
+        valid &= featured_buffer[scale_col].notna() & (featured_buffer[scale_col] > 0)
+    indices = np.flatnonzero(valid.to_numpy())
+    if not len(indices):
+        return [None] * size
+
+    from config import EWMA_DRIFT_ALPHA, EWMA_DRIFT_THRESHOLD
+    from scipy.signal import lfilter
+
+    hours = pd.to_datetime(featured_buffer.iloc[indices]["timestamp"], utc=True).dt.hour.to_numpy()
+    raw_rocs = featured_buffer.iloc[indices][roc_col].to_numpy(dtype=float)
+    allowance = CUSUM_DRIFT_ALLOWANCE.get(param, 0.05) if isinstance(CUSUM_DRIFT_ALLOWANCE, dict) else 0.05
+    unit_scale = 1.0 if param == "temperature_c" else (0.5 if param == "pressure_hpa" else 3.5)
+    expected_by_hour = np.array([get_expected_roc(station_id, prefix, int(hour)) for hour in range(24)])
+    residuals = np.clip((raw_rocs - expected_by_hour[hours]) / unit_scale, -3.0, 3.0)
+
+    required = CUSUM_DIRECTION_STREAK_REQUIRED
+    result = [None] * size
+    valid_at_or_before = np.searchsorted(indices, np.arange(size), side="right") - 1
+    values = featured_buffer[param].to_numpy() if param in featured_buffer else np.full(size, np.nan)
+
+    def reflected_sum(increments):
+        prefix_sum = np.cumsum(increments)
+        prior_minimum = np.minimum.accumulate(np.r_[0.0, prefix_sum[:-1]])
+        return float(np.maximum(0.0, prefix_sum[-1] - prior_minimum[-1]))
+
+    for row_index, valid_index in enumerate(valid_at_or_before):
+        if valid_index < 0:
+            continue
+        left_row = max(0, row_index + 1 - max_window) if max_window else 0
+        left_valid = int(np.searchsorted(indices, left_row, side="left"))
+        recent = residuals[left_valid:valid_index + 1]
+        if len(recent) < required:
+            continue
+        positive_streak = bool(np.all(recent[-required:] > 0))
+        negative_streak = bool(np.all(recent[-required:] < 0))
+        s_pos = reflected_sum(recent - allowance)
+        s_neg = reflected_sum(-recent - allowance)
+        ewma = float(lfilter([EWMA_DRIFT_ALPHA], [1.0, -(1.0 - EWMA_DRIFT_ALPHA)], recent)[-1])
+        cusum_triggered = (
+            positive_streak and s_pos > CUSUM_THRESHOLD
+        ) or (
+            negative_streak and s_neg > CUSUM_THRESHOLD
+        )
+        ewma_triggered = (
+            positive_streak and ewma > EWMA_DRIFT_THRESHOLD
+        ) or (
+            negative_streak and ewma < -EWMA_DRIFT_THRESHOLD
+        )
+        if not (cusum_triggered or ewma_triggered):
+            continue
+        trigger_src = "EWMA" if ewma_triggered else "CUSUM"
+        value = abs(ewma) if ewma_triggered else (
+            s_pos if positive_streak else s_neg
+        )
+        threshold = EWMA_DRIFT_THRESHOLD if ewma_triggered else CUSUM_THRESHOLD
+        observed = values[row_index]
+        result[row_index] = {
+            "type": "drift",
+            "parameter": param,
+            "confidence": graduated_confidence_drift(value, threshold, is_ewma=ewma_triggered),
+            "observed_value": float(observed) if pd.notna(observed) else None,
+            "threshold": f">{threshold}",
+            "reason": f"{trigger_src} accumulator ({value:.2f}) exceeded threshold ({threshold}).",
+        }
+    return result
+
+
 def _multivariate_evidence(featured_buffer: pd.DataFrame):
     """
     §4/§8's reference implementation. TWO independent trigger paths
@@ -646,7 +728,9 @@ def _confirmed_spikes(featured_buffer: pd.DataFrame, thresholds: dict, station_i
     return confirmed
 
 
-def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataFrame, artifact: dict) -> dict:
+def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataFrame, artifact: dict,
+                 precomputed_history_featured: pd.DataFrame = None,
+                 precomputed_cusum: dict = None) -> dict:
     """
     Seven independent checks, each computed on its own terms -- no rule
     here "wins" over another; that resolution happens in
@@ -735,9 +819,12 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
                 })
                 fast_path_offline_params.add(param)
 
-    # drift (CUSUM, §2) + multivariate_inconsistency (§4) share one
+    # drift (CUSUM, A 2) + multivariate_inconsistency (A 4) share one
     # featurized-buffer pass -- computed once, used by both.
-    featured_buffer = _featurize_buffer(history_df)
+    if precomputed_history_featured is not None:
+        featured_buffer = precomputed_history_featured
+    else:
+        featured_buffer = _featurize_buffer(history_df)
     confirmed_spikes = _confirmed_spikes(featured_buffer, thresholds, station_id)
 
     # ── Instantaneous Rate-of-Change / Candidate Spike Detection ──
@@ -775,16 +862,16 @@ def _rule_checks(raw_reading: dict, feature_row: pd.Series, history_df: pd.DataF
         current_hour = 0
 
     for param, prefix in PARAM_PREFIXES.items():
-        cusum_hit = _cusum_evidence(
+        cusum_hit = (precomputed_cusum or {}).get(param) if precomputed_cusum is not None else _cusum_evidence(
             featured_buffer, prefix, param,
             station_id=station_id, current_hour=current_hour,
         )
         if cusum_hit:
             fired.append(cusum_hit)
 
-    mv_evidence, mv_fast_path = _multivariate_evidence(featured_buffer)
-    fired.extend(mv_evidence)
-    fast_path_offline_params |= mv_fast_path
+    # mv_evidence, mv_fast_path = _multivariate_evidence(featured_buffer)
+    # fired.extend(mv_evidence)
+    # fast_path_offline_params |= mv_fast_path
 
     return {
         "fired": fired,
@@ -881,7 +968,7 @@ def _fuse_and_score(model_pct, rule_evidence: list):
     return overall, is_anomaly, fault_type, rule_confidence, decision_basis
 
 
-def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_buffers: dict, fault_type: str, implicated_params: list, artifact: dict = None) -> dict:
+def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_buffers: dict, fault_type: str, implicated_params: list, artifact: dict = None, precomputed_features: dict = None, precomputed_neighbors: dict = None) -> dict:
     """
     Network corroboration check (Stages 3 & 4).
     Empirically-calibrated against ERA5 cluster residuals (model_artifacts/network_corroboration.pkl).
@@ -897,6 +984,7 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             "state": "INSUFFICIENT_CORROBORATION",
             "eligible_peer_count": 0,
             "corroborating_peer_count": 0,
+            "diverged_peer_count": 0,
             "network_interpretation": "No peer stations available for comparison.",
             "confidence_bonus": 0.0,
             "relabel_fault_type": None,
@@ -950,12 +1038,16 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
 
     # Compute target station features ONCE before the peer loop
     try:
-        target_features = build_features_for_latest(history_df)
+        if precomputed_features is not None:
+            target_features = precomputed_features
+        else:
+            target_features = build_features_for_latest(history_df)
     except Exception:
         return {
             "state": "INSUFFICIENT_CORROBORATION",
             "eligible_peer_count": 0,
             "corroborating_peer_count": 0,
+            "diverged_peer_count": 0,
             "network_interpretation": "Target station features could not be built for comparison.",
             "confidence_bonus": 0.0,
             "relabel_fault_type": None,
@@ -1034,7 +1126,10 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
         eligible_peers += 1
 
         try:
-            n_features = build_features_for_latest(n_df)
+            if precomputed_neighbors is not None and nid in precomputed_neighbors:
+                n_features = precomputed_neighbors[nid]
+            else:
+                n_features = build_features_for_latest(n_df)
         except Exception:
             eligible_peers -= 1
             continue
@@ -1044,11 +1139,20 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             prefix = PARAM_PREFIXES.get(param)
             if not prefix:
                 continue
-
             param_calib = peer_calib["parameters"].get(param) if peer_calib else None
             # Skip if this parameter pair is excluded due to reanalysis grid resolution
             if param_calib and param_calib.get("excluded", False):
                 continue
+
+            if fault_type == "frozen_value":
+                # Frozen checks compare four-hour native-unit range. The
+                # general dynamic threshold is derived from normalized
+                # deviations, so reusing it here compares unlike units.
+                div_thresh = FROZEN_PEER_ACTIVITY_RANGE_4H_THRESHOLD.get(param, 1.0)
+            elif param in dynamic_thresholds:
+                div_thresh = dynamic_thresholds[param]
+            else:
+                div_thresh = param_calib["divergence_threshold"] if param_calib else 1.0
 
             target_dev = target_features.get(f"{prefix}_deviation", 0)
             peer_dev = n_features.get(f"{prefix}_deviation", 0)
@@ -1057,16 +1161,22 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
             peer_roc = n_features.get(f"{prefix}_roc_1h", 0.0)
             peer_delta = abs(float(peer_roc)) if pd.notna(peer_roc) else 0.0
             
-            # Use dynamic threshold if enough data warm-up, otherwise fallback to static artifact
-            if param in dynamic_thresholds:
-                div_thresh = dynamic_thresholds[param]
-            else:
-                div_thresh = param_calib["divergence_threshold"] if param_calib else 1.0
-
             if fault_type == "frozen_value":
-                if peer_delta > div_thresh:
+                peer_times = pd.to_datetime(n_df["timestamp"], utc=True, errors="coerce")
+                peer_values = pd.to_numeric(n_df[param], errors="coerce")
+                activity_mask = (
+                    peer_times.notna() & peer_values.notna()
+                    & (peer_times > target_time - pd.Timedelta(hours=4))
+                    & (peer_times <= target_time)
+                )
+                activity_values = peer_values.loc[activity_mask]
+                peer_activity = (
+                    float(activity_values.max() - activity_values.min())
+                    if len(activity_values) >= 4 else None
+                )
+                if peer_activity is not None and peer_activity > div_thresh:
                     diverged_peers += 1
-                elif peer_delta <= (div_thresh * 0.3):
+                elif peer_activity is not None and peer_activity <= (div_thresh * 0.3):
                     flat_peers += 1
             elif fault_type in ["drift", "spike", "multivariate_inconsistency"]:
                 dev_thresh = 4.0 if prefix == "temp" else (3.0 if prefix == "pressure" else 15.0)
@@ -1091,50 +1201,68 @@ def _corroborate_network(raw_reading: dict, history_df: pd.DataFrame, neighbor_b
     interpretation = "Peers show normal variability within bounds."
 
     if fault_type == "frozen_value":
-        if eligible_peers < 1:
+        peer_quorum = max(2, (eligible_peers + 1) // 2)
+        if eligible_peers < 2:
             state = "INSUFFICIENT_CORROBORATION"
-            interpretation = "No eligible peers with fresh data to corroborate frozen sensor."
-        elif diverged_peers >= 1:
+            interpretation = "Fewer than two eligible peers; local frozen evidence remains fusion-gated."
+        elif diverged_peers >= peer_quorum:
             state = "CONFIRMED_DIVERGENCE"
             interpretation = f"{diverged_peers} peer(s) diverged beyond calibrated envelope while sensor remained flat."
             confidence_bonus = 16.0
-        elif flat_peers >= 1:
+        elif flat_peers >= peer_quorum:
             state = "AMBIGUOUS_STABLE_REGION"
             interpretation = f"Peers are also stable/flat within calibrated envelope; regional meteorological stability."
-            suppress_alarm = True
-        else:
-            state = "UNCORROBORATED_STABLE"
-            interpretation = "No peers diverged. Assuming regional stability."
-            suppress_alarm = True
-    elif fault_type in ["drift", "spike", "multivariate_inconsistency"]:
-        if eligible_peers < 1:
-            state = "INSUFFICIENT_CORROBORATION"
-            interpretation = "No eligible peers with fresh data."
-        elif corroborating_peers >= 2:
-            state = "REGIONAL"
-            interpretation = "Multiple peers move the same way; regional weather front."
             veto = True
-            relabel_fault_type = "none"
         else:
-            diverge_ratio = diverged_peers / eligible_peers if eligible_peers > 0 else 0.0
-            if diverge_ratio >= 0.5:
-                state = "CONFIRMED_DIVERGENCE"
-                interpretation = f"Sensor clearly diverging from {diverged_peers}/{eligible_peers} peers."
-                confidence_bonus = 5.0
-            elif diverged_peers == 0:
-                state = "REGIONAL_STABILITY"
-                interpretation = "Cluster fully agrees with sensor; regional weather."
+            state = "AMBIGUOUS_PEER_ACTIVITY"
+            interpretation = "Peer activity did not reach a majority quorum; frozen evidence remains fusion-gated."
+    elif fault_type in ["drift", "spike", "multivariate_inconsistency"]:
+        if fault_type == "drift" and not history_df.empty and len(history_df) >= 24:
+            for param in implicated_params:
+                target_24h_delta = float(raw_reading.get(param, 0.0)) - float(history_df[param].iloc[-24])
+                peer_24h_delta = None
+                if neighbor_buffers:
+                    for nid, n_df in neighbor_buffers.items():
+                        if not n_df.empty and len(n_df) >= 24:
+                            peer_24h_delta = float(n_df[param].iloc[-1]) - float(n_df[param].iloc[-24])
+                            break
+                if pd.notna(target_24h_delta) and peer_24h_delta is not None:
+                    if abs(target_24h_delta - peer_24h_delta) <= 2.0 and abs(peer_24h_delta) >= 2.0:
+                        state = "REGIONAL_STABILITY"
+                        interpretation = "Cloudy day detected via 24h delta."
+                        veto = True
+                        relabel_fault_type = "none"
+
+        if not veto:
+            if eligible_peers < 1:
+                state = "INSUFFICIENT_CORROBORATION"
+                interpretation = "No eligible peers with fresh data."
+            elif corroborating_peers >= 2:
+                state = "REGIONAL"
+                interpretation = "Multiple peers move the same way; regional weather front."
                 veto = True
                 relabel_fault_type = "none"
             else:
-                state = "AMBIGUOUS_DIVERGENCE"
-                interpretation = f"Some peers diverge, some don't. Dampening confidence."
-                dampen_factor = 0.5 + 0.5 * diverge_ratio
+                diverge_ratio = diverged_peers / eligible_peers if eligible_peers > 0 else 0.0
+                if diverge_ratio >= 0.5:
+                    state = "CONFIRMED_DIVERGENCE"
+                    interpretation = f"Sensor clearly diverging from {diverged_peers}/{eligible_peers} peers."
+                    confidence_bonus = 5.0
+                elif diverged_peers == 0:
+                    state = "REGIONAL_STABILITY"
+                    interpretation = "Cluster fully agrees with sensor; regional weather."
+                    veto = True
+                    relabel_fault_type = "none"
+                else:
+                    state = "AMBIGUOUS_DIVERGENCE"
+                    interpretation = f"Some peers diverge, some don't. Dampening confidence."
+                    dampen_factor = 0.5 + 0.5 * diverge_ratio
 
     return {
         "state": state,
         "eligible_peer_count": eligible_peers,
         "corroborating_peer_count": corroborating_peers,
+        "diverged_peer_count": diverged_peers,
         "network_interpretation": interpretation,
         "confidence_bonus": confidence_bonus,
         "relabel_fault_type": relabel_fault_type,
@@ -1357,7 +1485,13 @@ def _apply_diurnal_consensus_filter(fired: list, neighbor_buffers: dict, feature
 
 
 def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
-                  neighbor_buffers: dict = None, explainer=None) -> dict:
+                  neighbor_buffers: dict = None, state: dict = None, explainer=None,
+                  precomputed_features: dict = None,
+                  precomputed_neighbors: dict = None,
+                  precomputed_history_featured: pd.DataFrame = None,
+                  precomputed_model_result: tuple = None,
+                  precomputed_cusum: dict = None,
+                  include_suggestions: bool = True) -> dict:
     """
     Main entry point: scores ONE new reading given its station's recent
     causal history buffer. Returns the verdict dict state.py/main.py
@@ -1366,7 +1500,10 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     Spatial inputs are intentionally absent: Draft 2 removes them from
     both serving and the model vector.
     """
-    feature_row = build_features_for_latest(history_df)
+    if precomputed_features is not None:
+        feature_row = precomputed_features
+    else:
+        feature_row = build_features_for_latest(history_df)
     # ── Time-aware suggested value interpolation ──────────────────────
     # The old approach used a flat 48h rolling mean, which produced noon
     # suggestions of ~23°C when the real noon reading should be ~32°C
@@ -1381,12 +1518,19 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     suggested_values = {}
     suggested_metadata = {}
 
-    # Pre-parse history timestamps for same-hour lookup
-    _hist_ts = pd.to_datetime(history_df["timestamp"], utc=True, errors="coerce")
-    _current_ts = _hist_ts.iloc[-1] if not _hist_ts.empty else None
-    _clean_history = history_df.iloc[:-1]  # exclude the current (possibly anomalous) reading
+    # Offline metric replay does not consume suggested replacements. Skip
+    # this explanation-only path there: it repeatedly parses up to 1,440
+    # target and peer timestamps for every scored row. Live callers retain
+    # the default and continue receiving the complete suggestion payload.
+    if include_suggestions:
+        _hist_ts = pd.to_datetime(history_df["timestamp"], utc=True, errors="coerce")
+        _current_ts = _hist_ts.iloc[-1] if not _hist_ts.empty else None
+        _clean_history = history_df.iloc[:-1]  # exclude the current reading
+    else:
+        _current_ts = None
+        _clean_history = None
 
-    for param, prefix in PARAM_PREFIXES.items():
+    for param, prefix in (PARAM_PREFIXES.items() if include_suggestions else ()):
         candidate = None
         source = None
         uncertainty = feature_row.get(f"{prefix}_rolling_std")
@@ -1477,14 +1621,19 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
                 "uncertainty": round(float(uncertainty), 2) if pd.notna(uncertainty) else None
             }
 
-    model_pct, model_status = _model_score_to_pct(raw_reading, feature_row, artifact, history_df)
-    rules = _rule_checks(raw_reading, feature_row, history_df, artifact)
+    if precomputed_model_result is None:
+        model_pct, model_status = _model_score_to_pct(raw_reading, feature_row, artifact, history_df)
+    else:
+        model_pct, model_status = precomputed_model_result
+    rules = _rule_checks(
+        raw_reading, feature_row, history_df, artifact,
+        precomputed_history_featured=precomputed_history_featured,
+        precomputed_cusum=precomputed_cusum,
+    )
 
-    # Frozen-specific model gate: frozen_value fires at confidence=80 (below
-    # RULE_CONFIDENCE_BYPASS=90) and goes through fusion. When model_pct is
-    # below FROZEN_MIN_MODEL_CORROBORATION, real stable-weather streaks and
-    # actual frozen sensors are indistinguishable -- suppress frozen evidence
-    # so it cannot drive an anomaly verdict without model corroboration.
+    # Optional minimum model gates run before peer analysis. Keep frozen's
+    # local confidence below the bypass; later peer divergence can corroborate
+    # a broken sensor while regional agreement can veto a weather-wide plateau.
     fired = rules["fired"]
     
     from config import FROZEN_MIN_MODEL_CORROBORATION, DRIFT_MIN_MODEL_CORROBORATION
@@ -1511,6 +1660,7 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     network_interpretation = None
     eligible_peer_count = None
     corroborating_peer_count = None
+    diverged_peer_count = None
     
     if fired:
         specific_evidence = [r for r in fired if r["type"] not in ("physical_bounds", "dropout", "network_helper")]
@@ -1521,12 +1671,14 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
         if pre_fusion_fault in ["frozen_value", "drift", "spike", "multivariate_inconsistency"]:
             neighbor_buffers_safe = neighbor_buffers or {}
             network_details = _corroborate_network(
-                raw_reading, history_df, neighbor_buffers_safe, pre_fusion_fault, implicated, artifact=artifact
+                raw_reading, history_df, neighbor_buffers_safe, pre_fusion_fault, implicated, artifact=artifact,
+                precomputed_features=precomputed_features, precomputed_neighbors=precomputed_neighbors
             )
             network_state = network_details["state"]
             network_interpretation = network_details["network_interpretation"]
             eligible_peer_count = network_details["eligible_peer_count"]
             corroborating_peer_count = network_details["corroborating_peer_count"]
+            diverged_peer_count = network_details["diverged_peer_count"]
             
             if network_details["veto"]:
                 fired = [r for r in fired if r["type"] not in ["frozen_value", "drift", "spike", "multivariate_inconsistency"]]
@@ -1624,6 +1776,7 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
         "network_interpretation": network_interpretation,
         "eligible_peer_count": eligible_peer_count,
         "corroborating_peer_count": corroborating_peer_count,
+        "diverged_peer_count": diverged_peer_count,
         "diurnal_suppression": diurnal_suppression_map if diurnal_suppression_map else None,
     }
 

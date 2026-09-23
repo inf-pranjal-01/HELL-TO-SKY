@@ -64,6 +64,8 @@ Phase 3 can compute real accuracy metrics.
 import numpy as np
 import pandas as pd
 from pathlib import Path
+import argparse
+import json
 
 # This script lives in the SAME folder as your fetched CSVs
 # (backend/data/AWS-*.csv), unlike data_fetch.py which saves INTO a
@@ -561,12 +563,28 @@ FAULT_WEIGHTS = {
 MIN_EVENTS_PER_TYPE = 4
 
 
-def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
+def _affected_parameters(fault_fn, sampled_column: str) -> list[str]:
+    """Return the sensor channels actually changed by an injected fault."""
+    if fault_fn is inject_multivariate:
+        return ["temperature_c", "humidity_pct", "pressure_hpa"]
+    if fault_fn is inject_unstructured_anomaly:
+        return ["temperature_c", "pressure_hpa", "humidity_pct"]
+    return [sampled_column]
+
+
+def inject_anomalies(
+    df: pd.DataFrame,
+    seed: int = RANDOM_SEED,
+    *,
+    return_events: bool = False,
+) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
     """
     Walks through one station's dataframe and injects labeled faults
     at random locations across temperature/pressure/humidity columns.
-    Returns a new dataframe with two extra columns: is_anomaly (bool)
-    and fault_type (str or None) -- this is the ground truth label set.
+    Returns a new dataframe with row labels. With ``return_events=True``,
+    also returns a lossless event ledger so concurrent faults on different
+    parameters retain separate identities even though the legacy single
+    ``fault_type`` row label can represent only one fault at a timestamp.
 
     Non-overlap guarantee (§8): before any fault_fn runs, its MAX
     possible window is checked for real interval overlap against every
@@ -610,6 +628,8 @@ def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
     claimed_spans = {col: [] for col in columns}
     fault_counts = {fn: 0 for fn in fault_functions}
     rows_injected = 0
+    station_id = str(df["station_id"].iloc[0]) if "station_id" in df.columns and len(df) else "unknown"
+    events = []
 
     def try_inject(fault_fn, attempts_budget):
         nonlocal rows_injected
@@ -618,7 +638,7 @@ def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
             attempts += 1
             idx = int(rng.integers(10, n_rows - 60))
             column = rng.choice(columns)
-            cols_needed = list(columns) if fault_fn in MULTI_COLUMN_FAULTS else [column]
+            cols_needed = _affected_parameters(fault_fn, column)
 
             # Conservative pre-check: reserve the fault type's MAX
             # possible window before running it, so we never have to
@@ -643,6 +663,20 @@ def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
 
             df.loc[start:end, "is_anomaly"] = True
             df.loc[start:end, "fault_type"] = fault_type
+            event_number = len(events) + 1
+            timestamp_start = df.loc[start, "timestamp"] if "timestamp" in df.columns else None
+            timestamp_end = df.loc[end, "timestamp"] if "timestamp" in df.columns else None
+            events.append({
+                "episode_id": f"{station_id}:{seed}:{event_number:04d}",
+                "station_id": station_id,
+                "fault_type": fault_type,
+                "parameters": cols_needed,
+                "start_index": int(start),
+                "end_index": int(end),
+                "start_timestamp": timestamp_start,
+                "end_timestamp": timestamp_end,
+                "seed": int(seed),
+            })
             for col in cols_needed:
                 claimed_spans[col].append((start, end))
             rows_injected += (end - start + 1)
@@ -688,10 +722,24 @@ def inject_anomalies(df: pd.DataFrame, seed: int = RANDOM_SEED) -> pd.DataFrame:
         fault_fn = weight_fns[rng.choice(len(weight_fns), p=weight_probs)]
         try_inject(fault_fn, attempts_budget=1)
 
+    if return_events:
+        return df, pd.DataFrame(events, columns=[
+            "episode_id", "station_id", "fault_type", "parameters",
+            "start_index", "end_index", "start_timestamp", "end_timestamp", "seed",
+        ])
     return df
 
 
-def main():
+def main(output_dir: Path | None = None, seed: int = RANDOM_SEED):
+    output_dir = Path(output_dir) if output_dir is not None else (
+        Path(__file__).resolve().parent.parent / "evaluation" / "generated_replays" / f"seed_{seed}"
+    )
+    if output_dir.exists():
+        raise FileExistsError(
+            f"Refusing to overwrite generated replay directory: {output_dir}. "
+            "Choose a new --output-dir."
+        )
+    output_dir.mkdir(parents=True, exist_ok=False)
     print(
         "Injection density multiplier: "
         f"{ANOMALY_DENSITY_MULTIPLIER:g} "
@@ -735,6 +783,7 @@ def main():
         print(f"  -> {f.stem}")
     print(f"Remaining {len(station_files) - len(faulty_files)} stations stay clean (real data only) -- these are your trustworthy spatial-consistency neighbors.\n")
 
+    events = []
     for csv_path in station_files:
         df = pd.read_csv(csv_path, parse_dates=["timestamp"])
 
@@ -747,8 +796,9 @@ def main():
             # testing -- 3 stations, identical 60/60/60 breakdown),
             # which isn't realistic: independent sensor failures
             # shouldn't sync up like that.
-            station_seed = RANDOM_SEED + station_files.index(csv_path)
-            injected = inject_anomalies(df, seed=station_seed)
+            station_seed = seed + station_files.index(csv_path)
+            injected, station_events = inject_anomalies(df, seed=station_seed, return_events=True)
+            events.extend(station_events.to_dict("records"))
             n_anomalies = injected["is_anomaly"].sum()
             print(f"  -> {n_anomalies} of {len(injected)} rows flagged as ground-truth anomalies")
             print(f"  -> fault type breakdown:\n{injected['fault_type'].value_counts()}\n")
@@ -762,9 +812,34 @@ def main():
             injected["fault_type"] = None
             print(f"{csv_path.name}: left clean (0 anomalies) -- serves as a trustworthy neighbor\n")
 
-        output_path = DATA_DIR / csv_path.name.replace(".csv", "_labeled.csv")
+        output_path = output_dir / csv_path.name.replace(".csv", "_labeled.csv")
         injected.to_csv(output_path, index=False)
+
+    ledger = pd.DataFrame(events, columns=[
+        "episode_id", "station_id", "fault_type", "parameters",
+        "start_index", "end_index", "start_timestamp", "end_timestamp", "seed",
+    ])
+    if not ledger.empty:
+        ledger["parameters"] = ledger["parameters"].map(json.dumps)
+    ledger.to_csv(output_dir / "fault_events.csv", index=False)
+    manifest = {
+        "base_seed": int(seed),
+        "station_seed_rule": "base_seed + index in sorted raw station files",
+        "anomaly_rate": INJECTION_RATE,
+        "density_multiplier": ANOMALY_DENSITY_MULTIPLIER,
+        "faulted_stations": sorted(p.stem for p in faulty_files),
+        "raw_station_files": [p.name for p in station_files],
+        "event_count": int(len(ledger)),
+    }
+    (output_dir / "run_manifest.json").write_text(
+        json.dumps(manifest, indent=2), encoding="utf-8",
+    )
+    print(f"Generated labeled replay bundle and {len(ledger)} event(s) in {output_dir}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Generate labeled evaluation replays without overwriting source data.")
+    parser.add_argument("--seed", type=int, default=RANDOM_SEED)
+    parser.add_argument("--output-dir", type=Path, default=None)
+    args = parser.parse_args()
+    main(output_dir=args.output_dir, seed=args.seed)

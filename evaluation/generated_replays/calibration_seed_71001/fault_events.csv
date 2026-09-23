@@ -1,0 +1,491 @@
+episode_id,station_id,fault_type,parameters,start_index,end_index,start_timestamp,end_timestamp,seed
+AWS-BHO-030:71001:0001,AWS-BHO-030,spike,"[""temperature_c""]",634,634,2025-01-27 10:00:00,2025-01-27 10:00:00,71001
+AWS-BHO-030:71001:0002,AWS-BHO-030,spike,"[""temperature_c""]",1406,1406,2025-02-28 14:00:00,2025-02-28 14:00:00,71001
+AWS-BHO-030:71001:0003,AWS-BHO-030,spike,"[""temperature_c""]",942,942,2025-02-09 06:00:00,2025-02-09 06:00:00,71001
+AWS-BHO-030:71001:0004,AWS-BHO-030,spike,"[""temperature_c""]",1650,1650,2025-03-10 18:00:00,2025-03-10 18:00:00,71001
+AWS-BHO-030:71001:0005,AWS-BHO-030,spike,"[""pressure_hpa""]",548,548,2025-01-23 20:00:00,2025-01-23 20:00:00,71001
+AWS-BHO-030:71001:0006,AWS-BHO-030,spike,"[""temperature_c""]",1811,1811,2025-03-17 11:00:00,2025-03-17 11:00:00,71001
+AWS-BHO-030:71001:0007,AWS-BHO-030,spike,"[""pressure_hpa""]",1747,1747,2025-03-14 19:00:00,2025-03-14 19:00:00,71001
+AWS-BHO-030:71001:0008,AWS-BHO-030,spike,"[""pressure_hpa""]",259,259,2025-01-11 19:00:00,2025-01-11 19:00:00,71001
+AWS-BHO-030:71001:0009,AWS-BHO-030,spike,"[""pressure_hpa""]",2003,2003,2025-03-25 11:00:00,2025-03-25 11:00:00,71001
+AWS-BHO-030:71001:0010,AWS-BHO-030,spike,"[""temperature_c""]",461,461,2025-01-20 05:00:00,2025-01-20 05:00:00,71001
+AWS-BHO-030:71001:0011,AWS-BHO-030,frozen_value,"[""pressure_hpa""]",975,981,2025-02-10 15:00:00,2025-02-10 21:00:00,71001
+AWS-BHO-030:71001:0012,AWS-BHO-030,frozen_value,"[""pressure_hpa""]",1433,1441,2025-03-01 17:00:00,2025-03-02 01:00:00,71001
+AWS-BHO-030:71001:0013,AWS-BHO-030,frozen_value,"[""humidity_pct""]",235,241,2025-01-10 19:00:00,2025-01-11 01:00:00,71001
+AWS-BHO-030:71001:0014,AWS-BHO-030,frozen_value,"[""humidity_pct""]",1670,1676,2025-03-11 14:00:00,2025-03-11 20:00:00,71001
+AWS-BHO-030:71001:0015,AWS-BHO-030,frozen_value,"[""humidity_pct""]",1542,1549,2025-03-06 06:00:00,2025-03-06 13:00:00,71001
+AWS-BHO-030:71001:0016,AWS-BHO-030,frozen_value,"[""temperature_c""]",789,797,2025-02-02 21:00:00,2025-02-03 05:00:00,71001
+AWS-BHO-030:71001:0017,AWS-BHO-030,frozen_value,"[""temperature_c""]",1257,1264,2025-02-22 09:00:00,2025-02-22 16:00:00,71001
+AWS-BHO-030:71001:0018,AWS-BHO-030,frozen_value,"[""temperature_c""]",836,843,2025-02-04 20:00:00,2025-02-05 03:00:00,71001
+AWS-BHO-030:71001:0019,AWS-BHO-030,frozen_value,"[""temperature_c""]",62,69,2025-01-03 14:00:00,2025-01-03 21:00:00,71001
+AWS-BHO-030:71001:0020,AWS-BHO-030,frozen_value,"[""pressure_hpa""]",614,622,2025-01-26 14:00:00,2025-01-26 22:00:00,71001
+AWS-BHO-030:71001:0021,AWS-BHO-030,drift,"[""pressure_hpa""]",766,801,2025-02-01 22:00:00,2025-02-03 09:00:00,71001
+AWS-BHO-030:71001:0022,AWS-BHO-030,drift,"[""pressure_hpa""]",452,479,2025-01-19 20:00:00,2025-01-20 23:00:00,71001
+AWS-BHO-030:71001:0023,AWS-BHO-030,drift,"[""humidity_pct""]",413,461,2025-01-18 05:00:00,2025-01-20 05:00:00,71001
+AWS-BHO-030:71001:0024,AWS-BHO-030,drift,"[""pressure_hpa""]",1599,1627,2025-03-08 15:00:00,2025-03-09 19:00:00,71001
+AWS-BHO-030:71001:0025,AWS-BHO-030,drift,"[""humidity_pct""]",1171,1196,2025-02-18 19:00:00,2025-02-19 20:00:00,71001
+AWS-BHO-030:71001:0026,AWS-BHO-030,drift,"[""pressure_hpa""]",653,692,2025-01-28 05:00:00,2025-01-29 20:00:00,71001
+AWS-BHO-030:71001:0027,AWS-BHO-030,drift,"[""pressure_hpa""]",2032,2067,2025-03-26 16:00:00,2025-03-28 03:00:00,71001
+AWS-BHO-030:71001:0028,AWS-BHO-030,drift,"[""temperature_c""]",515,561,2025-01-22 11:00:00,2025-01-24 09:00:00,71001
+AWS-BHO-030:71001:0029,AWS-BHO-030,drift,"[""temperature_c""]",962,990,2025-02-10 02:00:00,2025-02-11 06:00:00,71001
+AWS-BHO-030:71001:0030,AWS-BHO-030,drift,"[""temperature_c""]",237,258,2025-01-10 21:00:00,2025-01-11 18:00:00,71001
+AWS-BHO-030:71001:0031,AWS-BHO-030,dropout,"[""pressure_hpa""]",557,557,2025-01-24 05:00:00,2025-01-24 05:00:00,71001
+AWS-BHO-030:71001:0032,AWS-BHO-030,dropout,"[""humidity_pct""]",1112,1112,2025-02-16 08:00:00,2025-02-16 08:00:00,71001
+AWS-BHO-030:71001:0033,AWS-BHO-030,dropout,"[""pressure_hpa""]",1656,1656,2025-03-11 00:00:00,2025-03-11 00:00:00,71001
+AWS-BHO-030:71001:0034,AWS-BHO-030,dropout,"[""temperature_c""]",2011,2011,2025-03-25 19:00:00,2025-03-25 19:00:00,71001
+AWS-BHO-030:71001:0035,AWS-BHO-030,dropout,"[""humidity_pct""]",2034,2034,2025-03-26 18:00:00,2025-03-26 18:00:00,71001
+AWS-BHO-030:71001:0036,AWS-BHO-030,dropout,"[""pressure_hpa""]",17,17,2025-01-01 17:00:00,2025-01-01 17:00:00,71001
+AWS-BHO-030:71001:0037,AWS-BHO-030,dropout,"[""temperature_c""]",1266,1266,2025-02-22 18:00:00,2025-02-22 18:00:00,71001
+AWS-BHO-030:71001:0038,AWS-BHO-030,dropout,"[""humidity_pct""]",832,832,2025-02-04 16:00:00,2025-02-04 16:00:00,71001
+AWS-BHO-030:71001:0039,AWS-BHO-030,dropout,"[""temperature_c""]",1340,1340,2025-02-25 20:00:00,2025-02-25 20:00:00,71001
+AWS-BHO-030:71001:0040,AWS-BHO-030,dropout,"[""pressure_hpa""]",530,530,2025-01-23 02:00:00,2025-01-23 02:00:00,71001
+AWS-BHO-030:71001:0041,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1912,1915,2025-03-21 16:00:00,2025-03-21 19:00:00,71001
+AWS-BHO-030:71001:0042,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",736,738,2025-01-31 16:00:00,2025-01-31 18:00:00,71001
+AWS-BHO-030:71001:0043,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",304,307,2025-01-13 16:00:00,2025-01-13 19:00:00,71001
+AWS-BHO-030:71001:0044,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",729,733,2025-01-31 09:00:00,2025-01-31 13:00:00,71001
+AWS-BHO-030:71001:0045,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1850,1853,2025-03-19 02:00:00,2025-03-19 05:00:00,71001
+AWS-BHO-030:71001:0046,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1331,1334,2025-02-25 11:00:00,2025-02-25 14:00:00,71001
+AWS-BHO-030:71001:0047,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",211,214,2025-01-09 19:00:00,2025-01-09 22:00:00,71001
+AWS-BHO-030:71001:0048,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",594,598,2025-01-25 18:00:00,2025-01-25 22:00:00,71001
+AWS-BHO-030:71001:0049,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1776,1780,2025-03-16 00:00:00,2025-03-16 04:00:00,71001
+AWS-BHO-030:71001:0050,AWS-BHO-030,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1461,1464,2025-03-02 21:00:00,2025-03-03 00:00:00,71001
+AWS-BHO-030:71001:0051,AWS-BHO-030,sensor_fail_low,"[""humidity_pct""]",994,997,2025-02-11 10:00:00,2025-02-11 13:00:00,71001
+AWS-BHO-030:71001:0052,AWS-BHO-030,sensor_fail_low,"[""pressure_hpa""]",1798,1801,2025-03-16 22:00:00,2025-03-17 01:00:00,71001
+AWS-BHO-030:71001:0053,AWS-BHO-030,sensor_fail_low,"[""temperature_c""]",485,488,2025-01-21 05:00:00,2025-01-21 08:00:00,71001
+AWS-BHO-030:71001:0054,AWS-BHO-030,sensor_fail_low,"[""humidity_pct""]",740,743,2025-01-31 20:00:00,2025-01-31 23:00:00,71001
+AWS-BHO-030:71001:0055,AWS-BHO-030,sensor_fail_low,"[""humidity_pct""]",879,882,2025-02-06 15:00:00,2025-02-06 18:00:00,71001
+AWS-BHO-030:71001:0056,AWS-BHO-030,sensor_fail_low,"[""temperature_c""]",2048,2051,2025-03-27 08:00:00,2025-03-27 11:00:00,71001
+AWS-BHO-030:71001:0057,AWS-BHO-030,sensor_fail_low,"[""pressure_hpa""]",1012,1015,2025-02-12 04:00:00,2025-02-12 07:00:00,71001
+AWS-BHO-030:71001:0058,AWS-BHO-030,sensor_fail_low,"[""pressure_hpa""]",1362,1365,2025-02-26 18:00:00,2025-02-26 21:00:00,71001
+AWS-BHO-030:71001:0059,AWS-BHO-030,sensor_fail_low,"[""humidity_pct""]",1995,1998,2025-03-25 03:00:00,2025-03-25 06:00:00,71001
+AWS-BHO-030:71001:0060,AWS-BHO-030,sensor_fail_low,"[""humidity_pct""]",973,976,2025-02-10 13:00:00,2025-02-10 16:00:00,71001
+AWS-BHO-030:71001:0061,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",136,141,2025-01-06 16:00:00,2025-01-06 21:00:00,71001
+AWS-BHO-030:71001:0062,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",387,393,2025-01-17 03:00:00,2025-01-17 09:00:00,71001
+AWS-BHO-030:71001:0063,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1303,1309,2025-02-24 07:00:00,2025-02-24 13:00:00,71001
+AWS-BHO-030:71001:0064,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1210,1214,2025-02-20 10:00:00,2025-02-20 14:00:00,71001
+AWS-BHO-030:71001:0065,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1146,1149,2025-02-17 18:00:00,2025-02-17 21:00:00,71001
+AWS-BHO-030:71001:0066,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1708,1711,2025-03-13 04:00:00,2025-03-13 07:00:00,71001
+AWS-BHO-030:71001:0067,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1378,1385,2025-02-27 10:00:00,2025-02-27 17:00:00,71001
+AWS-BHO-030:71001:0068,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1389,1394,2025-02-27 21:00:00,2025-02-28 02:00:00,71001
+AWS-BHO-030:71001:0069,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1061,1066,2025-02-14 05:00:00,2025-02-14 10:00:00,71001
+AWS-BHO-030:71001:0070,AWS-BHO-030,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1728,1733,2025-03-14 00:00:00,2025-03-14 05:00:00,71001
+AWS-CHN-024:71005:0001,AWS-CHN-024,spike,"[""humidity_pct""]",111,111,2025-01-05 15:00:00,2025-01-05 15:00:00,71005
+AWS-CHN-024:71005:0002,AWS-CHN-024,spike,"[""temperature_c""]",1677,1677,2025-03-11 21:00:00,2025-03-11 21:00:00,71005
+AWS-CHN-024:71005:0003,AWS-CHN-024,spike,"[""humidity_pct""]",194,194,2025-01-09 02:00:00,2025-01-09 02:00:00,71005
+AWS-CHN-024:71005:0004,AWS-CHN-024,spike,"[""temperature_c""]",320,320,2025-01-14 08:00:00,2025-01-14 08:00:00,71005
+AWS-CHN-024:71005:0005,AWS-CHN-024,spike,"[""pressure_hpa""]",883,883,2025-02-06 19:00:00,2025-02-06 19:00:00,71005
+AWS-CHN-024:71005:0006,AWS-CHN-024,spike,"[""humidity_pct""]",1441,1441,2025-03-02 01:00:00,2025-03-02 01:00:00,71005
+AWS-CHN-024:71005:0007,AWS-CHN-024,spike,"[""pressure_hpa""]",871,871,2025-02-06 07:00:00,2025-02-06 07:00:00,71005
+AWS-CHN-024:71005:0008,AWS-CHN-024,spike,"[""pressure_hpa""]",1219,1219,2025-02-20 19:00:00,2025-02-20 19:00:00,71005
+AWS-CHN-024:71005:0009,AWS-CHN-024,spike,"[""humidity_pct""]",165,165,2025-01-07 21:00:00,2025-01-07 21:00:00,71005
+AWS-CHN-024:71005:0010,AWS-CHN-024,spike,"[""temperature_c""]",696,696,2025-01-30 00:00:00,2025-01-30 00:00:00,71005
+AWS-CHN-024:71005:0011,AWS-CHN-024,frozen_value,"[""pressure_hpa""]",1293,1300,2025-02-23 21:00:00,2025-02-24 04:00:00,71005
+AWS-CHN-024:71005:0012,AWS-CHN-024,frozen_value,"[""humidity_pct""]",561,568,2025-01-24 09:00:00,2025-01-24 16:00:00,71005
+AWS-CHN-024:71005:0013,AWS-CHN-024,frozen_value,"[""temperature_c""]",1185,1193,2025-02-19 09:00:00,2025-02-19 17:00:00,71005
+AWS-CHN-024:71005:0014,AWS-CHN-024,frozen_value,"[""temperature_c""]",1414,1421,2025-02-28 22:00:00,2025-03-01 05:00:00,71005
+AWS-CHN-024:71005:0015,AWS-CHN-024,frozen_value,"[""pressure_hpa""]",508,514,2025-01-22 04:00:00,2025-01-22 10:00:00,71005
+AWS-CHN-024:71005:0016,AWS-CHN-024,frozen_value,"[""pressure_hpa""]",1026,1034,2025-02-12 18:00:00,2025-02-13 02:00:00,71005
+AWS-CHN-024:71005:0017,AWS-CHN-024,frozen_value,"[""humidity_pct""]",249,257,2025-01-11 09:00:00,2025-01-11 17:00:00,71005
+AWS-CHN-024:71005:0018,AWS-CHN-024,frozen_value,"[""pressure_hpa""]",248,256,2025-01-11 08:00:00,2025-01-11 16:00:00,71005
+AWS-CHN-024:71005:0019,AWS-CHN-024,frozen_value,"[""humidity_pct""]",887,893,2025-02-06 23:00:00,2025-02-07 05:00:00,71005
+AWS-CHN-024:71005:0020,AWS-CHN-024,frozen_value,"[""temperature_c""]",248,256,2025-01-11 08:00:00,2025-01-11 16:00:00,71005
+AWS-CHN-024:71005:0021,AWS-CHN-024,drift,"[""temperature_c""]",925,966,2025-02-08 13:00:00,2025-02-10 06:00:00,71005
+AWS-CHN-024:71005:0022,AWS-CHN-024,drift,"[""humidity_pct""]",2015,2035,2025-03-25 23:00:00,2025-03-26 19:00:00,71005
+AWS-CHN-024:71005:0023,AWS-CHN-024,drift,"[""temperature_c""]",617,656,2025-01-26 17:00:00,2025-01-28 08:00:00,71005
+AWS-CHN-024:71005:0024,AWS-CHN-024,drift,"[""pressure_hpa""]",114,145,2025-01-05 18:00:00,2025-01-07 01:00:00,71005
+AWS-CHN-024:71005:0025,AWS-CHN-024,drift,"[""pressure_hpa""]",1582,1630,2025-03-07 22:00:00,2025-03-09 22:00:00,71005
+AWS-CHN-024:71005:0026,AWS-CHN-024,drift,"[""temperature_c""]",458,505,2025-01-20 02:00:00,2025-01-22 01:00:00,71005
+AWS-CHN-024:71005:0027,AWS-CHN-024,drift,"[""humidity_pct""]",2037,2065,2025-03-26 21:00:00,2025-03-28 01:00:00,71005
+AWS-CHN-024:71005:0028,AWS-CHN-024,drift,"[""humidity_pct""]",1212,1233,2025-02-20 12:00:00,2025-02-21 09:00:00,71005
+AWS-CHN-024:71005:0029,AWS-CHN-024,drift,"[""humidity_pct""]",1619,1649,2025-03-09 11:00:00,2025-03-10 17:00:00,71005
+AWS-CHN-024:71005:0030,AWS-CHN-024,drift,"[""pressure_hpa""]",1426,1447,2025-03-01 10:00:00,2025-03-02 07:00:00,71005
+AWS-CHN-024:71005:0031,AWS-CHN-024,dropout,"[""humidity_pct""]",870,870,2025-02-06 06:00:00,2025-02-06 06:00:00,71005
+AWS-CHN-024:71005:0032,AWS-CHN-024,dropout,"[""humidity_pct""]",1509,1509,2025-03-04 21:00:00,2025-03-04 21:00:00,71005
+AWS-CHN-024:71005:0033,AWS-CHN-024,dropout,"[""pressure_hpa""]",1069,1069,2025-02-14 13:00:00,2025-02-14 13:00:00,71005
+AWS-CHN-024:71005:0034,AWS-CHN-024,dropout,"[""temperature_c""]",764,764,2025-02-01 20:00:00,2025-02-01 20:00:00,71005
+AWS-CHN-024:71005:0035,AWS-CHN-024,dropout,"[""pressure_hpa""]",1020,1020,2025-02-12 12:00:00,2025-02-12 12:00:00,71005
+AWS-CHN-024:71005:0036,AWS-CHN-024,dropout,"[""temperature_c""]",1798,1798,2025-03-16 22:00:00,2025-03-16 22:00:00,71005
+AWS-CHN-024:71005:0037,AWS-CHN-024,dropout,"[""humidity_pct""]",262,262,2025-01-11 22:00:00,2025-01-11 22:00:00,71005
+AWS-CHN-024:71005:0038,AWS-CHN-024,dropout,"[""temperature_c""]",539,539,2025-01-23 11:00:00,2025-01-23 11:00:00,71005
+AWS-CHN-024:71005:0039,AWS-CHN-024,dropout,"[""pressure_hpa""]",1385,1385,2025-02-27 17:00:00,2025-02-27 17:00:00,71005
+AWS-CHN-024:71005:0040,AWS-CHN-024,dropout,"[""pressure_hpa""]",1055,1055,2025-02-13 23:00:00,2025-02-13 23:00:00,71005
+AWS-CHN-024:71005:0041,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1306,1308,2025-02-24 10:00:00,2025-02-24 12:00:00,71005
+AWS-CHN-024:71005:0042,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1735,1738,2025-03-14 07:00:00,2025-03-14 10:00:00,71005
+AWS-CHN-024:71005:0043,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1998,2000,2025-03-25 06:00:00,2025-03-25 08:00:00,71005
+AWS-CHN-024:71005:0044,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1278,1280,2025-02-23 06:00:00,2025-02-23 08:00:00,71005
+AWS-CHN-024:71005:0045,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",2072,2076,2025-03-28 08:00:00,2025-03-28 12:00:00,71005
+AWS-CHN-024:71005:0046,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1758,1762,2025-03-15 06:00:00,2025-03-15 10:00:00,71005
+AWS-CHN-024:71005:0047,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1701,1705,2025-03-12 21:00:00,2025-03-13 01:00:00,71005
+AWS-CHN-024:71005:0048,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",2066,2068,2025-03-28 02:00:00,2025-03-28 04:00:00,71005
+AWS-CHN-024:71005:0049,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",901,905,2025-02-07 13:00:00,2025-02-07 17:00:00,71005
+AWS-CHN-024:71005:0050,AWS-CHN-024,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1967,1971,2025-03-23 23:00:00,2025-03-24 03:00:00,71005
+AWS-CHN-024:71005:0051,AWS-CHN-024,sensor_fail_low,"[""pressure_hpa""]",1110,1113,2025-02-16 06:00:00,2025-02-16 09:00:00,71005
+AWS-CHN-024:71005:0052,AWS-CHN-024,sensor_fail_low,"[""humidity_pct""]",1880,1883,2025-03-20 08:00:00,2025-03-20 11:00:00,71005
+AWS-CHN-024:71005:0053,AWS-CHN-024,sensor_fail_low,"[""humidity_pct""]",650,653,2025-01-28 02:00:00,2025-01-28 05:00:00,71005
+AWS-CHN-024:71005:0054,AWS-CHN-024,sensor_fail_low,"[""humidity_pct""]",1390,1393,2025-02-27 22:00:00,2025-02-28 01:00:00,71005
+AWS-CHN-024:71005:0055,AWS-CHN-024,sensor_fail_low,"[""temperature_c""]",1627,1630,2025-03-09 19:00:00,2025-03-09 22:00:00,71005
+AWS-CHN-024:71005:0056,AWS-CHN-024,sensor_fail_low,"[""temperature_c""]",1080,1083,2025-02-15 00:00:00,2025-02-15 03:00:00,71005
+AWS-CHN-024:71005:0057,AWS-CHN-024,sensor_fail_low,"[""temperature_c""]",510,513,2025-01-22 06:00:00,2025-01-22 09:00:00,71005
+AWS-CHN-024:71005:0058,AWS-CHN-024,sensor_fail_low,"[""pressure_hpa""]",1891,1894,2025-03-20 19:00:00,2025-03-20 22:00:00,71005
+AWS-CHN-024:71005:0059,AWS-CHN-024,sensor_fail_low,"[""temperature_c""]",535,538,2025-01-23 07:00:00,2025-01-23 10:00:00,71005
+AWS-CHN-024:71005:0060,AWS-CHN-024,sensor_fail_low,"[""humidity_pct""]",956,959,2025-02-09 20:00:00,2025-02-09 23:00:00,71005
+AWS-CHN-024:71005:0061,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",2077,2082,2025-03-28 13:00:00,2025-03-28 18:00:00,71005
+AWS-CHN-024:71005:0062,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1046,1049,2025-02-13 14:00:00,2025-02-13 17:00:00,71005
+AWS-CHN-024:71005:0063,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",369,375,2025-01-16 09:00:00,2025-01-16 15:00:00,71005
+AWS-CHN-024:71005:0064,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1057,1060,2025-02-14 01:00:00,2025-02-14 04:00:00,71005
+AWS-CHN-024:71005:0065,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",743,746,2025-01-31 23:00:00,2025-02-01 02:00:00,71005
+AWS-CHN-024:71005:0066,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1460,1463,2025-03-02 20:00:00,2025-03-02 23:00:00,71005
+AWS-CHN-024:71005:0067,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",233,239,2025-01-10 17:00:00,2025-01-10 23:00:00,71005
+AWS-CHN-024:71005:0068,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",265,269,2025-01-12 01:00:00,2025-01-12 05:00:00,71005
+AWS-CHN-024:71005:0069,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",713,720,2025-01-30 17:00:00,2025-01-31 00:00:00,71005
+AWS-CHN-024:71005:0070,AWS-CHN-024,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1247,1252,2025-02-21 23:00:00,2025-02-22 04:00:00,71005
+AWS-DEL-011:71009:0001,AWS-DEL-011,spike,"[""pressure_hpa""]",1421,1421,2025-03-01 05:00:00,2025-03-01 05:00:00,71009
+AWS-DEL-011:71009:0002,AWS-DEL-011,spike,"[""pressure_hpa""]",809,809,2025-02-03 17:00:00,2025-02-03 17:00:00,71009
+AWS-DEL-011:71009:0003,AWS-DEL-011,spike,"[""pressure_hpa""]",1362,1362,2025-02-26 18:00:00,2025-02-26 18:00:00,71009
+AWS-DEL-011:71009:0004,AWS-DEL-011,spike,"[""temperature_c""]",22,22,2025-01-01 22:00:00,2025-01-01 22:00:00,71009
+AWS-DEL-011:71009:0005,AWS-DEL-011,spike,"[""temperature_c""]",727,727,2025-01-31 07:00:00,2025-01-31 07:00:00,71009
+AWS-DEL-011:71009:0006,AWS-DEL-011,spike,"[""pressure_hpa""]",480,480,2025-01-21 00:00:00,2025-01-21 00:00:00,71009
+AWS-DEL-011:71009:0007,AWS-DEL-011,spike,"[""temperature_c""]",1389,1389,2025-02-27 21:00:00,2025-02-27 21:00:00,71009
+AWS-DEL-011:71009:0008,AWS-DEL-011,spike,"[""temperature_c""]",1663,1663,2025-03-11 07:00:00,2025-03-11 07:00:00,71009
+AWS-DEL-011:71009:0009,AWS-DEL-011,spike,"[""temperature_c""]",872,872,2025-02-06 08:00:00,2025-02-06 08:00:00,71009
+AWS-DEL-011:71009:0010,AWS-DEL-011,spike,"[""temperature_c""]",876,876,2025-02-06 12:00:00,2025-02-06 12:00:00,71009
+AWS-DEL-011:71009:0011,AWS-DEL-011,frozen_value,"[""humidity_pct""]",1331,1338,2025-02-25 11:00:00,2025-02-25 18:00:00,71009
+AWS-DEL-011:71009:0012,AWS-DEL-011,frozen_value,"[""humidity_pct""]",259,267,2025-01-11 19:00:00,2025-01-12 03:00:00,71009
+AWS-DEL-011:71009:0013,AWS-DEL-011,frozen_value,"[""pressure_hpa""]",323,331,2025-01-14 11:00:00,2025-01-14 19:00:00,71009
+AWS-DEL-011:71009:0014,AWS-DEL-011,frozen_value,"[""humidity_pct""]",2057,2064,2025-03-27 17:00:00,2025-03-28 00:00:00,71009
+AWS-DEL-011:71009:0015,AWS-DEL-011,frozen_value,"[""temperature_c""]",578,586,2025-01-25 02:00:00,2025-01-25 10:00:00,71009
+AWS-DEL-011:71009:0016,AWS-DEL-011,frozen_value,"[""humidity_pct""]",91,99,2025-01-04 19:00:00,2025-01-05 03:00:00,71009
+AWS-DEL-011:71009:0017,AWS-DEL-011,frozen_value,"[""temperature_c""]",1731,1737,2025-03-14 03:00:00,2025-03-14 09:00:00,71009
+AWS-DEL-011:71009:0018,AWS-DEL-011,frozen_value,"[""temperature_c""]",271,278,2025-01-12 07:00:00,2025-01-12 14:00:00,71009
+AWS-DEL-011:71009:0019,AWS-DEL-011,frozen_value,"[""pressure_hpa""]",103,110,2025-01-05 07:00:00,2025-01-05 14:00:00,71009
+AWS-DEL-011:71009:0020,AWS-DEL-011,frozen_value,"[""humidity_pct""]",226,233,2025-01-10 10:00:00,2025-01-10 17:00:00,71009
+AWS-DEL-011:71009:0021,AWS-DEL-011,drift,"[""pressure_hpa""]",1473,1493,2025-03-03 09:00:00,2025-03-04 05:00:00,71009
+AWS-DEL-011:71009:0022,AWS-DEL-011,drift,"[""temperature_c""]",2060,2092,2025-03-27 20:00:00,2025-03-29 04:00:00,71009
+AWS-DEL-011:71009:0023,AWS-DEL-011,drift,"[""temperature_c""]",1939,1963,2025-03-22 19:00:00,2025-03-23 19:00:00,71009
+AWS-DEL-011:71009:0024,AWS-DEL-011,drift,"[""humidity_pct""]",161,199,2025-01-07 17:00:00,2025-01-09 07:00:00,71009
+AWS-DEL-011:71009:0025,AWS-DEL-011,drift,"[""pressure_hpa""]",1950,1978,2025-03-23 06:00:00,2025-03-24 10:00:00,71009
+AWS-DEL-011:71009:0026,AWS-DEL-011,drift,"[""temperature_c""]",1889,1926,2025-03-20 17:00:00,2025-03-22 06:00:00,71009
+AWS-DEL-011:71009:0027,AWS-DEL-011,drift,"[""temperature_c""]",1196,1223,2025-02-19 20:00:00,2025-02-20 23:00:00,71009
+AWS-DEL-011:71009:0028,AWS-DEL-011,drift,"[""temperature_c""]",1984,2012,2025-03-24 16:00:00,2025-03-25 20:00:00,71009
+AWS-DEL-011:71009:0029,AWS-DEL-011,drift,"[""temperature_c""]",311,349,2025-01-13 23:00:00,2025-01-15 13:00:00,71009
+AWS-DEL-011:71009:0030,AWS-DEL-011,drift,"[""temperature_c""]",431,473,2025-01-18 23:00:00,2025-01-20 17:00:00,71009
+AWS-DEL-011:71009:0031,AWS-DEL-011,dropout,"[""temperature_c""]",1140,1140,2025-02-17 12:00:00,2025-02-17 12:00:00,71009
+AWS-DEL-011:71009:0032,AWS-DEL-011,dropout,"[""pressure_hpa""]",867,867,2025-02-06 03:00:00,2025-02-06 03:00:00,71009
+AWS-DEL-011:71009:0033,AWS-DEL-011,dropout,"[""pressure_hpa""]",472,472,2025-01-20 16:00:00,2025-01-20 16:00:00,71009
+AWS-DEL-011:71009:0034,AWS-DEL-011,dropout,"[""pressure_hpa""]",266,266,2025-01-12 02:00:00,2025-01-12 02:00:00,71009
+AWS-DEL-011:71009:0035,AWS-DEL-011,dropout,"[""pressure_hpa""]",101,101,2025-01-05 05:00:00,2025-01-05 05:00:00,71009
+AWS-DEL-011:71009:0036,AWS-DEL-011,dropout,"[""temperature_c""]",242,242,2025-01-11 02:00:00,2025-01-11 02:00:00,71009
+AWS-DEL-011:71009:0037,AWS-DEL-011,dropout,"[""humidity_pct""]",1752,1752,2025-03-15 00:00:00,2025-03-15 00:00:00,71009
+AWS-DEL-011:71009:0038,AWS-DEL-011,dropout,"[""temperature_c""]",886,886,2025-02-06 22:00:00,2025-02-06 22:00:00,71009
+AWS-DEL-011:71009:0039,AWS-DEL-011,dropout,"[""pressure_hpa""]",1200,1200,2025-02-20 00:00:00,2025-02-20 00:00:00,71009
+AWS-DEL-011:71009:0040,AWS-DEL-011,dropout,"[""temperature_c""]",1600,1600,2025-03-08 16:00:00,2025-03-08 16:00:00,71009
+AWS-DEL-011:71009:0041,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1676,1680,2025-03-11 20:00:00,2025-03-12 00:00:00,71009
+AWS-DEL-011:71009:0042,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1037,1039,2025-02-13 05:00:00,2025-02-13 07:00:00,71009
+AWS-DEL-011:71009:0043,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1292,1294,2025-02-23 20:00:00,2025-02-23 22:00:00,71009
+AWS-DEL-011:71009:0044,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1578,1580,2025-03-07 18:00:00,2025-03-07 20:00:00,71009
+AWS-DEL-011:71009:0045,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",860,862,2025-02-05 20:00:00,2025-02-05 22:00:00,71009
+AWS-DEL-011:71009:0046,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1254,1257,2025-02-22 06:00:00,2025-02-22 09:00:00,71009
+AWS-DEL-011:71009:0047,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1835,1837,2025-03-18 11:00:00,2025-03-18 13:00:00,71009
+AWS-DEL-011:71009:0048,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",138,140,2025-01-06 18:00:00,2025-01-06 20:00:00,71009
+AWS-DEL-011:71009:0049,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1791,1794,2025-03-16 15:00:00,2025-03-16 18:00:00,71009
+AWS-DEL-011:71009:0050,AWS-DEL-011,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",364,366,2025-01-16 04:00:00,2025-01-16 06:00:00,71009
+AWS-DEL-011:71009:0051,AWS-DEL-011,sensor_fail_low,"[""temperature_c""]",777,780,2025-02-02 09:00:00,2025-02-02 12:00:00,71009
+AWS-DEL-011:71009:0052,AWS-DEL-011,sensor_fail_low,"[""temperature_c""]",1007,1010,2025-02-11 23:00:00,2025-02-12 02:00:00,71009
+AWS-DEL-011:71009:0053,AWS-DEL-011,sensor_fail_low,"[""humidity_pct""]",1365,1368,2025-02-26 21:00:00,2025-02-27 00:00:00,71009
+AWS-DEL-011:71009:0054,AWS-DEL-011,sensor_fail_low,"[""humidity_pct""]",578,581,2025-01-25 02:00:00,2025-01-25 05:00:00,71009
+AWS-DEL-011:71009:0055,AWS-DEL-011,sensor_fail_low,"[""temperature_c""]",33,36,2025-01-02 09:00:00,2025-01-02 12:00:00,71009
+AWS-DEL-011:71009:0056,AWS-DEL-011,sensor_fail_low,"[""temperature_c""]",1313,1316,2025-02-24 17:00:00,2025-02-24 20:00:00,71009
+AWS-DEL-011:71009:0057,AWS-DEL-011,sensor_fail_low,"[""humidity_pct""]",787,790,2025-02-02 19:00:00,2025-02-02 22:00:00,71009
+AWS-DEL-011:71009:0058,AWS-DEL-011,sensor_fail_low,"[""humidity_pct""]",41,44,2025-01-02 17:00:00,2025-01-02 20:00:00,71009
+AWS-DEL-011:71009:0059,AWS-DEL-011,sensor_fail_low,"[""temperature_c""]",840,843,2025-02-05 00:00:00,2025-02-05 03:00:00,71009
+AWS-DEL-011:71009:0060,AWS-DEL-011,sensor_fail_low,"[""pressure_hpa""]",2057,2060,2025-03-27 17:00:00,2025-03-27 20:00:00,71009
+AWS-DEL-011:71009:0061,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1604,1609,2025-03-08 20:00:00,2025-03-09 01:00:00,71009
+AWS-DEL-011:71009:0062,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",980,983,2025-02-10 20:00:00,2025-02-10 23:00:00,71009
+AWS-DEL-011:71009:0063,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1086,1092,2025-02-15 06:00:00,2025-02-15 12:00:00,71009
+AWS-DEL-011:71009:0064,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",589,594,2025-01-25 13:00:00,2025-01-25 18:00:00,71009
+AWS-DEL-011:71009:0065,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1873,1877,2025-03-20 01:00:00,2025-03-20 05:00:00,71009
+AWS-DEL-011:71009:0066,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",145,148,2025-01-07 01:00:00,2025-01-07 04:00:00,71009
+AWS-DEL-011:71009:0067,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1498,1502,2025-03-04 10:00:00,2025-03-04 14:00:00,71009
+AWS-DEL-011:71009:0068,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",49,53,2025-01-03 01:00:00,2025-01-03 05:00:00,71009
+AWS-DEL-011:71009:0069,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",896,902,2025-02-07 08:00:00,2025-02-07 14:00:00,71009
+AWS-DEL-011:71009:0070,AWS-DEL-011,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1625,1628,2025-03-09 17:00:00,2025-03-09 20:00:00,71009
+AWS-KOL-015:71013:0001,AWS-KOL-015,spike,"[""pressure_hpa""]",784,784,2025-02-02 16:00:00,2025-02-02 16:00:00,71013
+AWS-KOL-015:71013:0002,AWS-KOL-015,spike,"[""temperature_c""]",744,744,2025-02-01 00:00:00,2025-02-01 00:00:00,71013
+AWS-KOL-015:71013:0003,AWS-KOL-015,spike,"[""pressure_hpa""]",1487,1487,2025-03-03 23:00:00,2025-03-03 23:00:00,71013
+AWS-KOL-015:71013:0004,AWS-KOL-015,spike,"[""pressure_hpa""]",676,676,2025-01-29 04:00:00,2025-01-29 04:00:00,71013
+AWS-KOL-015:71013:0005,AWS-KOL-015,spike,"[""temperature_c""]",944,944,2025-02-09 08:00:00,2025-02-09 08:00:00,71013
+AWS-KOL-015:71013:0006,AWS-KOL-015,spike,"[""temperature_c""]",456,456,2025-01-20 00:00:00,2025-01-20 00:00:00,71013
+AWS-KOL-015:71013:0007,AWS-KOL-015,spike,"[""pressure_hpa""]",238,238,2025-01-10 22:00:00,2025-01-10 22:00:00,71013
+AWS-KOL-015:71013:0008,AWS-KOL-015,spike,"[""pressure_hpa""]",1956,1956,2025-03-23 12:00:00,2025-03-23 12:00:00,71013
+AWS-KOL-015:71013:0009,AWS-KOL-015,spike,"[""pressure_hpa""]",1552,1552,2025-03-06 16:00:00,2025-03-06 16:00:00,71013
+AWS-KOL-015:71013:0010,AWS-KOL-015,spike,"[""pressure_hpa""]",1218,1218,2025-02-20 18:00:00,2025-02-20 18:00:00,71013
+AWS-KOL-015:71013:0011,AWS-KOL-015,frozen_value,"[""humidity_pct""]",1009,1015,2025-02-12 01:00:00,2025-02-12 07:00:00,71013
+AWS-KOL-015:71013:0012,AWS-KOL-015,frozen_value,"[""pressure_hpa""]",2060,2067,2025-03-27 20:00:00,2025-03-28 03:00:00,71013
+AWS-KOL-015:71013:0013,AWS-KOL-015,frozen_value,"[""humidity_pct""]",593,600,2025-01-25 17:00:00,2025-01-26 00:00:00,71013
+AWS-KOL-015:71013:0014,AWS-KOL-015,frozen_value,"[""humidity_pct""]",183,189,2025-01-08 15:00:00,2025-01-08 21:00:00,71013
+AWS-KOL-015:71013:0015,AWS-KOL-015,frozen_value,"[""temperature_c""]",1666,1673,2025-03-11 10:00:00,2025-03-11 17:00:00,71013
+AWS-KOL-015:71013:0016,AWS-KOL-015,frozen_value,"[""temperature_c""]",727,735,2025-01-31 07:00:00,2025-01-31 15:00:00,71013
+AWS-KOL-015:71013:0017,AWS-KOL-015,frozen_value,"[""pressure_hpa""]",354,362,2025-01-15 18:00:00,2025-01-16 02:00:00,71013
+AWS-KOL-015:71013:0018,AWS-KOL-015,frozen_value,"[""pressure_hpa""]",759,767,2025-02-01 15:00:00,2025-02-01 23:00:00,71013
+AWS-KOL-015:71013:0019,AWS-KOL-015,frozen_value,"[""temperature_c""]",1176,1183,2025-02-19 00:00:00,2025-02-19 07:00:00,71013
+AWS-KOL-015:71013:0020,AWS-KOL-015,frozen_value,"[""pressure_hpa""]",678,685,2025-01-29 06:00:00,2025-01-29 13:00:00,71013
+AWS-KOL-015:71013:0021,AWS-KOL-015,drift,"[""temperature_c""]",213,251,2025-01-09 21:00:00,2025-01-11 11:00:00,71013
+AWS-KOL-015:71013:0022,AWS-KOL-015,drift,"[""temperature_c""]",1843,1872,2025-03-18 19:00:00,2025-03-20 00:00:00,71013
+AWS-KOL-015:71013:0023,AWS-KOL-015,drift,"[""humidity_pct""]",1363,1390,2025-02-26 19:00:00,2025-02-27 22:00:00,71013
+AWS-KOL-015:71013:0024,AWS-KOL-015,drift,"[""temperature_c""]",1515,1555,2025-03-05 03:00:00,2025-03-06 19:00:00,71013
+AWS-KOL-015:71013:0025,AWS-KOL-015,drift,"[""humidity_pct""]",1018,1048,2025-02-12 10:00:00,2025-02-13 16:00:00,71013
+AWS-KOL-015:71013:0026,AWS-KOL-015,drift,"[""humidity_pct""]",1749,1791,2025-03-14 21:00:00,2025-03-16 15:00:00,71013
+AWS-KOL-015:71013:0027,AWS-KOL-015,drift,"[""pressure_hpa""]",463,502,2025-01-20 07:00:00,2025-01-21 22:00:00,71013
+AWS-KOL-015:71013:0028,AWS-KOL-015,drift,"[""humidity_pct""]",534,564,2025-01-23 06:00:00,2025-01-24 12:00:00,71013
+AWS-KOL-015:71013:0029,AWS-KOL-015,drift,"[""pressure_hpa""]",1060,1088,2025-02-14 04:00:00,2025-02-15 08:00:00,71013
+AWS-KOL-015:71013:0030,AWS-KOL-015,drift,"[""pressure_hpa""]",1420,1456,2025-03-01 04:00:00,2025-03-02 16:00:00,71013
+AWS-KOL-015:71013:0031,AWS-KOL-015,dropout,"[""humidity_pct""]",1170,1170,2025-02-18 18:00:00,2025-02-18 18:00:00,71013
+AWS-KOL-015:71013:0032,AWS-KOL-015,dropout,"[""pressure_hpa""]",1657,1657,2025-03-11 01:00:00,2025-03-11 01:00:00,71013
+AWS-KOL-015:71013:0033,AWS-KOL-015,dropout,"[""pressure_hpa""]",1118,1118,2025-02-16 14:00:00,2025-02-16 14:00:00,71013
+AWS-KOL-015:71013:0034,AWS-KOL-015,dropout,"[""temperature_c""]",1603,1603,2025-03-08 19:00:00,2025-03-08 19:00:00,71013
+AWS-KOL-015:71013:0035,AWS-KOL-015,dropout,"[""temperature_c""]",681,681,2025-01-29 09:00:00,2025-01-29 09:00:00,71013
+AWS-KOL-015:71013:0036,AWS-KOL-015,dropout,"[""temperature_c""]",1013,1013,2025-02-12 05:00:00,2025-02-12 05:00:00,71013
+AWS-KOL-015:71013:0037,AWS-KOL-015,dropout,"[""pressure_hpa""]",29,29,2025-01-02 05:00:00,2025-01-02 05:00:00,71013
+AWS-KOL-015:71013:0038,AWS-KOL-015,dropout,"[""temperature_c""]",2071,2071,2025-03-28 07:00:00,2025-03-28 07:00:00,71013
+AWS-KOL-015:71013:0039,AWS-KOL-015,dropout,"[""temperature_c""]",1332,1332,2025-02-25 12:00:00,2025-02-25 12:00:00,71013
+AWS-KOL-015:71013:0040,AWS-KOL-015,dropout,"[""humidity_pct""]",163,163,2025-01-07 19:00:00,2025-01-07 19:00:00,71013
+AWS-KOL-015:71013:0041,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",375,379,2025-01-16 15:00:00,2025-01-16 19:00:00,71013
+AWS-KOL-015:71013:0042,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",382,384,2025-01-16 22:00:00,2025-01-17 00:00:00,71013
+AWS-KOL-015:71013:0043,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1317,1320,2025-02-24 21:00:00,2025-02-25 00:00:00,71013
+AWS-KOL-015:71013:0044,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1578,1580,2025-03-07 18:00:00,2025-03-07 20:00:00,71013
+AWS-KOL-015:71013:0045,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",957,961,2025-02-09 21:00:00,2025-02-10 01:00:00,71013
+AWS-KOL-015:71013:0046,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",420,423,2025-01-18 12:00:00,2025-01-18 15:00:00,71013
+AWS-KOL-015:71013:0047,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",2007,2009,2025-03-25 15:00:00,2025-03-25 17:00:00,71013
+AWS-KOL-015:71013:0048,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1885,1889,2025-03-20 13:00:00,2025-03-20 17:00:00,71013
+AWS-KOL-015:71013:0049,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",695,697,2025-01-29 23:00:00,2025-01-30 01:00:00,71013
+AWS-KOL-015:71013:0050,AWS-KOL-015,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1489,1491,2025-03-04 01:00:00,2025-03-04 03:00:00,71013
+AWS-KOL-015:71013:0051,AWS-KOL-015,sensor_fail_low,"[""humidity_pct""]",362,365,2025-01-16 02:00:00,2025-01-16 05:00:00,71013
+AWS-KOL-015:71013:0052,AWS-KOL-015,sensor_fail_low,"[""pressure_hpa""]",363,366,2025-01-16 03:00:00,2025-01-16 06:00:00,71013
+AWS-KOL-015:71013:0053,AWS-KOL-015,sensor_fail_low,"[""temperature_c""]",1572,1575,2025-03-07 12:00:00,2025-03-07 15:00:00,71013
+AWS-KOL-015:71013:0054,AWS-KOL-015,sensor_fail_low,"[""pressure_hpa""]",880,883,2025-02-06 16:00:00,2025-02-06 19:00:00,71013
+AWS-KOL-015:71013:0055,AWS-KOL-015,sensor_fail_low,"[""pressure_hpa""]",1046,1049,2025-02-13 14:00:00,2025-02-13 17:00:00,71013
+AWS-KOL-015:71013:0056,AWS-KOL-015,sensor_fail_low,"[""humidity_pct""]",1723,1726,2025-03-13 19:00:00,2025-03-13 22:00:00,71013
+AWS-KOL-015:71013:0057,AWS-KOL-015,sensor_fail_low,"[""temperature_c""]",1590,1593,2025-03-08 06:00:00,2025-03-08 09:00:00,71013
+AWS-KOL-015:71013:0058,AWS-KOL-015,sensor_fail_low,"[""humidity_pct""]",755,758,2025-02-01 11:00:00,2025-02-01 14:00:00,71013
+AWS-KOL-015:71013:0059,AWS-KOL-015,sensor_fail_low,"[""temperature_c""]",1968,1971,2025-03-24 00:00:00,2025-03-24 03:00:00,71013
+AWS-KOL-015:71013:0060,AWS-KOL-015,sensor_fail_low,"[""humidity_pct""]",331,334,2025-01-14 19:00:00,2025-01-14 22:00:00,71013
+AWS-KOL-015:71013:0061,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",520,523,2025-01-22 16:00:00,2025-01-22 19:00:00,71013
+AWS-KOL-015:71013:0062,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1695,1698,2025-03-12 15:00:00,2025-03-12 18:00:00,71013
+AWS-KOL-015:71013:0063,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",405,409,2025-01-17 21:00:00,2025-01-18 01:00:00,71013
+AWS-KOL-015:71013:0064,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1150,1155,2025-02-17 22:00:00,2025-02-18 03:00:00,71013
+AWS-KOL-015:71013:0065,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",972,977,2025-02-10 12:00:00,2025-02-10 17:00:00,71013
+AWS-KOL-015:71013:0066,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",148,151,2025-01-07 04:00:00,2025-01-07 07:00:00,71013
+AWS-KOL-015:71013:0067,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",508,512,2025-01-22 04:00:00,2025-01-22 08:00:00,71013
+AWS-KOL-015:71013:0068,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",788,795,2025-02-02 20:00:00,2025-02-03 03:00:00,71013
+AWS-KOL-015:71013:0069,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1296,1301,2025-02-24 00:00:00,2025-02-24 05:00:00,71013
+AWS-KOL-015:71013:0070,AWS-KOL-015,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",13,16,2025-01-01 13:00:00,2025-01-01 16:00:00,71013
+AWS-MUM-007:71017:0001,AWS-MUM-007,spike,"[""pressure_hpa""]",635,635,2025-01-27 11:00:00,2025-01-27 11:00:00,71017
+AWS-MUM-007:71017:0002,AWS-MUM-007,spike,"[""temperature_c""]",1632,1632,2025-03-10 00:00:00,2025-03-10 00:00:00,71017
+AWS-MUM-007:71017:0003,AWS-MUM-007,spike,"[""temperature_c""]",189,189,2025-01-08 21:00:00,2025-01-08 21:00:00,71017
+AWS-MUM-007:71017:0004,AWS-MUM-007,spike,"[""temperature_c""]",1199,1199,2025-02-19 23:00:00,2025-02-19 23:00:00,71017
+AWS-MUM-007:71017:0005,AWS-MUM-007,spike,"[""temperature_c""]",47,47,2025-01-02 23:00:00,2025-01-02 23:00:00,71017
+AWS-MUM-007:71017:0006,AWS-MUM-007,spike,"[""temperature_c""]",987,987,2025-02-11 03:00:00,2025-02-11 03:00:00,71017
+AWS-MUM-007:71017:0007,AWS-MUM-007,spike,"[""temperature_c""]",983,983,2025-02-10 23:00:00,2025-02-10 23:00:00,71017
+AWS-MUM-007:71017:0008,AWS-MUM-007,spike,"[""temperature_c""]",2095,2095,2025-03-29 07:00:00,2025-03-29 07:00:00,71017
+AWS-MUM-007:71017:0009,AWS-MUM-007,spike,"[""temperature_c""]",1899,1899,2025-03-21 03:00:00,2025-03-21 03:00:00,71017
+AWS-MUM-007:71017:0010,AWS-MUM-007,spike,"[""temperature_c""]",1587,1587,2025-03-08 03:00:00,2025-03-08 03:00:00,71017
+AWS-MUM-007:71017:0011,AWS-MUM-007,frozen_value,"[""pressure_hpa""]",607,615,2025-01-26 07:00:00,2025-01-26 15:00:00,71017
+AWS-MUM-007:71017:0012,AWS-MUM-007,frozen_value,"[""pressure_hpa""]",1972,1978,2025-03-24 04:00:00,2025-03-24 10:00:00,71017
+AWS-MUM-007:71017:0013,AWS-MUM-007,frozen_value,"[""pressure_hpa""]",916,923,2025-02-08 04:00:00,2025-02-08 11:00:00,71017
+AWS-MUM-007:71017:0014,AWS-MUM-007,frozen_value,"[""humidity_pct""]",786,794,2025-02-02 18:00:00,2025-02-03 02:00:00,71017
+AWS-MUM-007:71017:0015,AWS-MUM-007,frozen_value,"[""pressure_hpa""]",1076,1082,2025-02-14 20:00:00,2025-02-15 02:00:00,71017
+AWS-MUM-007:71017:0016,AWS-MUM-007,frozen_value,"[""humidity_pct""]",1312,1318,2025-02-24 16:00:00,2025-02-24 22:00:00,71017
+AWS-MUM-007:71017:0017,AWS-MUM-007,frozen_value,"[""humidity_pct""]",872,878,2025-02-06 08:00:00,2025-02-06 14:00:00,71017
+AWS-MUM-007:71017:0018,AWS-MUM-007,frozen_value,"[""temperature_c""]",839,847,2025-02-04 23:00:00,2025-02-05 07:00:00,71017
+AWS-MUM-007:71017:0019,AWS-MUM-007,frozen_value,"[""humidity_pct""]",2055,2062,2025-03-27 15:00:00,2025-03-27 22:00:00,71017
+AWS-MUM-007:71017:0020,AWS-MUM-007,frozen_value,"[""temperature_c""]",424,432,2025-01-18 16:00:00,2025-01-19 00:00:00,71017
+AWS-MUM-007:71017:0021,AWS-MUM-007,drift,"[""pressure_hpa""]",396,443,2025-01-17 12:00:00,2025-01-19 11:00:00,71017
+AWS-MUM-007:71017:0022,AWS-MUM-007,drift,"[""humidity_pct""]",1228,1250,2025-02-21 04:00:00,2025-02-22 02:00:00,71017
+AWS-MUM-007:71017:0023,AWS-MUM-007,drift,"[""temperature_c""]",2044,2075,2025-03-27 04:00:00,2025-03-28 11:00:00,71017
+AWS-MUM-007:71017:0024,AWS-MUM-007,drift,"[""pressure_hpa""]",191,234,2025-01-08 23:00:00,2025-01-10 18:00:00,71017
+AWS-MUM-007:71017:0025,AWS-MUM-007,drift,"[""humidity_pct""]",1729,1770,2025-03-14 01:00:00,2025-03-15 18:00:00,71017
+AWS-MUM-007:71017:0026,AWS-MUM-007,drift,"[""humidity_pct""]",455,495,2025-01-19 23:00:00,2025-01-21 15:00:00,71017
+AWS-MUM-007:71017:0027,AWS-MUM-007,drift,"[""humidity_pct""]",1473,1517,2025-03-03 09:00:00,2025-03-05 05:00:00,71017
+AWS-MUM-007:71017:0028,AWS-MUM-007,drift,"[""humidity_pct""]",255,301,2025-01-11 15:00:00,2025-01-13 13:00:00,71017
+AWS-MUM-007:71017:0029,AWS-MUM-007,drift,"[""temperature_c""]",1223,1255,2025-02-20 23:00:00,2025-02-22 07:00:00,71017
+AWS-MUM-007:71017:0030,AWS-MUM-007,drift,"[""humidity_pct""]",1614,1659,2025-03-09 06:00:00,2025-03-11 03:00:00,71017
+AWS-MUM-007:71017:0031,AWS-MUM-007,dropout,"[""humidity_pct""]",2067,2067,2025-03-28 03:00:00,2025-03-28 03:00:00,71017
+AWS-MUM-007:71017:0032,AWS-MUM-007,dropout,"[""pressure_hpa""]",1699,1699,2025-03-12 19:00:00,2025-03-12 19:00:00,71017
+AWS-MUM-007:71017:0033,AWS-MUM-007,dropout,"[""pressure_hpa""]",1181,1181,2025-02-19 05:00:00,2025-02-19 05:00:00,71017
+AWS-MUM-007:71017:0034,AWS-MUM-007,dropout,"[""temperature_c""]",161,161,2025-01-07 17:00:00,2025-01-07 17:00:00,71017
+AWS-MUM-007:71017:0035,AWS-MUM-007,dropout,"[""pressure_hpa""]",386,386,2025-01-17 02:00:00,2025-01-17 02:00:00,71017
+AWS-MUM-007:71017:0036,AWS-MUM-007,dropout,"[""temperature_c""]",1334,1334,2025-02-25 14:00:00,2025-02-25 14:00:00,71017
+AWS-MUM-007:71017:0037,AWS-MUM-007,dropout,"[""humidity_pct""]",1564,1564,2025-03-07 04:00:00,2025-03-07 04:00:00,71017
+AWS-MUM-007:71017:0038,AWS-MUM-007,dropout,"[""pressure_hpa""]",1146,1146,2025-02-17 18:00:00,2025-02-17 18:00:00,71017
+AWS-MUM-007:71017:0039,AWS-MUM-007,dropout,"[""pressure_hpa""]",2097,2097,2025-03-29 09:00:00,2025-03-29 09:00:00,71017
+AWS-MUM-007:71017:0040,AWS-MUM-007,dropout,"[""pressure_hpa""]",189,189,2025-01-08 21:00:00,2025-01-08 21:00:00,71017
+AWS-MUM-007:71017:0041,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1527,1529,2025-03-05 15:00:00,2025-03-05 17:00:00,71017
+AWS-MUM-007:71017:0042,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1384,1386,2025-02-27 16:00:00,2025-02-27 18:00:00,71017
+AWS-MUM-007:71017:0043,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1159,1161,2025-02-18 07:00:00,2025-02-18 09:00:00,71017
+AWS-MUM-007:71017:0044,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1201,1203,2025-02-20 01:00:00,2025-02-20 03:00:00,71017
+AWS-MUM-007:71017:0045,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1927,1931,2025-03-22 07:00:00,2025-03-22 11:00:00,71017
+AWS-MUM-007:71017:0046,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",184,188,2025-01-08 16:00:00,2025-01-08 20:00:00,71017
+AWS-MUM-007:71017:0047,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",348,350,2025-01-15 12:00:00,2025-01-15 14:00:00,71017
+AWS-MUM-007:71017:0048,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",943,947,2025-02-09 07:00:00,2025-02-09 11:00:00,71017
+AWS-MUM-007:71017:0049,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1599,1603,2025-03-08 15:00:00,2025-03-08 19:00:00,71017
+AWS-MUM-007:71017:0050,AWS-MUM-007,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1519,1523,2025-03-05 07:00:00,2025-03-05 11:00:00,71017
+AWS-MUM-007:71017:0051,AWS-MUM-007,sensor_fail_low,"[""pressure_hpa""]",812,815,2025-02-03 20:00:00,2025-02-03 23:00:00,71017
+AWS-MUM-007:71017:0052,AWS-MUM-007,sensor_fail_low,"[""temperature_c""]",94,97,2025-01-04 22:00:00,2025-01-05 01:00:00,71017
+AWS-MUM-007:71017:0053,AWS-MUM-007,sensor_fail_low,"[""humidity_pct""]",571,574,2025-01-24 19:00:00,2025-01-24 22:00:00,71017
+AWS-MUM-007:71017:0054,AWS-MUM-007,sensor_fail_low,"[""pressure_hpa""]",1324,1327,2025-02-25 04:00:00,2025-02-25 07:00:00,71017
+AWS-MUM-007:71017:0055,AWS-MUM-007,sensor_fail_low,"[""humidity_pct""]",205,208,2025-01-09 13:00:00,2025-01-09 16:00:00,71017
+AWS-MUM-007:71017:0056,AWS-MUM-007,sensor_fail_low,"[""humidity_pct""]",309,312,2025-01-13 21:00:00,2025-01-14 00:00:00,71017
+AWS-MUM-007:71017:0057,AWS-MUM-007,sensor_fail_low,"[""humidity_pct""]",1989,1992,2025-03-24 21:00:00,2025-03-25 00:00:00,71017
+AWS-MUM-007:71017:0058,AWS-MUM-007,sensor_fail_low,"[""temperature_c""]",1652,1655,2025-03-10 20:00:00,2025-03-10 23:00:00,71017
+AWS-MUM-007:71017:0059,AWS-MUM-007,sensor_fail_low,"[""humidity_pct""]",2097,2100,2025-03-29 09:00:00,2025-03-29 12:00:00,71017
+AWS-MUM-007:71017:0060,AWS-MUM-007,sensor_fail_low,"[""humidity_pct""]",1069,1072,2025-02-14 13:00:00,2025-02-14 16:00:00,71017
+AWS-MUM-007:71017:0061,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",889,893,2025-02-07 01:00:00,2025-02-07 05:00:00,71017
+AWS-MUM-007:71017:0062,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1810,1815,2025-03-17 10:00:00,2025-03-17 15:00:00,71017
+AWS-MUM-007:71017:0063,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",314,321,2025-01-14 02:00:00,2025-01-14 09:00:00,71017
+AWS-MUM-007:71017:0064,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",337,342,2025-01-15 01:00:00,2025-01-15 06:00:00,71017
+AWS-MUM-007:71017:0065,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1038,1045,2025-02-13 06:00:00,2025-02-13 13:00:00,71017
+AWS-MUM-007:71017:0066,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",701,705,2025-01-30 05:00:00,2025-01-30 09:00:00,71017
+AWS-MUM-007:71017:0067,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",621,626,2025-01-26 21:00:00,2025-01-27 02:00:00,71017
+AWS-MUM-007:71017:0068,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",500,506,2025-01-21 20:00:00,2025-01-22 02:00:00,71017
+AWS-MUM-007:71017:0069,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1795,1801,2025-03-16 19:00:00,2025-03-17 01:00:00,71017
+AWS-MUM-007:71017:0070,AWS-MUM-007,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1566,1569,2025-03-07 06:00:00,2025-03-07 09:00:00,71017
+AWS-RAN-067:71021:0001,AWS-RAN-067,spike,"[""pressure_hpa""]",2050,2050,2025-03-27 10:00:00,2025-03-27 10:00:00,71021
+AWS-RAN-067:71021:0002,AWS-RAN-067,spike,"[""pressure_hpa""]",1455,1455,2025-03-02 15:00:00,2025-03-02 15:00:00,71021
+AWS-RAN-067:71021:0003,AWS-RAN-067,spike,"[""pressure_hpa""]",1439,1439,2025-03-01 23:00:00,2025-03-01 23:00:00,71021
+AWS-RAN-067:71021:0004,AWS-RAN-067,spike,"[""pressure_hpa""]",15,15,2025-01-01 15:00:00,2025-01-01 15:00:00,71021
+AWS-RAN-067:71021:0005,AWS-RAN-067,spike,"[""pressure_hpa""]",1407,1407,2025-02-28 15:00:00,2025-02-28 15:00:00,71021
+AWS-RAN-067:71021:0006,AWS-RAN-067,spike,"[""pressure_hpa""]",457,457,2025-01-20 01:00:00,2025-01-20 01:00:00,71021
+AWS-RAN-067:71021:0007,AWS-RAN-067,spike,"[""temperature_c""]",1546,1546,2025-03-06 10:00:00,2025-03-06 10:00:00,71021
+AWS-RAN-067:71021:0008,AWS-RAN-067,spike,"[""temperature_c""]",840,840,2025-02-05 00:00:00,2025-02-05 00:00:00,71021
+AWS-RAN-067:71021:0009,AWS-RAN-067,spike,"[""temperature_c""]",2094,2094,2025-03-29 06:00:00,2025-03-29 06:00:00,71021
+AWS-RAN-067:71021:0010,AWS-RAN-067,spike,"[""temperature_c""]",1331,1331,2025-02-25 11:00:00,2025-02-25 11:00:00,71021
+AWS-RAN-067:71021:0011,AWS-RAN-067,frozen_value,"[""humidity_pct""]",1026,1032,2025-02-12 18:00:00,2025-02-13 00:00:00,71021
+AWS-RAN-067:71021:0012,AWS-RAN-067,frozen_value,"[""pressure_hpa""]",65,71,2025-01-03 17:00:00,2025-01-03 23:00:00,71021
+AWS-RAN-067:71021:0013,AWS-RAN-067,frozen_value,"[""humidity_pct""]",1490,1498,2025-03-04 02:00:00,2025-03-04 10:00:00,71021
+AWS-RAN-067:71021:0014,AWS-RAN-067,frozen_value,"[""humidity_pct""]",118,125,2025-01-05 22:00:00,2025-01-06 05:00:00,71021
+AWS-RAN-067:71021:0015,AWS-RAN-067,frozen_value,"[""temperature_c""]",1011,1019,2025-02-12 03:00:00,2025-02-12 11:00:00,71021
+AWS-RAN-067:71021:0016,AWS-RAN-067,frozen_value,"[""humidity_pct""]",836,843,2025-02-04 20:00:00,2025-02-05 03:00:00,71021
+AWS-RAN-067:71021:0017,AWS-RAN-067,frozen_value,"[""humidity_pct""]",977,985,2025-02-10 17:00:00,2025-02-11 01:00:00,71021
+AWS-RAN-067:71021:0018,AWS-RAN-067,frozen_value,"[""humidity_pct""]",1741,1748,2025-03-14 13:00:00,2025-03-14 20:00:00,71021
+AWS-RAN-067:71021:0019,AWS-RAN-067,frozen_value,"[""humidity_pct""]",768,776,2025-02-02 00:00:00,2025-02-02 08:00:00,71021
+AWS-RAN-067:71021:0020,AWS-RAN-067,frozen_value,"[""pressure_hpa""]",249,256,2025-01-11 09:00:00,2025-01-11 16:00:00,71021
+AWS-RAN-067:71021:0021,AWS-RAN-067,drift,"[""temperature_c""]",1596,1628,2025-03-08 12:00:00,2025-03-09 20:00:00,71021
+AWS-RAN-067:71021:0022,AWS-RAN-067,drift,"[""pressure_hpa""]",299,341,2025-01-13 11:00:00,2025-01-15 05:00:00,71021
+AWS-RAN-067:71021:0023,AWS-RAN-067,drift,"[""temperature_c""]",1737,1776,2025-03-14 09:00:00,2025-03-16 00:00:00,71021
+AWS-RAN-067:71021:0024,AWS-RAN-067,drift,"[""temperature_c""]",401,433,2025-01-17 17:00:00,2025-01-19 01:00:00,71021
+AWS-RAN-067:71021:0025,AWS-RAN-067,drift,"[""temperature_c""]",228,263,2025-01-10 12:00:00,2025-01-11 23:00:00,71021
+AWS-RAN-067:71021:0026,AWS-RAN-067,drift,"[""pressure_hpa""]",586,623,2025-01-25 10:00:00,2025-01-26 23:00:00,71021
+AWS-RAN-067:71021:0027,AWS-RAN-067,drift,"[""pressure_hpa""]",1518,1557,2025-03-05 06:00:00,2025-03-06 21:00:00,71021
+AWS-RAN-067:71021:0028,AWS-RAN-067,drift,"[""humidity_pct""]",1771,1816,2025-03-15 19:00:00,2025-03-17 16:00:00,71021
+AWS-RAN-067:71021:0029,AWS-RAN-067,drift,"[""temperature_c""]",671,718,2025-01-28 23:00:00,2025-01-30 22:00:00,71021
+AWS-RAN-067:71021:0030,AWS-RAN-067,drift,"[""temperature_c""]",1863,1904,2025-03-19 15:00:00,2025-03-21 08:00:00,71021
+AWS-RAN-067:71021:0031,AWS-RAN-067,dropout,"[""humidity_pct""]",1366,1366,2025-02-26 22:00:00,2025-02-26 22:00:00,71021
+AWS-RAN-067:71021:0032,AWS-RAN-067,dropout,"[""pressure_hpa""]",19,19,2025-01-01 19:00:00,2025-01-01 19:00:00,71021
+AWS-RAN-067:71021:0033,AWS-RAN-067,dropout,"[""humidity_pct""]",1116,1116,2025-02-16 12:00:00,2025-02-16 12:00:00,71021
+AWS-RAN-067:71021:0034,AWS-RAN-067,dropout,"[""temperature_c""]",208,208,2025-01-09 16:00:00,2025-01-09 16:00:00,71021
+AWS-RAN-067:71021:0035,AWS-RAN-067,dropout,"[""pressure_hpa""]",1954,1954,2025-03-23 10:00:00,2025-03-23 10:00:00,71021
+AWS-RAN-067:71021:0036,AWS-RAN-067,dropout,"[""humidity_pct""]",1877,1877,2025-03-20 05:00:00,2025-03-20 05:00:00,71021
+AWS-RAN-067:71021:0037,AWS-RAN-067,dropout,"[""temperature_c""]",374,374,2025-01-16 14:00:00,2025-01-16 14:00:00,71021
+AWS-RAN-067:71021:0038,AWS-RAN-067,dropout,"[""humidity_pct""]",1390,1390,2025-02-27 22:00:00,2025-02-27 22:00:00,71021
+AWS-RAN-067:71021:0039,AWS-RAN-067,dropout,"[""humidity_pct""]",2016,2016,2025-03-26 00:00:00,2025-03-26 00:00:00,71021
+AWS-RAN-067:71021:0040,AWS-RAN-067,dropout,"[""humidity_pct""]",425,425,2025-01-18 17:00:00,2025-01-18 17:00:00,71021
+AWS-RAN-067:71021:0041,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",847,850,2025-02-05 07:00:00,2025-02-05 10:00:00,71021
+AWS-RAN-067:71021:0042,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1158,1162,2025-02-18 06:00:00,2025-02-18 10:00:00,71021
+AWS-RAN-067:71021:0043,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1279,1283,2025-02-23 07:00:00,2025-02-23 11:00:00,71021
+AWS-RAN-067:71021:0044,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1833,1836,2025-03-18 09:00:00,2025-03-18 12:00:00,71021
+AWS-RAN-067:71021:0045,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",502,504,2025-01-21 22:00:00,2025-01-22 00:00:00,71021
+AWS-RAN-067:71021:0046,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",21,24,2025-01-01 21:00:00,2025-01-02 00:00:00,71021
+AWS-RAN-067:71021:0047,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",573,577,2025-01-24 21:00:00,2025-01-25 01:00:00,71021
+AWS-RAN-067:71021:0048,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1401,1403,2025-02-28 09:00:00,2025-02-28 11:00:00,71021
+AWS-RAN-067:71021:0049,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1094,1098,2025-02-15 14:00:00,2025-02-15 18:00:00,71021
+AWS-RAN-067:71021:0050,AWS-RAN-067,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",920,923,2025-02-08 08:00:00,2025-02-08 11:00:00,71021
+AWS-RAN-067:71021:0051,AWS-RAN-067,sensor_fail_low,"[""pressure_hpa""]",1109,1112,2025-02-16 05:00:00,2025-02-16 08:00:00,71021
+AWS-RAN-067:71021:0052,AWS-RAN-067,sensor_fail_low,"[""humidity_pct""]",257,260,2025-01-11 17:00:00,2025-01-11 20:00:00,71021
+AWS-RAN-067:71021:0053,AWS-RAN-067,sensor_fail_low,"[""temperature_c""]",1820,1823,2025-03-17 20:00:00,2025-03-17 23:00:00,71021
+AWS-RAN-067:71021:0054,AWS-RAN-067,sensor_fail_low,"[""pressure_hpa""]",98,101,2025-01-05 02:00:00,2025-01-05 05:00:00,71021
+AWS-RAN-067:71021:0055,AWS-RAN-067,sensor_fail_low,"[""humidity_pct""]",1329,1332,2025-02-25 09:00:00,2025-02-25 12:00:00,71021
+AWS-RAN-067:71021:0056,AWS-RAN-067,sensor_fail_low,"[""humidity_pct""]",338,341,2025-01-15 02:00:00,2025-01-15 05:00:00,71021
+AWS-RAN-067:71021:0057,AWS-RAN-067,sensor_fail_low,"[""pressure_hpa""]",361,364,2025-01-16 01:00:00,2025-01-16 04:00:00,71021
+AWS-RAN-067:71021:0058,AWS-RAN-067,sensor_fail_low,"[""pressure_hpa""]",898,901,2025-02-07 10:00:00,2025-02-07 13:00:00,71021
+AWS-RAN-067:71021:0059,AWS-RAN-067,sensor_fail_low,"[""pressure_hpa""]",1100,1103,2025-02-15 20:00:00,2025-02-15 23:00:00,71021
+AWS-RAN-067:71021:0060,AWS-RAN-067,sensor_fail_low,"[""pressure_hpa""]",34,37,2025-01-02 10:00:00,2025-01-02 13:00:00,71021
+AWS-RAN-067:71021:0061,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",734,738,2025-01-31 14:00:00,2025-01-31 18:00:00,71021
+AWS-RAN-067:71021:0062,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1713,1718,2025-03-13 09:00:00,2025-03-13 14:00:00,71021
+AWS-RAN-067:71021:0063,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",2075,2082,2025-03-28 11:00:00,2025-03-28 18:00:00,71021
+AWS-RAN-067:71021:0064,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1126,1132,2025-02-16 22:00:00,2025-02-17 04:00:00,71021
+AWS-RAN-067:71021:0065,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",217,224,2025-01-10 01:00:00,2025-01-10 08:00:00,71021
+AWS-RAN-067:71021:0066,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1924,1928,2025-03-22 04:00:00,2025-03-22 08:00:00,71021
+AWS-RAN-067:71021:0067,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",513,517,2025-01-22 09:00:00,2025-01-22 13:00:00,71021
+AWS-RAN-067:71021:0068,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",277,284,2025-01-12 13:00:00,2025-01-12 20:00:00,71021
+AWS-RAN-067:71021:0069,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",882,888,2025-02-06 18:00:00,2025-02-07 00:00:00,71021
+AWS-RAN-067:71021:0070,AWS-RAN-067,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",474,477,2025-01-20 18:00:00,2025-01-20 21:00:00,71021
+AWS-VAR-052:71025:0001,AWS-VAR-052,spike,"[""pressure_hpa""]",90,90,2025-01-04 18:00:00,2025-01-04 18:00:00,71025
+AWS-VAR-052:71025:0002,AWS-VAR-052,spike,"[""pressure_hpa""]",1279,1279,2025-02-23 07:00:00,2025-02-23 07:00:00,71025
+AWS-VAR-052:71025:0003,AWS-VAR-052,spike,"[""pressure_hpa""]",1196,1196,2025-02-19 20:00:00,2025-02-19 20:00:00,71025
+AWS-VAR-052:71025:0004,AWS-VAR-052,spike,"[""pressure_hpa""]",500,500,2025-01-21 20:00:00,2025-01-21 20:00:00,71025
+AWS-VAR-052:71025:0005,AWS-VAR-052,spike,"[""pressure_hpa""]",14,14,2025-01-01 14:00:00,2025-01-01 14:00:00,71025
+AWS-VAR-052:71025:0006,AWS-VAR-052,spike,"[""temperature_c""]",984,984,2025-02-11 00:00:00,2025-02-11 00:00:00,71025
+AWS-VAR-052:71025:0007,AWS-VAR-052,spike,"[""temperature_c""]",2089,2089,2025-03-29 01:00:00,2025-03-29 01:00:00,71025
+AWS-VAR-052:71025:0008,AWS-VAR-052,spike,"[""pressure_hpa""]",1013,1013,2025-02-12 05:00:00,2025-02-12 05:00:00,71025
+AWS-VAR-052:71025:0009,AWS-VAR-052,spike,"[""pressure_hpa""]",1132,1132,2025-02-17 04:00:00,2025-02-17 04:00:00,71025
+AWS-VAR-052:71025:0010,AWS-VAR-052,spike,"[""temperature_c""]",1969,1969,2025-03-24 01:00:00,2025-03-24 01:00:00,71025
+AWS-VAR-052:71025:0011,AWS-VAR-052,frozen_value,"[""temperature_c""]",1764,1772,2025-03-15 12:00:00,2025-03-15 20:00:00,71025
+AWS-VAR-052:71025:0012,AWS-VAR-052,frozen_value,"[""temperature_c""]",1290,1297,2025-02-23 18:00:00,2025-02-24 01:00:00,71025
+AWS-VAR-052:71025:0013,AWS-VAR-052,frozen_value,"[""pressure_hpa""]",450,458,2025-01-19 18:00:00,2025-01-20 02:00:00,71025
+AWS-VAR-052:71025:0014,AWS-VAR-052,frozen_value,"[""humidity_pct""]",1521,1527,2025-03-05 09:00:00,2025-03-05 15:00:00,71025
+AWS-VAR-052:71025:0015,AWS-VAR-052,frozen_value,"[""humidity_pct""]",445,453,2025-01-19 13:00:00,2025-01-19 21:00:00,71025
+AWS-VAR-052:71025:0016,AWS-VAR-052,frozen_value,"[""temperature_c""]",1924,1932,2025-03-22 04:00:00,2025-03-22 12:00:00,71025
+AWS-VAR-052:71025:0017,AWS-VAR-052,frozen_value,"[""humidity_pct""]",1452,1458,2025-03-02 12:00:00,2025-03-02 18:00:00,71025
+AWS-VAR-052:71025:0018,AWS-VAR-052,frozen_value,"[""pressure_hpa""]",162,169,2025-01-07 18:00:00,2025-01-08 01:00:00,71025
+AWS-VAR-052:71025:0019,AWS-VAR-052,frozen_value,"[""pressure_hpa""]",1820,1828,2025-03-17 20:00:00,2025-03-18 04:00:00,71025
+AWS-VAR-052:71025:0020,AWS-VAR-052,frozen_value,"[""temperature_c""]",670,678,2025-01-28 22:00:00,2025-01-29 06:00:00,71025
+AWS-VAR-052:71025:0021,AWS-VAR-052,drift,"[""humidity_pct""]",482,526,2025-01-21 02:00:00,2025-01-22 22:00:00,71025
+AWS-VAR-052:71025:0022,AWS-VAR-052,drift,"[""humidity_pct""]",1878,1900,2025-03-20 06:00:00,2025-03-21 04:00:00,71025
+AWS-VAR-052:71025:0023,AWS-VAR-052,drift,"[""temperature_c""]",1577,1601,2025-03-07 17:00:00,2025-03-08 17:00:00,71025
+AWS-VAR-052:71025:0024,AWS-VAR-052,drift,"[""pressure_hpa""]",849,874,2025-02-05 09:00:00,2025-02-06 10:00:00,71025
+AWS-VAR-052:71025:0025,AWS-VAR-052,drift,"[""humidity_pct""]",1649,1676,2025-03-10 17:00:00,2025-03-11 20:00:00,71025
+AWS-VAR-052:71025:0026,AWS-VAR-052,drift,"[""pressure_hpa""]",735,767,2025-01-31 15:00:00,2025-02-01 23:00:00,71025
+AWS-VAR-052:71025:0027,AWS-VAR-052,drift,"[""temperature_c""]",1996,2030,2025-03-25 04:00:00,2025-03-26 14:00:00,71025
+AWS-VAR-052:71025:0028,AWS-VAR-052,drift,"[""temperature_c""]",1710,1743,2025-03-13 06:00:00,2025-03-14 15:00:00,71025
+AWS-VAR-052:71025:0029,AWS-VAR-052,drift,"[""pressure_hpa""]",1514,1554,2025-03-05 02:00:00,2025-03-06 18:00:00,71025
+AWS-VAR-052:71025:0030,AWS-VAR-052,drift,"[""temperature_c""]",1783,1821,2025-03-16 07:00:00,2025-03-17 21:00:00,71025
+AWS-VAR-052:71025:0031,AWS-VAR-052,dropout,"[""temperature_c""]",1364,1364,2025-02-26 20:00:00,2025-02-26 20:00:00,71025
+AWS-VAR-052:71025:0032,AWS-VAR-052,dropout,"[""temperature_c""]",1572,1572,2025-03-07 12:00:00,2025-03-07 12:00:00,71025
+AWS-VAR-052:71025:0033,AWS-VAR-052,dropout,"[""pressure_hpa""]",1844,1844,2025-03-18 20:00:00,2025-03-18 20:00:00,71025
+AWS-VAR-052:71025:0034,AWS-VAR-052,dropout,"[""humidity_pct""]",858,858,2025-02-05 18:00:00,2025-02-05 18:00:00,71025
+AWS-VAR-052:71025:0035,AWS-VAR-052,dropout,"[""temperature_c""]",169,169,2025-01-08 01:00:00,2025-01-08 01:00:00,71025
+AWS-VAR-052:71025:0036,AWS-VAR-052,dropout,"[""humidity_pct""]",663,663,2025-01-28 15:00:00,2025-01-28 15:00:00,71025
+AWS-VAR-052:71025:0037,AWS-VAR-052,dropout,"[""temperature_c""]",578,578,2025-01-25 02:00:00,2025-01-25 02:00:00,71025
+AWS-VAR-052:71025:0038,AWS-VAR-052,dropout,"[""pressure_hpa""]",295,295,2025-01-13 07:00:00,2025-01-13 07:00:00,71025
+AWS-VAR-052:71025:0039,AWS-VAR-052,dropout,"[""pressure_hpa""]",157,157,2025-01-07 13:00:00,2025-01-07 13:00:00,71025
+AWS-VAR-052:71025:0040,AWS-VAR-052,dropout,"[""pressure_hpa""]",611,611,2025-01-26 11:00:00,2025-01-26 11:00:00,71025
+AWS-VAR-052:71025:0041,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1986,1989,2025-03-24 18:00:00,2025-03-24 21:00:00,71025
+AWS-VAR-052:71025:0042,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1956,1959,2025-03-23 12:00:00,2025-03-23 15:00:00,71025
+AWS-VAR-052:71025:0043,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",905,908,2025-02-07 17:00:00,2025-02-07 20:00:00,71025
+AWS-VAR-052:71025:0044,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",619,621,2025-01-26 19:00:00,2025-01-26 21:00:00,71025
+AWS-VAR-052:71025:0045,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",149,153,2025-01-07 05:00:00,2025-01-07 09:00:00,71025
+AWS-VAR-052:71025:0046,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",536,540,2025-01-23 08:00:00,2025-01-23 12:00:00,71025
+AWS-VAR-052:71025:0047,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",34,37,2025-01-02 10:00:00,2025-01-02 13:00:00,71025
+AWS-VAR-052:71025:0048,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1486,1490,2025-03-03 22:00:00,2025-03-04 02:00:00,71025
+AWS-VAR-052:71025:0049,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",246,250,2025-01-11 06:00:00,2025-01-11 10:00:00,71025
+AWS-VAR-052:71025:0050,AWS-VAR-052,multivariate_inconsistency,"[""temperature_c"", ""humidity_pct"", ""pressure_hpa""]",1299,1301,2025-02-24 03:00:00,2025-02-24 05:00:00,71025
+AWS-VAR-052:71025:0051,AWS-VAR-052,sensor_fail_low,"[""pressure_hpa""]",1792,1795,2025-03-16 16:00:00,2025-03-16 19:00:00,71025
+AWS-VAR-052:71025:0052,AWS-VAR-052,sensor_fail_low,"[""temperature_c""]",750,753,2025-02-01 06:00:00,2025-02-01 09:00:00,71025
+AWS-VAR-052:71025:0053,AWS-VAR-052,sensor_fail_low,"[""temperature_c""]",266,269,2025-01-12 02:00:00,2025-01-12 05:00:00,71025
+AWS-VAR-052:71025:0054,AWS-VAR-052,sensor_fail_low,"[""pressure_hpa""]",2061,2064,2025-03-27 21:00:00,2025-03-28 00:00:00,71025
+AWS-VAR-052:71025:0055,AWS-VAR-052,sensor_fail_low,"[""temperature_c""]",1274,1277,2025-02-23 02:00:00,2025-02-23 05:00:00,71025
+AWS-VAR-052:71025:0056,AWS-VAR-052,sensor_fail_low,"[""humidity_pct""]",599,602,2025-01-25 23:00:00,2025-01-26 02:00:00,71025
+AWS-VAR-052:71025:0057,AWS-VAR-052,sensor_fail_low,"[""temperature_c""]",1920,1923,2025-03-22 00:00:00,2025-03-22 03:00:00,71025
+AWS-VAR-052:71025:0058,AWS-VAR-052,sensor_fail_low,"[""pressure_hpa""]",2000,2003,2025-03-25 08:00:00,2025-03-25 11:00:00,71025
+AWS-VAR-052:71025:0059,AWS-VAR-052,sensor_fail_low,"[""humidity_pct""]",1246,1249,2025-02-21 22:00:00,2025-02-22 01:00:00,71025
+AWS-VAR-052:71025:0060,AWS-VAR-052,sensor_fail_low,"[""humidity_pct""]",1070,1073,2025-02-14 14:00:00,2025-02-14 17:00:00,71025
+AWS-VAR-052:71025:0061,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1116,1122,2025-02-16 12:00:00,2025-02-16 18:00:00,71025
+AWS-VAR-052:71025:0062,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1604,1607,2025-03-08 20:00:00,2025-03-08 23:00:00,71025
+AWS-VAR-052:71025:0063,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",550,553,2025-01-23 22:00:00,2025-01-24 01:00:00,71025
+AWS-VAR-052:71025:0064,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",63,66,2025-01-03 15:00:00,2025-01-03 18:00:00,71025
+AWS-VAR-052:71025:0065,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1018,1023,2025-02-12 10:00:00,2025-02-12 15:00:00,71025
+AWS-VAR-052:71025:0066,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1937,1941,2025-03-22 17:00:00,2025-03-22 21:00:00,71025
+AWS-VAR-052:71025:0067,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1413,1420,2025-02-28 21:00:00,2025-03-01 04:00:00,71025
+AWS-VAR-052:71025:0068,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",783,789,2025-02-02 15:00:00,2025-02-02 21:00:00,71025
+AWS-VAR-052:71025:0069,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1040,1043,2025-02-13 08:00:00,2025-02-13 11:00:00,71025
+AWS-VAR-052:71025:0070,AWS-VAR-052,unstructured_anomaly,"[""temperature_c"", ""pressure_hpa"", ""humidity_pct""]",1614,1620,2025-03-09 06:00:00,2025-03-09 12:00:00,71025

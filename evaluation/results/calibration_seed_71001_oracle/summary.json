@@ -1,0 +1,328 @@
+{
+  "mode": "oracle",
+  "input_files": [
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-BHO-030_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-BHO-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-BHO-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-BHO-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-CHN-024_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-CHN-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-CHN-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-CHN-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-DEL-011_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-DEL-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-DEL-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-DEL-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-KOL-015_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-KOL-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-KOL-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-KOL-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-MUM-007_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-MUM-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-MUM-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-MUM-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-RAN-067_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-RAN-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-RAN-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-RAN-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-VAR-052_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-VAR-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-VAR-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-VAR-103_labeled.csv"
+  ],
+  "row_count": 60480,
+  "station_count": 28,
+  "event_ledger": "evaluation\\generated_replays\\calibration_seed_71001\\fault_events.csv",
+  "artifact_path": "C:\\Users\\PRANJAL TIWARI\\Desktop\\SkyguardAI - Copy (2)\\model_artifacts\\isolation_forest.pkl",
+  "outputs": {
+    "oracle": {
+      "rows": 60480,
+      "row_level": {
+        "tp": 997,
+        "fp": 100,
+        "fn": 2899,
+        "precision": 0.9088422971741112,
+        "recall": 0.2559034907597536,
+        "f1": 0.39935910274384145
+      },
+      "by_fault_type": {
+        "drift": {
+          "tp": 191,
+          "fp": 13,
+          "fn": 2149,
+          "precision": 0.9362745098039216,
+          "recall": 0.08162393162393163
+        },
+        "dropout": {
+          "tp": 69,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "frozen_value": {
+          "tp": 40,
+          "fp": 4,
+          "fn": 419,
+          "precision": 0.9090909090909091,
+          "recall": 0.08714596949891068
+        },
+        "multivariate_inconsistency": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 219,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "sensor_fail_low": {
+          "tp": 208,
+          "fp": 0,
+          "fn": 20,
+          "precision": 1.0,
+          "recall": 0.9122807017543859
+        },
+        "spike": {
+          "tp": 14,
+          "fp": 2,
+          "fn": 25,
+          "precision": 0.875,
+          "recall": 0.358974358974359
+        },
+        "unstructured_anomaly": {
+          "tp": 246,
+          "fp": 81,
+          "fn": 67,
+          "precision": 0.7522935779816514,
+          "recall": 0.7859424920127795
+        }
+      },
+      "episodic": {
+        "drift": {
+          "tp": 30,
+          "fp": 164,
+          "fn": 40,
+          "truth_episodes": 70,
+          "predicted_episodes": 194,
+          "precision": 0.15463917525773196,
+          "recall": 0.42857142857142855,
+          "f1": 0.2272727272727273,
+          "matches": [
+            [
+              4,
+              5
+            ],
+            [
+              7,
+              0
+            ],
+            [
+              20,
+              6
+            ],
+            [
+              30,
+              13
+            ],
+            [
+              36,
+              15
+            ],
+            [
+              43,
+              10
+            ],
+            [
+              44,
+              19
+            ],
+            [
+              47,
+              14
+            ],
+            [
+              51,
+              18
+            ],
+            [
+              58,
+              29
+            ],
+            [
+              69,
+              20
+            ],
+            [
+              77,
+              24
+            ],
+            [
+              78,
+              22
+            ],
+            [
+              87,
+              30
+            ],
+            [
+              91,
+              36
+            ],
+            [
+              99,
+              34
+            ],
+            [
+              102,
+              39
+            ],
+            [
+              105,
+              33
+            ],
+            [
+              107,
+              43
+            ],
+            [
+              114,
+              40
+            ],
+            [
+              125,
+              49
+            ],
+            [
+              136,
+              51
+            ],
+            [
+              141,
+              55
+            ],
+            [
+              145,
+              57
+            ],
+            [
+              147,
+              52
+            ],
+            [
+              163,
+              65
+            ],
+            [
+              166,
+              63
+            ],
+            [
+              175,
+              68
+            ],
+            [
+              186,
+              69
+            ],
+            [
+              193,
+              66
+            ]
+          ]
+        },
+        "frozen_value": {
+          "tp": 19,
+          "fp": 9,
+          "fn": 51,
+          "truth_episodes": 70,
+          "predicted_episodes": 28,
+          "precision": 0.6785714285714286,
+          "recall": 0.2714285714285714,
+          "f1": 0.3877551020408163,
+          "matches": [
+            [
+              0,
+              9
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              2,
+              15
+            ],
+            [
+              3,
+              10
+            ],
+            [
+              4,
+              28
+            ],
+            [
+              5,
+              22
+            ],
+            [
+              6,
+              26
+            ],
+            [
+              8,
+              39
+            ],
+            [
+              10,
+              38
+            ],
+            [
+              12,
+              49
+            ],
+            [
+              13,
+              40
+            ],
+            [
+              14,
+              42
+            ],
+            [
+              16,
+              44
+            ],
+            [
+              17,
+              41
+            ],
+            [
+              20,
+              51
+            ],
+            [
+              21,
+              54
+            ],
+            [
+              22,
+              67
+            ],
+            [
+              25,
+              62
+            ],
+            [
+              27,
+              60
+            ]
+          ]
+        }
+      },
+      "episodic_note": null,
+      "elapsed_seconds": 819.589,
+      "rows_per_second": 73.79,
+      "evaluation_path": "vectorized_label_masked_diagnostic",
+      "predictions_path": "evaluation\\results\\calibration_seed_71001_oracle\\oracle_predictions.csv"
+    }
+  }
+}

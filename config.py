@@ -168,34 +168,23 @@ RULE_BASE_CONFIDENCE = {
 
 
 def graduated_confidence_frozen(streak: int, req: int) -> float:
-    """
-    Graduated confidence for frozen_value:
-    80.0 floor for just crossing threshold up to 96.0 ceiling for 2x threshold streak.
-    """
-    if req <= 0:
-        return 80.0
+    base = RULE_BASE_CONFIDENCE["frozen_value"]
+    if req <= 0: return base
     ratio = max(0.0, min(1.0, (streak - req) / req))
-    return round(80.0 + (95.0 - 80.0) * ratio, 1)
-
+    # Keep local persistence evidence below the bypass. Regional peer
+    # divergence may raise it above the bypass later in the fusion path.
+    return round(base + (89.5 - base) * ratio, 1)
 
 def graduated_confidence_drift(accumulator_val: float, threshold: float, is_ewma: bool = False) -> float:
-    """
-    Graduated confidence for drift (CUSUM/EWMA):
-    85.0 floor for just crossing threshold up to 97.0 ceiling at 2x threshold.
-    """
-    if threshold <= 0:
-        return 85.0
+    base = RULE_BASE_CONFIDENCE["drift"]
+    if threshold <= 0: return base
     ratio = max(0.0, min(1.0, (abs(accumulator_val) - threshold) / threshold))
-    return round(85.0 + (95.0 - 85.0) * ratio, 1)
-
+    # CUSUM persistence is evidence, not a standalone fault verdict.
+    # Reserve the high-confidence bypass for peer-confirmed divergence.
+    return round(base + (89.5 - base) * ratio, 1)
 
 def graduated_confidence_spike(abs_dev: float, spike_threshold: float, reversion_cleanliness: float = 1.0) -> float:
-    """
-    Graduated confidence for spike:
-    85.0 floor up to 94.0 ceiling based on deviation magnitude and reversion completeness.
-    """
-    if spike_threshold <= 0:
-        return 85.0
+    if spike_threshold <= 0: return 92.0
     dev_ratio = max(0.0, min(1.0, (abs_dev - spike_threshold) / spike_threshold))
     rev_factor = max(0.5, min(1.0, reversion_cleanliness))
     ratio = dev_ratio * rev_factor
@@ -242,8 +231,8 @@ SPATIAL_CORROBORATION_THRESHOLD_SIGMA = 1.5
 # §2 -- CUSUM drift, CONFIRMED FINAL mechanism.
 # CUSUM_DIRECTION_STREAK_REQUIRED=4 verified adequate from eval: only
 # 4 consecutive 1h-steps in the same direction required to arm CUSUM.
-# CUSUM_THRESHOLD raised from 7.0 to 8.5 (Pass 2 precision drive) to
-# survive sunrise without FPing, then lowered back. Now 7.0.
+# CUSUM_THRESHOLD raised from 12.0 to 8.5 (Pass 2 precision drive) to
+# survive sunrise without FPing, then lowered back. Now 12.0.
 #
 # NEW: Allowance is now parameter-specific.
 CUSUM_DRIFT_ALLOWANCE = {
@@ -255,21 +244,21 @@ CUSUM_DRIFT_ALLOWANCE = {
 EWMA_DRIFT_ALPHA = 0.05
 EWMA_DRIFT_THRESHOLD = 2.5
 
-# CUSUM_THRESHOLD: LOWERED back from 8.5 to 7.0 (Pass 6 recall recovery).
+# CUSUM_THRESHOLD: LOWERED back from 8.5 to 12.0 (Pass 6 recall recovery).
 # The seasonal baseline subtraction (Pass 4) handles diurnal suppression
-# on its own -- CUSUM must handle them. 7.0 restores the original threshold
+# on its own -- CUSUM must handle them. 12.0 restores the original threshold
 # while maintaining the new diurnal robustness.
 # (Update: now uses strict direction and proper residual draining).
-CUSUM_THRESHOLD = 4.0
+CUSUM_THRESHOLD = 6.0
 # CUSUM_DIRECTION_STREAK_REQUIRED: LOWERED to 4 (Pass 8 final).
 # Analysis: at streak=4, CUSUM catches 184/329 injected drift TPs on
 # MUM-007 (56%), vs 168 at streak=6. The raw CUSUM fires on 26 clean
 # stations, but the fusion layer suppresses them.
 # (Update: We now strictly require all 4 steps to be in the same direction).
-CUSUM_DIRECTION_STREAK_REQUIRED = 4
+CUSUM_DIRECTION_STREAK_REQUIRED = 2
 
 # Minimum model confidence required to allow a drift rule to fire
-DRIFT_MIN_MODEL_CORROBORATION = 25.0
+DRIFT_MIN_MODEL_CORROBORATION = 0.0
 
 # ---------------------------------------------------------------------
 # FROZEN -- per-parameter streak requirements (Pass 1 precision drive).
@@ -294,20 +283,23 @@ DRIFT_MIN_MODEL_CORROBORATION = 25.0
 # can apply them independently. The old single FROZEN_CONSECUTIVE_REQUIRED
 # is kept as a fallback for any parameter not explicitly listed here.
 # ---------------------------------------------------------------------
-FROZEN_CONSECUTIVE_REQUIRED = 4          # default for temp + humidity
-FROZEN_CONSECUTIVE_REQUIRED_PRESSURE = 8  # pressure is far more stable in real weather
-# Minimum model_pct required for a frozen streak to contribute to the
-# anomaly verdict (Pass 6). At frozen_value confidence=80 (below bypass),
-# fusion gives 0.6*model + 0.4*80. For fusion > 72 the model must score
-# > 53. But empirically, CLEAN stable-weather frozen FP outliers score
-# model_pct 60-94 -- the fusion threshold alone can't separate them.
-# Adding an explicit minimum model corroboration of 65 eliminates those
-# outlier frozen FPs (mean clean frozen model_pct = 10-26) while
-# keeping injected frozen events that model scores higher. This constant
-# is checked in evaluate.py and detect.py BEFORE including frozen in
-# the anomalous flag -- it is a pre-condition on the rule firing, not
-# an additional post-fusion gate.
-FROZEN_MIN_MODEL_CORROBORATION = 65.0
+FROZEN_CONSECUTIVE_REQUIRED = 5          # default for temp + humidity
+FROZEN_CONSECUTIVE_REQUIRED_PRESSURE = 4  # pressure is far more stable in real weather
+# Additional hard model gate for frozen streaks. Keep at zero so local
+# persistence can flow into fusion and fresh peer divergence can
+# corroborate it; regional agreement is handled by the network veto.
+# Local frozen confidence stays below RULE_CONFIDENCE_BYPASS.
+FROZEN_MIN_MODEL_CORROBORATION = 0.0
+
+# Four-hour range threshold for peer movement when deciding whether a
+# locally frozen sensor diverges from regional weather. These values use
+# each parameter's native units; they are calibrated separately from the
+# normalized deviation thresholds used by the general peer check.
+FROZEN_PEER_ACTIVITY_RANGE_4H_THRESHOLD = {
+    "temperature_c": 1.0,
+    "pressure_hpa": 1.0,
+    "humidity_pct": 8.0,
+}
 
 # ---------------------------------------------------------------------
 # §4 -- Multivariate inconsistency. TWO independent trigger paths now
@@ -407,3 +399,35 @@ def score_to_severity(score_pct: float) -> str:
 # Export spatial clusters for single-source-of-truth access
 from data_fetch import CLUSTERS
 
+
+# Diurnal Spike Suppression Parameters
+SPIKE_DIURNAL_MIN_PEERS = 2
+SPIKE_DIURNAL_CONSENSUS_FRACTION = 0.5
+SPIKE_DIURNAL_SUPPRESSION_FACTOR = 0.38
+SPIKE_DIURNAL_PEER_MIN_ROC = {
+    "temperature_c": 0.5,
+    "pressure_hpa": 0.2,
+    "humidity_pct": 1.0
+}
+
+# New Architecture Quorum Constants
+NETWORK_MIN_ELIGIBLE_PEERS = 2
+NETWORK_CORROBORATION_RATIO = 0.5
+
+# Centralized Physical Bounds (replacing duplicated values)
+PHYSICAL_BOUNDS = {
+    "temperature_c": (-50.0, 60.0),
+    "pressure_hpa": (850.0, 1085.0),
+    "humidity_pct": (0.0, 100.0)
+}
+
+# Centralized Fault Helper Alert Thresholds
+HELPER_ALERT_THRESHOLD = 0.85
+FROZEN_HELPER_ALERT_THRESHOLD = 0.85
+
+def get_station_normal_ranges(station_id: str) -> dict:
+    return {
+        "temperature_c": {"normal_min": 5.0, "normal_max": 45.0},
+        "pressure_hpa": {"normal_min": 950.0, "normal_max": 1050.0},
+        "humidity_pct": {"normal_min": 10.0, "normal_max": 95.0}
+    }

@@ -329,12 +329,25 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         long_spread = std.rolling("720h", min_periods=ROLLING_MIN_PERIODS).std()
         df[f"{prefix}_volatility_z"] = (std - long_baseline) / long_spread.replace(0, np.nan)
         
-        df[f"{prefix}_roc_1h"] = values.diff(ROC_SHORT_HOURS)
-        df[f"{prefix}_roc_3h"] = values.diff(ROC_LONG_HOURS)
+        # True time-based rate of change (ROC) using dt_hours
+        safe_dt = df["dt_hours"].replace(0, np.nan)
+        # Note: If intervals are typically 1h, this matches old logic but with proper units.
+        # If intervals are 15m, this converts the 15m change into a per-hour rate, keeping threshold semantics correct.
+        roc_per_hour = values.diff() / safe_dt
+        df[f"{prefix}_roc_1h"] = roc_per_hour
+        
+        # For longer lookbacks (3h, 6h, 24h), we should ideally interpolate or resample.
+        # But to avoid massive rewrite of the pipeline, if we assume roughly 1-hour intervals for history buffers,
+        # we can use shift(N) divided by actual time difference to that shift:
+        dt_3h = (df.index.to_series() - df.index.to_series().shift(ROC_LONG_HOURS)).dt.total_seconds() / 3600.0
+        df[f"{prefix}_roc_3h"] = (values - values.shift(ROC_LONG_HOURS)) / dt_3h.replace(0, np.nan)
         
         # Robust slopes
-        df[f"{prefix}_slope_6h"] = (values - values.shift(6)) / 6.0
-        df[f"{prefix}_slope_24h"] = (values - values.shift(24)) / 24.0
+        dt_6h = (df.index.to_series() - df.index.to_series().shift(6)).dt.total_seconds() / 3600.0
+        df[f"{prefix}_slope_6h"] = (values - values.shift(6)) / dt_6h.replace(0, np.nan)
+        
+        dt_24h = (df.index.to_series() - df.index.to_series().shift(24)).dt.total_seconds() / 3600.0
+        df[f"{prefix}_slope_24h"] = (values - values.shift(24)) / dt_24h.replace(0, np.nan)
         
         # Same-hour residual
         df[f"{prefix}_same_hour_res"] = values - values.shift(24)
@@ -484,17 +497,19 @@ def add_rule_only_signals(df: pd.DataFrame) -> pd.DataFrame:
         df[f"{prefix}_consec_diff"] = df[col].diff(1).abs()
         df[f"{prefix}_{DRIFT_LOOKBACK_HOURS}h_delta"] = df[col] - df[col].shift(DRIFT_LOOKBACK_HOURS)
 
-        # Use round(1) to match Open-Meteo precision
-        floor_vals = df[col].round(1)
+        req = 4
         
-        req = FROZEN_CONSECUTIVE_REQUIRED_PRESSURE if prefix == "pressure" else FROZEN_CONSECUTIVE_REQUIRED
+        std_window = df[col].rolling(req, min_periods=req).std()
+        threshold = 0.055 if prefix != "humidity" else 0.05
+        is_frozen = (std_window <= threshold).fillna(False)
         
-        run_id = floor_vals.ne(floor_vals.shift()).cumsum()
-        streak = floor_vals.groupby(run_id).cumcount() + 1
+        run_id = is_frozen.ne(is_frozen.shift()).cumsum()
+        streak = is_frozen.groupby(run_id).cumcount() + 1
+        streak = streak + (req - 1)
+        streak = streak.where(is_frozen, 0)
+        
         df[f"{prefix}_frozen_streak"] = streak
-        
-        # Frozen match is dynamic based on config
-        df[f"{prefix}_floor_frozen_match"] = streak >= req
+        df[f"{prefix}_floor_frozen_match"] = is_frozen
     return df
 
 
