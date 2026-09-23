@@ -17,7 +17,8 @@ class DecisionEngine:
                state: Any = None,
                precomputed_features: pd.Series = None,
                precomputed_neighbors: dict = None,
-               precomputed_history_featured: pd.DataFrame = None) -> dict:
+               precomputed_history_featured: pd.DataFrame = None,
+               include_evaluation_diagnostics: bool = False) -> dict:
         """
         Main canonical entry point.
         
@@ -36,5 +37,6 @@ class DecisionEngine:
         verdict = score_reading(reading, station_history, model_artifact, peer_snapshot, state, 
                                 precomputed_features=precomputed_features, 
                                 precomputed_neighbors=precomputed_neighbors,
-                                precomputed_history_featured=precomputed_history_featured)
+                                precomputed_history_featured=precomputed_history_featured,
+                                include_evaluation_diagnostics=include_evaluation_diagnostics)
         return verdict

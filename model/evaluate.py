@@ -165,9 +165,122 @@ def _metrics(predictions: pd.DataFrame, truth_events: list[dict] | None) -> dict
             fault_type: episodic_metrics(truth_events, predicted_events, fault_type)
             for fault_type in sorted(EPISODIC_TYPES)
         }
+    diagnostics = _prediction_diagnostics(predictions, truth_events)
     return {"rows": int(len(predictions)), "row_level": row, "by_fault_type": by_type,
-            "episodic": episodic,
+            "episodic": episodic, "prediction_diagnostics": diagnostics,
             "episodic_note": None if episodic is not None else "unavailable: no event ledger was supplied"}
+
+
+def _prediction_diagnostics(predictions: pd.DataFrame, truth_events: list[dict] | None) -> dict:
+    """Explain row and episodic errors without changing the benchmark metrics."""
+    if predictions.empty:
+        return {"false_alarms": {}, "missed_rows": {}, "episodic_confirmation": {}}
+
+    fp = predictions[ predictions["is_anomaly_pred"] & ~predictions["is_anomaly_gt"] ]
+    fn = predictions[ predictions["is_anomaly_gt"] & ~predictions["is_anomaly_pred"] ]
+    false_alarms = {
+        "count": int(len(fp)),
+        "by_predicted_type": {str(k): int(v) for k, v in fp["fault_type_pred"].value_counts(dropna=False).items()},
+        "by_decision_basis": {str(k): int(v) for k, v in fp["decision_basis"].value_counts(dropna=False).items()} if "decision_basis" in fp else {},
+        "by_network_state": {str(k): int(v) for k, v in fp["network_state"].value_counts(dropna=False).items()} if "network_state" in fp else {},
+        "by_type_network_basis": [],
+    }
+    audit_columns = [column for column in ("fault_type_pred", "network_state", "decision_basis") if column in fp]
+    if len(audit_columns) == 3:
+        false_alarms["by_type_network_basis"] = [
+            {"fault_type": str(key[0]), "network_state": str(key[1]), "decision_basis": str(key[2]), "count": int(value)}
+            for key, value in fp.groupby(audit_columns, dropna=False).size().sort_values(ascending=False).items()
+        ]
+    missed_rows = {
+        "count": int(len(fn)),
+        "by_true_type": {str(k): int(v) for k, v in fn["fault_type_gt"].value_counts(dropna=False).items()},
+    }
+
+    episode_diagnostics = {}
+    if truth_events is not None:
+        matched_by_type = {}
+        # Reuse the exact predicted episode builder and one-to-one benchmark matcher.
+        predicted_events = _predicted_events(predictions)
+        from evaluation.benchmark_contract import _overlaps
+        for fault_type in sorted(EPISODIC_TYPES):
+            truths = [event for event in truth_events if event.get("fault_type") == fault_type]
+            preds = [event for event in predicted_events if event.get("fault_type") == fault_type]
+            # This mapping mirrors episodic_metrics' maximum-cardinality assignment.
+            candidates = [[i for i, truth in enumerate(truths) if _overlaps(truth, pred, fault_type)] for pred in preds]
+            true_to_pred = {}
+            def assign(pred_index: int, seen: set[int]) -> bool:
+                for true_index in candidates[pred_index]:
+                    if true_index in seen:
+                        continue
+                    seen.add(true_index)
+                    if true_index not in true_to_pred or assign(true_to_pred[true_index], seen):
+                        true_to_pred[true_index] = pred_index
+                        return True
+                return False
+            for pred_index in range(len(preds)):
+                assign(pred_index, set())
+            matched = []
+            missed = []
+            for true_index, truth in enumerate(truths):
+                station = str(truth.get("station_id"))
+                params = set(_event_parameters_from_ledger(truth))
+                start = pd.to_datetime(truth.get("start_timestamp", truth.get("start")), utc=True)
+                end = pd.to_datetime(truth.get("end_timestamp", truth.get("end")), utc=True)
+                rows = predictions[
+                    predictions["station_id"].astype(str).eq(station)
+                    & predictions["timestamp"].between(start, end)
+                ]
+                correct = rows[
+                    rows["is_anomaly_pred"] & rows["fault_type_pred"].eq(fault_type)
+                    & rows["fault_parameters_pred_json"].map(lambda value: bool(params & set(json.loads(value or "[]"))))
+                ]
+                other = rows[rows["is_anomaly_pred"] & ~rows.index.isin(correct.index)]
+                duration_hours = max(0.0, (end - start).total_seconds() / 3600.0)
+                item = {
+                    "episode_id": str(truth.get("episode_id", f"{station}:{true_index}")),
+                    "station_id": station,
+                    "parameters": sorted(params),
+                    "duration_hours": round(duration_hours, 3),
+                    "predicted_rows_during_episode": int(len(rows[rows["is_anomaly_pred"]])),
+                    "correct_type_parameter_rows": int(len(correct)),
+                    "other_alert_rows": int(len(other)),
+                }
+                if true_index in true_to_pred:
+                    first = correct["timestamp"].min() if not correct.empty else pd.NaT
+                    item["confirmation_delay_hours"] = round((first - start).total_seconds() / 3600.0, 3) if pd.notna(first) else None
+                    matched.append(item)
+                else:
+                    if correct.empty:
+                        if other.empty:
+                            reason = "no_alert_during_episode"
+                        elif rows.loc[other.index, "fault_type_pred"].eq(fault_type).any():
+                            reason = "parameter_mismatch"
+                        else:
+                            reason = "different_fault_type_alert"
+                    else:
+                        reason = "alert_not_matched_one_to_one"
+                    item["miss_reason"] = reason
+                    item["other_predicted_types"] = {str(k): int(v) for k, v in other["fault_type_pred"].value_counts().items()}
+                    missed.append(item)
+            delays = [item["confirmation_delay_hours"] for item in matched if item.get("confirmation_delay_hours") is not None]
+            episode_diagnostics[fault_type] = {
+                "matched_episode_count": len(matched), "missed_episode_count": len(missed),
+                "mean_confirmation_delay_hours": round(float(np.mean(delays)), 3) if delays else None,
+                "median_confirmation_delay_hours": round(float(np.median(delays)), 3) if delays else None,
+                "matched_episodes": matched, "missed_episodes": missed,
+            }
+    return {"false_alarms": false_alarms, "missed_rows": missed_rows,
+            "episodic_confirmation": episode_diagnostics}
+
+
+def _event_parameters_from_ledger(event: dict) -> list[str]:
+    value = event.get("parameters", event.get("affected_parameters", []))
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            value = [value]
+    return [str(item) for item in (value or [])]
 
 
 class _NullHistoryStore:
@@ -316,6 +429,7 @@ def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: li
                         for parameter, evidence in cusum_results[station_id].items()
                     },
                     include_suggestions=False,
+                    include_evaluation_diagnostics=True,
                 )
             except Exception as exc:
                 raise RuntimeError(f"oracle evaluation failed at {station_id} {reading_time}: {exc!r}") from exc
@@ -336,6 +450,9 @@ def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: li
                 "eligible_peer_count": verdict.get("eligible_peer_count"),
                 "corroborating_peer_count": verdict.get("corroborating_peer_count"),
                 "diverged_peer_count": verdict.get("diverged_peer_count"),
+                "model_confidence_pct": verdict.get("model_confidence_pct"),
+                "rule_confidence_pct": verdict.get("rule_confidence_pct"),
+                "evaluation_diagnostics_json": json.dumps(verdict.get("evaluation_diagnostics", {}), default=str),
             })
             station_sequences[station_id] = station_sequences.get(station_id, 0) + 1
             processed += 1
@@ -424,6 +541,7 @@ def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: lis
             try:
                 verdict = manager.ingest_reading(
                     station_id, raw, reading_time, network_snapshot,
+                    include_evaluation_diagnostics=True,
                 )
             except Exception as exc:
                 raise RuntimeError(f"{mode} evaluation failed at {station_id} {reading_time}: {exc!r}") from exc
@@ -449,6 +567,9 @@ def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: lis
                 "eligible_peer_count": verdict.get("eligible_peer_count"),
                 "corroborating_peer_count": verdict.get("corroborating_peer_count"),
                 "diverged_peer_count": verdict.get("diverged_peer_count"),
+                "model_confidence_pct": verdict.get("model_confidence_pct"),
+                "rule_confidence_pct": verdict.get("rule_confidence_pct"),
+                "evaluation_diagnostics_json": json.dumps(verdict.get("evaluation_diagnostics", {}), default=str),
             })
             station_sequences[station_id] = station_sequences.get(station_id, 0) + 1
             processed += 1

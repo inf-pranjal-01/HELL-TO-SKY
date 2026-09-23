@@ -402,6 +402,7 @@ class StateManager:
         raw_reading: dict,
         timestamp,
         current_network_readings: Optional[dict] = None,
+        include_evaluation_diagnostics: bool = False,
     ) -> dict:
         buf = self.buffers[station_id]
         history_df = buf.raw_history_df()
@@ -433,6 +434,7 @@ class StateManager:
             neighbor_buffers,
             self.artifact,
             state=self.explainer,
+            include_evaluation_diagnostics=include_evaluation_diagnostics,
         )
         # A spike can only be proved after the following reading
         # returns to baseline.  Count that confirmed, prior event for

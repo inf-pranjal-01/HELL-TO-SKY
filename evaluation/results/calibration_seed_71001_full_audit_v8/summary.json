@@ -1,0 +1,2257 @@
+{
+  "mode": "oracle",
+  "input_files": [
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-BHO-030_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-BHO-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-BHO-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-BHO-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-CHN-024_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-CHN-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-CHN-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-CHN-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-DEL-011_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-DEL-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-DEL-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-DEL-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-KOL-015_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-KOL-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-KOL-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-KOL-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-MUM-007_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-MUM-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-MUM-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-MUM-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-RAN-067_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-RAN-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-RAN-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-RAN-103_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-VAR-052_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-VAR-101_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-VAR-102_labeled.csv",
+    "evaluation\\generated_replays\\calibration_seed_71001\\AWS-VAR-103_labeled.csv"
+  ],
+  "row_count": 60480,
+  "station_count": 28,
+  "event_ledger": "evaluation\\generated_replays\\calibration_seed_71001\\fault_events.csv",
+  "artifact_path": "C:\\Users\\PRANJAL TIWARI\\Desktop\\SkyguardAI - Copy (2)\\model_artifacts\\isolation_forest.pkl",
+  "detector_config": {
+    "MODEL_WEIGHT": 0.6,
+    "RULE_WEIGHT": 0.4,
+    "FUSION_ANOMALY_THRESHOLD": 50.0,
+    "MODEL_ALONE_OVERRIDE_THRESHOLD": 95.0,
+    "RULE_CONFIDENCE_BYPASS": 90.0,
+    "FROZEN_CONSECUTIVE_REQUIRED": 5,
+    "FROZEN_CONSECUTIVE_REQUIRED_PRESSURE": 4,
+    "FROZEN_MIN_MODEL_CORROBORATION": 0.0,
+    "FROZEN_PEER_ACTIVITY_RANGE_4H_THRESHOLD": {
+      "temperature_c": 1.0,
+      "pressure_hpa": 1.0,
+      "humidity_pct": 8.0
+    },
+    "CUSUM_THRESHOLD": 6.0,
+    "CUSUM_DIRECTION_STREAK_REQUIRED": 2,
+    "CUSUM_DRIFT_ALLOWANCE": {
+      "temperature_c": 0.05,
+      "pressure_hpa": 0.02,
+      "humidity_pct": 0.05
+    },
+    "DRIFT_MIN_MODEL_CORROBORATION": 0.0
+  },
+  "oracle_cluster_workers": 1,
+  "outputs": {
+    "oracle": {
+      "rows": 60480,
+      "row_level": {
+        "tp": 971,
+        "fp": 97,
+        "fn": 2925,
+        "precision": 0.9091760299625468,
+        "recall": 0.2492299794661191,
+        "f1": 0.3912167606768735
+      },
+      "by_fault_type": {
+        "drift": {
+          "tp": 191,
+          "fp": 103,
+          "fn": 2163,
+          "precision": 0.6496598639455783,
+          "recall": 0.08113848768054376
+        },
+        "dropout": {
+          "tp": 69,
+          "fp": 1,
+          "fn": 0,
+          "precision": 0.9857142857142858,
+          "recall": 1.0
+        },
+        "frozen_value": {
+          "tp": 12,
+          "fp": 8,
+          "fn": 447,
+          "precision": 0.6,
+          "recall": 0.026143790849673203
+        },
+        "multivariate_inconsistency": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 279,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "physical_bounds": {
+          "tp": 0,
+          "fp": 12,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "sensor_fail_low": {
+          "tp": 208,
+          "fp": 0,
+          "fn": 69,
+          "precision": 1.0,
+          "recall": 0.7509025270758123
+        },
+        "spike": {
+          "tp": 17,
+          "fp": 52,
+          "fn": 41,
+          "precision": 0.2463768115942029,
+          "recall": 0.29310344827586204
+        },
+        "unstructured_anomaly": {
+          "tp": 244,
+          "fp": 151,
+          "fn": 156,
+          "precision": 0.6177215189873417,
+          "recall": 0.61
+        }
+      },
+      "episodic": {
+        "drift": {
+          "tp": 29,
+          "fp": 163,
+          "fn": 41,
+          "truth_episodes": 70,
+          "predicted_episodes": 192,
+          "precision": 0.15104166666666666,
+          "recall": 0.4142857142857143,
+          "f1": 0.2213740458015267,
+          "matches": [
+            [
+              3,
+              5
+            ],
+            [
+              6,
+              0
+            ],
+            [
+              18,
+              6
+            ],
+            [
+              27,
+              13
+            ],
+            [
+              33,
+              15
+            ],
+            [
+              40,
+              10
+            ],
+            [
+              41,
+              19
+            ],
+            [
+              44,
+              14
+            ],
+            [
+              48,
+              18
+            ],
+            [
+              55,
+              29
+            ],
+            [
+              66,
+              20
+            ],
+            [
+              74,
+              24
+            ],
+            [
+              75,
+              22
+            ],
+            [
+              84,
+              30
+            ],
+            [
+              88,
+              36
+            ],
+            [
+              98,
+              34
+            ],
+            [
+              101,
+              39
+            ],
+            [
+              105,
+              33
+            ],
+            [
+              108,
+              43
+            ],
+            [
+              115,
+              40
+            ],
+            [
+              136,
+              51
+            ],
+            [
+              141,
+              55
+            ],
+            [
+              145,
+              57
+            ],
+            [
+              147,
+              52
+            ],
+            [
+              161,
+              65
+            ],
+            [
+              164,
+              63
+            ],
+            [
+              173,
+              68
+            ],
+            [
+              184,
+              69
+            ],
+            [
+              191,
+              66
+            ]
+          ]
+        },
+        "frozen_value": {
+          "tp": 10,
+          "fp": 6,
+          "fn": 60,
+          "truth_episodes": 70,
+          "predicted_episodes": 16,
+          "precision": 0.625,
+          "recall": 0.14285714285714285,
+          "f1": 0.23255813953488372,
+          "matches": [
+            [
+              0,
+              0
+            ],
+            [
+              2,
+              16
+            ],
+            [
+              4,
+              26
+            ],
+            [
+              5,
+              42
+            ],
+            [
+              6,
+              59
+            ],
+            [
+              8,
+              58
+            ],
+            [
+              9,
+              55
+            ],
+            [
+              10,
+              54
+            ],
+            [
+              11,
+              52
+            ],
+            [
+              15,
+              68
+            ]
+          ]
+        }
+      },
+      "prediction_diagnostics": {
+        "false_alarms": {
+          "count": 97,
+          "by_predicted_type": {
+            "unstructured_anomaly": 81,
+            "drift": 13,
+            "spike": 2,
+            "frozen_value": 1
+          },
+          "by_decision_basis": {
+            "ML_MODEL_ISOLATION": 81,
+            "RULE_ENGINE_BYPASS": 9,
+            "FUSED_CONSENSUS": 7
+          },
+          "by_network_state": {
+            "REGIONAL_STABILITY": 43,
+            "nan": 38,
+            "CONFIRMED_DIVERGENCE": 10,
+            "AMBIGUOUS_DIVERGENCE": 5,
+            "AMBIGUOUS_PEER_ACTIVITY": 1
+          },
+          "by_type_network_basis": [
+            {
+              "fault_type": "unstructured_anomaly",
+              "network_state": "REGIONAL_STABILITY",
+              "decision_basis": "ML_MODEL_ISOLATION",
+              "count": 43
+            },
+            {
+              "fault_type": "unstructured_anomaly",
+              "network_state": "nan",
+              "decision_basis": "ML_MODEL_ISOLATION",
+              "count": 38
+            },
+            {
+              "fault_type": "drift",
+              "network_state": "CONFIRMED_DIVERGENCE",
+              "decision_basis": "RULE_ENGINE_BYPASS",
+              "count": 8
+            },
+            {
+              "fault_type": "drift",
+              "network_state": "AMBIGUOUS_DIVERGENCE",
+              "decision_basis": "FUSED_CONSENSUS",
+              "count": 5
+            },
+            {
+              "fault_type": "frozen_value",
+              "network_state": "AMBIGUOUS_PEER_ACTIVITY",
+              "decision_basis": "FUSED_CONSENSUS",
+              "count": 1
+            },
+            {
+              "fault_type": "spike",
+              "network_state": "CONFIRMED_DIVERGENCE",
+              "decision_basis": "RULE_ENGINE_BYPASS",
+              "count": 1
+            },
+            {
+              "fault_type": "spike",
+              "network_state": "CONFIRMED_DIVERGENCE",
+              "decision_basis": "FUSED_CONSENSUS",
+              "count": 1
+            }
+          ]
+        },
+        "missed_rows": {
+          "count": 2925,
+          "by_true_type": {
+            "drift": 2150,
+            "frozen_value": 447,
+            "multivariate_inconsistency": 218,
+            "unstructured_anomaly": 66,
+            "spike": 25,
+            "sensor_fail_low": 19
+          }
+        },
+        "episodic_confirmation": {
+          "drift": {
+            "matched_episode_count": 29,
+            "missed_episode_count": 41,
+            "mean_confirmation_delay_hours": 23.897,
+            "median_confirmation_delay_hours": 26.0,
+            "matched_episodes": [
+              {
+                "episode_id": "AWS-BHO-030:71001:0021",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 35.0,
+                "predicted_rows_during_episode": 5,
+                "correct_type_parameter_rows": 5,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 30.0
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0026",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 39.0,
+                "predicted_rows_during_episode": 9,
+                "correct_type_parameter_rows": 9,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 22.0
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0027",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 35.0,
+                "predicted_rows_during_episode": 15,
+                "correct_type_parameter_rows": 10,
+                "other_alert_rows": 5,
+                "confirmation_delay_hours": 20.0
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0021",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 41.0,
+                "predicted_rows_during_episode": 5,
+                "correct_type_parameter_rows": 2,
+                "other_alert_rows": 3,
+                "confirmation_delay_hours": 35.0
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0024",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 31.0,
+                "predicted_rows_during_episode": 6,
+                "correct_type_parameter_rows": 6,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 26.0
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0025",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 48.0,
+                "predicted_rows_during_episode": 13,
+                "correct_type_parameter_rows": 10,
+                "other_alert_rows": 3,
+                "confirmation_delay_hours": 23.0
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0026",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 47.0,
+                "predicted_rows_during_episode": 9,
+                "correct_type_parameter_rows": 9,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 34.0
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0029",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 30.0,
+                "predicted_rows_during_episode": 8,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 7,
+                "confirmation_delay_hours": 4.0
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0030",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 21.0,
+                "predicted_rows_during_episode": 9,
+                "correct_type_parameter_rows": 9,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 11.0
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0021",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 20.0,
+                "predicted_rows_during_episode": 15,
+                "correct_type_parameter_rows": 15,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 5.0
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0023",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 24.0,
+                "predicted_rows_during_episode": 5,
+                "correct_type_parameter_rows": 4,
+                "other_alert_rows": 1,
+                "confirmation_delay_hours": 19.0
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0025",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 28.0,
+                "predicted_rows_during_episode": 19,
+                "correct_type_parameter_rows": 17,
+                "other_alert_rows": 2,
+                "confirmation_delay_hours": 8.0
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0030",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 42.0,
+                "predicted_rows_during_episode": 4,
+                "correct_type_parameter_rows": 3,
+                "other_alert_rows": 1,
+                "confirmation_delay_hours": 37.0
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0021",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 38.0,
+                "predicted_rows_during_episode": 7,
+                "correct_type_parameter_rows": 6,
+                "other_alert_rows": 1,
+                "confirmation_delay_hours": 32.0
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0024",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 40.0,
+                "predicted_rows_during_episode": 2,
+                "correct_type_parameter_rows": 2,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 37.0
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0025",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 30.0,
+                "predicted_rows_during_episode": 3,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 2,
+                "confirmation_delay_hours": 28.0
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0027",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 39.0,
+                "predicted_rows_during_episode": 6,
+                "correct_type_parameter_rows": 6,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 26.0
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0030",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 36.0,
+                "predicted_rows_during_episode": 2,
+                "correct_type_parameter_rows": 2,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 27.0
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0021",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 47.0,
+                "predicted_rows_during_episode": 17,
+                "correct_type_parameter_rows": 13,
+                "other_alert_rows": 4,
+                "confirmation_delay_hours": 24.0
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0024",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 43.0,
+                "predicted_rows_during_episode": 6,
+                "correct_type_parameter_rows": 2,
+                "other_alert_rows": 4,
+                "confirmation_delay_hours": 27.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0022",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 42.0,
+                "predicted_rows_during_episode": 6,
+                "correct_type_parameter_rows": 3,
+                "other_alert_rows": 3,
+                "confirmation_delay_hours": 37.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0023",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 39.0,
+                "predicted_rows_during_episode": 3,
+                "correct_type_parameter_rows": 2,
+                "other_alert_rows": 1,
+                "confirmation_delay_hours": 37.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0026",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 37.0,
+                "predicted_rows_during_episode": 8,
+                "correct_type_parameter_rows": 8,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 29.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0028",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 45.0,
+                "predicted_rows_during_episode": 3,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 2,
+                "confirmation_delay_hours": 3.0
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0024",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 25.0,
+                "predicted_rows_during_episode": 12,
+                "correct_type_parameter_rows": 11,
+                "other_alert_rows": 1,
+                "confirmation_delay_hours": 13.0
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0026",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 32.0,
+                "predicted_rows_during_episode": 16,
+                "correct_type_parameter_rows": 13,
+                "other_alert_rows": 3,
+                "confirmation_delay_hours": 15.0
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0027",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 34.0,
+                "predicted_rows_during_episode": 5,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 4,
+                "confirmation_delay_hours": 34.0
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0029",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 40.0,
+                "predicted_rows_during_episode": 21,
+                "correct_type_parameter_rows": 21,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 12.0
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0030",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 38.0,
+                "predicted_rows_during_episode": 5,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 4,
+                "confirmation_delay_hours": 38.0
+              }
+            ],
+            "missed_episodes": [
+              {
+                "episode_id": "AWS-BHO-030:71001:0022",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 27.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0023",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 48.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0024",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 28.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0025",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 25.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0028",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 46.0,
+                "predicted_rows_during_episode": 3,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 3,
+                "miss_reason": "parameter_mismatch",
+                "other_predicted_types": {
+                  "dropout": 2,
+                  "drift": 1
+                }
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0029",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 28.0,
+                "predicted_rows_during_episode": 4,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 4,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "sensor_fail_low": 3,
+                  "frozen_value": 1
+                }
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0030",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 21.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0022",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 20.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0023",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 39.0,
+                "predicted_rows_during_episode": 4,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 4,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "sensor_fail_low": 3,
+                  "physical_bounds": 1
+                }
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0027",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 28.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0028",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 21.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0022",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 32.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "sensor_fail_low": 1
+                }
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0024",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 38.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0026",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 37.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0027",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 27.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "dropout": 1
+                }
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0028",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 28.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0029",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 38.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0022",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 29.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0023",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 27.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0026",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 42.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0028",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 30.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0029",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 28.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0022",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 22.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0023",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 31.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "dropout": 1
+                }
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0025",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 41.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0026",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 40.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0027",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 44.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0028",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 46.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0029",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 32.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0030",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 45.0,
+                "predicted_rows_during_episode": 7,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 7,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "sensor_fail_low": 3,
+                  "spike": 2,
+                  "unstructured_anomaly": 2
+                }
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0021",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 32.0,
+                "predicted_rows_during_episode": 2,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 2,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "unstructured_anomaly": 2
+                }
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0024",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 32.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "dropout": 1
+                }
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0025",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 35.0,
+                "predicted_rows_during_episode": 6,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 6,
+                "miss_reason": "parameter_mismatch",
+                "other_predicted_types": {
+                  "sensor_fail_low": 3,
+                  "drift": 1,
+                  "frozen_value": 1,
+                  "unstructured_anomaly": 1
+                }
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0027",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 39.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "unstructured_anomaly": 1
+                }
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0029",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 47.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0030",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 41.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "dropout": 1
+                }
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0021",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 44.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0022",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 22.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0023",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 24.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0025",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 27.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0028",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 33.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              }
+            ]
+          },
+          "frozen_value": {
+            "matched_episode_count": 10,
+            "missed_episode_count": 60,
+            "mean_confirmation_delay_hours": 6.0,
+            "median_confirmation_delay_hours": 6.0,
+            "matched_episodes": [
+              {
+                "episode_id": "AWS-BHO-030:71001:0011",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 3,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 2,
+                "confirmation_delay_hours": 6.0
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0017",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 8.0
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0017",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 6.0
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0013",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 2,
+                "correct_type_parameter_rows": 2,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 6.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0013",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 2,
+                "correct_type_parameter_rows": 2,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 6.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0015",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 5.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0016",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 3,
+                "correct_type_parameter_rows": 3,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 5.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0019",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 0,
+                "confirmation_delay_hours": 8.0
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0020",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 2,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 1,
+                "confirmation_delay_hours": 7.0
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0019",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 2,
+                "correct_type_parameter_rows": 1,
+                "other_alert_rows": 1,
+                "confirmation_delay_hours": 3.0
+              }
+            ],
+            "missed_episodes": [
+              {
+                "episode_id": "AWS-BHO-030:71001:0012",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0013",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0014",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0015",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0016",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "drift": 1
+                }
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0017",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0018",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0019",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-BHO-030:71001:0020",
+                "station_id": "AWS-BHO-030",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0011",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0012",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0013",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0014",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0015",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 3,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 3,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "sensor_fail_low": 3
+                }
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0016",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0018",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0019",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-CHN-024:71005:0020",
+                "station_id": "AWS-CHN-024",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0011",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0012",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "dropout": 1
+                }
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0013",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0014",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 4,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 4,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "sensor_fail_low": 3,
+                  "drift": 1
+                }
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0015",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 4,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 4,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "sensor_fail_low": 3,
+                  "physical_bounds": 1
+                }
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0016",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0018",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0019",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-DEL-011:71009:0020",
+                "station_id": "AWS-DEL-011",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0011",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "dropout": 1
+                }
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0012",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0013",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0014",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0015",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0016",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0017",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "physical_bounds": 1
+                }
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0018",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0019",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-KOL-015:71013:0020",
+                "station_id": "AWS-KOL-015",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "dropout": 1
+                }
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0011",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0012",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0014",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0015",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0016",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0017",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0018",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0019",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-MUM-007:71017:0020",
+                "station_id": "AWS-MUM-007",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 9,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 9,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "drift": 9
+                }
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0011",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0012",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0014",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0017",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-RAN-067:71021:0018",
+                "station_id": "AWS-RAN-067",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0011",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0012",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0013",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0014",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 2,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 2,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "drift": 2
+                }
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0015",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0016",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0017",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "humidity_pct"
+                ],
+                "duration_hours": 6.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0018",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "pressure_hpa"
+                ],
+                "duration_hours": 7.0,
+                "predicted_rows_during_episode": 1,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 1,
+                "miss_reason": "different_fault_type_alert",
+                "other_predicted_types": {
+                  "dropout": 1
+                }
+              },
+              {
+                "episode_id": "AWS-VAR-052:71025:0020",
+                "station_id": "AWS-VAR-052",
+                "parameters": [
+                  "temperature_c"
+                ],
+                "duration_hours": 8.0,
+                "predicted_rows_during_episode": 0,
+                "correct_type_parameter_rows": 0,
+                "other_alert_rows": 0,
+                "miss_reason": "no_alert_during_episode",
+                "other_predicted_types": {}
+              }
+            ]
+          }
+        }
+      },
+      "episodic_note": null,
+      "elapsed_seconds": 339.86,
+      "rows_per_second": 177.96,
+      "evaluation_path": "vectorized_label_masked_diagnostic",
+      "cluster_workers": 1,
+      "predictions_path": "evaluation\\results\\calibration_seed_71001_full_audit_v8\\oracle_predictions.csv"
+    }
+  }
+}

@@ -1491,7 +1491,8 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
                   precomputed_history_featured: pd.DataFrame = None,
                   precomputed_model_result: tuple = None,
                   precomputed_cusum: dict = None,
-                  include_suggestions: bool = True) -> dict:
+                  include_suggestions: bool = True,
+                  include_evaluation_diagnostics: bool = False) -> dict:
     """
     Main entry point: scores ONE new reading given its station's recent
     causal history buffer. Returns the verdict dict state.py/main.py
@@ -1635,12 +1636,14 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     # local confidence below the bypass; later peer divergence can corroborate
     # a broken sensor while regional agreement can veto a weather-wide plateau.
     fired = rules["fired"]
+    rules_detected = [dict(rule) for rule in fired]
     
     from config import FROZEN_MIN_MODEL_CORROBORATION, DRIFT_MIN_MODEL_CORROBORATION
     if model_pct is None or model_pct < FROZEN_MIN_MODEL_CORROBORATION:
         fired = [r for r in fired if r["type"] != "frozen_value"]
     if model_pct is None or model_pct < DRIFT_MIN_MODEL_CORROBORATION:
         fired = [r for r in fired if r["type"] != "drift"]
+    rules_after_model_gate = [dict(rule) for rule in fired]
 
     # ── DIURNAL SPATIAL CONSENSUS FILTER (Spike rules only) ──────────
     # Before fusion, check if peer stations show the same direction of
@@ -1658,6 +1661,7 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
     # PRE-FUSION NETWORK CORROBORATION
     network_state = None
     network_interpretation = None
+    network_veto = False
     eligible_peer_count = None
     corroborating_peer_count = None
     diverged_peer_count = None
@@ -1679,6 +1683,7 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
             eligible_peer_count = network_details["eligible_peer_count"]
             corroborating_peer_count = network_details["corroborating_peer_count"]
             diverged_peer_count = network_details["diverged_peer_count"]
+            network_veto = bool(network_details["veto"])
             
             if network_details["veto"]:
                 fired = [r for r in fired if r["type"] not in ["frozen_value", "drift", "spike", "multivariate_inconsistency"]]
@@ -1754,7 +1759,7 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
 
     regime = _classify_regime(feature_row, raw_reading, history_df)
 
-    return {
+    verdict = {
         "anomaly_score_pct": round(score_pct, 1),
         "model_confidence_pct": round(model_pct, 1) if model_pct is not None else None,
         "model_status": model_status,
@@ -1779,6 +1784,18 @@ def score_reading(raw_reading: dict, history_df: pd.DataFrame, artifact: dict,
         "diverged_peer_count": diverged_peer_count,
         "diurnal_suppression": diurnal_suppression_map if diurnal_suppression_map else None,
     }
+    if include_evaluation_diagnostics:
+        verdict["evaluation_diagnostics"] = {
+            "rules_detected": rules_detected,
+            "rules_after_model_gate": rules_after_model_gate,
+            "rules_after_network": [dict(rule) for rule in fired],
+            "network_veto": network_veto,
+            "model_alone_override": bool(model_pct is not None and model_pct > MODEL_ALONE_OVERRIDE_THRESHOLD),
+            "fusion_rule_confidence_pct": round(rule_confidence, 1),
+            "helper_artifact_present": artifact.get("fault_helper") is not None,
+            "final_decision_basis": decision_basis,
+        }
+    return verdict
 
 
 class SensorHealthTracker:

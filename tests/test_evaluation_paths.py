@@ -7,7 +7,7 @@ import unittest
 import pandas as pd
 
 from model.evaluate import (
-    _latest_position_at_or_before, _metrics, _raw_reading,
+    _latest_position_at_or_before, _metrics, _prediction_diagnostics, _raw_reading,
     _remove_ground_truth_row, _timestamp_ns,
 )
 from model.detect import PARAM_PREFIXES, _cusum_evidence, _cusum_evidence_series
@@ -61,6 +61,46 @@ class EvaluationPathTests(unittest.TestCase):
                           metrics["by_fault_type"]["frozen_value"]["fp"],
                           metrics["by_fault_type"]["frozen_value"]["fn"]), (0, 1, 1))
         self.assertEqual(metrics["by_fault_type"]["spike"]["fp"], 1)
+
+    def test_prediction_diagnostics_break_down_false_alarms_and_missed_rows(self):
+        predictions = pd.DataFrame({
+            "station_id": ["AWS-TEST-001", "AWS-TEST-001", "AWS-TEST-002"],
+            "timestamp": pd.to_datetime(["2025-01-01T00:00Z"] * 3, utc=True),
+            "is_anomaly_gt": [False, True, True],
+            "fault_type_gt": ["none", "drift", "frozen_value"],
+            "is_anomaly_pred": [True, False, True],
+            "fault_type_pred": ["unstructured_anomaly", "none", "frozen_value"],
+            "decision_basis": ["ML_MODEL_ISOLATION", "NORMAL", "FUSED_CONSENSUS"],
+            "network_state": ["REGIONAL_STABILITY", None, "CONFIRMED_DIVERGENCE"],
+            "fault_parameters_pred_json": ["[]", "[]", '["temperature_c"]'],
+        })
+        diagnostics = _prediction_diagnostics(predictions, None)
+        self.assertEqual(diagnostics["false_alarms"]["count"], 1)
+        self.assertEqual(diagnostics["false_alarms"]["by_network_state"]["REGIONAL_STABILITY"], 1)
+        self.assertEqual(diagnostics["missed_rows"]["by_true_type"]["drift"], 1)
+
+    def test_episode_diagnostics_identify_delayed_confirmation_and_miss_reason(self):
+        predictions = pd.DataFrame({
+            "station_id": ["AWS-TEST-001"] * 4,
+            "timestamp": pd.date_range("2025-01-01T00:00Z", periods=4, freq="h"),
+            "is_anomaly_gt": [True, True, True, False],
+            "fault_type_gt": ["drift", "drift", "drift", "none"],
+            "is_anomaly_pred": [False, True, False, True],
+            "fault_type_pred": ["none", "drift", "none", "drift"],
+            "fault_parameters_pred_json": ["[]", '["temperature_c"]', "[]", '["temperature_c"]'],
+            "decision_basis": ["NORMAL", "FUSED_CONSENSUS", "NORMAL", "FUSED_CONSENSUS"],
+            "network_state": [None, "CONFIRMED_DIVERGENCE", None, "CONFIRMED_DIVERGENCE"],
+            "station_sequence": [0, 1, 2, 3],
+        })
+        ledger = [
+            {"episode_id": "drift-1", "station_id": "AWS-TEST-001", "fault_type": "drift",
+             "parameters": '["temperature_c"]', "start_timestamp": "2025-01-01T00:00Z",
+             "end_timestamp": "2025-01-01T02:00Z"},
+        ]
+        diagnostics = _prediction_diagnostics(predictions, ledger)["episodic_confirmation"]["drift"]
+        self.assertEqual(diagnostics["matched_episode_count"], 1)
+        self.assertEqual(diagnostics["matched_episodes"][0]["confirmation_delay_hours"], 1.0)
+        self.assertEqual(diagnostics["missed_episode_count"], 0)
 
     def test_oracle_removes_only_the_matching_current_fault_reading(self):
         timestamp = pd.Timestamp("2025-01-01T00:00:00Z")
