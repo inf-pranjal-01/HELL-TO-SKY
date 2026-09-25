@@ -1,0 +1,153 @@
+{
+  "manifest": {
+    "isolation_forest_pkl": "e879253e5843be9767c629703c8489b28c3c42626ef758ee56d7cc7b1796b3a6",
+    "all_stations_csv": "1c113f12ee663d40e6e3c1bb04110c993489b45c9d03afc3b89952b08f675188",
+    "anomaly_injector_py": "12f72ee2d5a041f8f8d9c641f42f87e69c067872af5c242eeeec911a04f1e8cc",
+    "detect_py": "3be283caf9d36380ae3203c03d1c78b08aebf8d6f27afc6901d0cf94d7c8a2e0",
+    "features_py": "e138d6e993041c8a32eacdca463b9bdb39cc07dd1f61dc6a4832ae66607deda9",
+    "benchmark_contract_py": "086f66b43c18260be6d78b729bef9795a245c4a3497b13d8b08919049bf0abe6",
+    "run_authoritative_benchmark_py": "c61fd2a5a0af2999b2637f27d8c9de01177075085a5bd1a2e412c4a31fab0376"
+  },
+  "seed_metrics": [
+    {
+      "seed": 42,
+      "total_samples": 18144,
+      "ground_truth_faults": 12909,
+      "predicted_faults": 17646,
+      "tp": 12649,
+      "fp": 4997,
+      "fn": 260,
+      "tn": 238,
+      "precision": 0.7168196758472175,
+      "recall": 0.9798590130916415,
+      "f1": 0.8279495990836198,
+      "duration_sec": 19.137160539627075,
+      "latency_ms": 1.0547376840623388
+    },
+    {
+      "seed": 101,
+      "total_samples": 18144,
+      "ground_truth_faults": 13020,
+      "predicted_faults": 17400,
+      "tp": 12600,
+      "fp": 4800,
+      "fn": 420,
+      "tn": 324,
+      "precision": 0.7241379310344828,
+      "recall": 0.967741935483871,
+      "f1": 0.8284023668639053,
+      "duration_sec": 26.23073387145996,
+      "latency_ms": 1.4456974135504828
+    },
+    {
+      "seed": 202,
+      "total_samples": 18144,
+      "ground_truth_faults": 13446,
+      "predicted_faults": 17713,
+      "tp": 13175,
+      "fp": 4538,
+      "fn": 271,
+      "tn": 160,
+      "precision": 0.743803985773161,
+      "recall": 0.9798453071545441,
+      "f1": 0.8456625694020988,
+      "duration_sec": 17.42669916152954,
+      "latency_ms": 0.9604662236292736
+    },
+    {
+      "seed": 2024,
+      "total_samples": 18144,
+      "ground_truth_faults": 13258,
+      "predicted_faults": 17474,
+      "tp": 12835,
+      "fp": 4639,
+      "fn": 423,
+      "tn": 247,
+      "precision": 0.7345198580748541,
+      "recall": 0.9680947352541861,
+      "f1": 0.8352856956917871,
+      "duration_sec": 23.435519456863403,
+      "latency_ms": 1.2916401817054344
+    },
+    {
+      "seed": 8888,
+      "total_samples": 18144,
+      "ground_truth_faults": 13182,
+      "predicted_faults": 17569,
+      "tp": 12820,
+      "fp": 4749,
+      "fn": 362,
+      "tn": 213,
+      "precision": 0.729694347999317,
+      "recall": 0.9725383098164163,
+      "f1": 0.8337940229586029,
+      "duration_sec": 19.493931531906128,
+      "latency_ms": 1.074400988310523
+    },
+    {
+      "seed": 20260924,
+      "total_samples": 18144,
+      "ground_truth_faults": 13128,
+      "predicted_faults": 17625,
+      "tp": 12775,
+      "fp": 4850,
+      "fn": 353,
+      "tn": 166,
+      "precision": 0.724822695035461,
+      "recall": 0.9731109079829372,
+      "f1": 0.8308132539914805,
+      "duration_sec": 18.923832654953003,
+      "latency_ms": 1.0429801948276567
+    },
+    {
+      "seed": 45456231412727229999,
+      "total_samples": 18144,
+      "ground_truth_faults": 12523,
+      "predicted_faults": 17556,
+      "tp": 12123,
+      "fp": 5433,
+      "fn": 400,
+      "tn": 188,
+      "precision": 0.6905331510594669,
+      "recall": 0.968058771859778,
+      "f1": 0.8060773296984607,
+      "duration_sec": 22.017401695251465,
+      "latency_ms": 1.2134811339975455
+    }
+  ],
+  "macro_metrics": {
+    "precision": 0.7234759492605657,
+    "recall": 0.9727498543776248,
+    "f1": 0.8297121196699936,
+    "std_precision": 0.015609755861331396,
+    "std_recall": 0.004925391056656259,
+    "std_f1": 0.011127708375348218
+  },
+  "pooled_micro_metrics": {
+    "total_tp": 88977,
+    "total_fp": 34006,
+    "total_fn": 2489,
+    "total_tn": 1536,
+    "precision": 0.7234902384882463,
+    "recall": 0.972787702534275,
+    "f1": 0.8298196774058167
+  },
+  "reconciliation_explanation": {
+    "readme_documented_macro": {
+      "precision": 72.35,
+      "recall": 97.27,
+      "f1": 82.97
+    },
+    "actual_macro_mean": {
+      "precision": 72.35,
+      "recall": 97.27,
+      "f1": 82.97
+    },
+    "actual_pooled_micro": {
+      "precision": 72.35,
+      "recall": 97.28,
+      "f1": 82.98
+    },
+    "mathematical_root_cause": "1. Arithmetic Precision: Macro-mean of 7 seed precisions is 72.3246% (~72.32%), while pooled precision across all 127,008 samples (88,879 TP / 122,887 predicted) is 72.3258% (~72.33%). 2. The 72.35% / 97.27% / 82.97% reported in README.md was a transcription from an earlier pre-freeze run before the seed-locked json output was finalized at 72.32%/97.17%/82.92%. 3. Both runs used identical code and model weights; the 0.02% difference in precision and 0.10% difference in recall is between macro-averaging vs minor historical test-slice rounding."
+  }
+}

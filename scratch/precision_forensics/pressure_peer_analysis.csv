@@ -1,0 +1,3 @@
+category,count,peer_agreement_observed_pct,mechanism
+Pressure Diurnal Tide FPs Remaining,5520,74.2,Semidiurnal atmospheric pressure tide (1-2 hPa/hr) exceeding static jump noise floor
+Pressure Spikes Correctly Suppressed by Peers,1840,100.0,Synchronous pressure change across cluster siblings

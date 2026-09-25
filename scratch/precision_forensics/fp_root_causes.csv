@@ -1,0 +1,7 @@
+root_cause_category,fp_count,percentage
+I_state_buffer_warmup,27156,79.85649591248604
+E_uncertainty_underestimation_spike,2864,8.422043168852555
+A_legitimate_environmental_swing_spike,2128,6.257719226018938
+C_transition_dawn_dusk_other,1596,4.693289419514203
+G_cross_channel_mahalanobis,261,0.7675116155972476
+F_calm_atmosphere_frozen,1,0.002940657531023937

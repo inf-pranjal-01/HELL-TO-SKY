@@ -1,0 +1,4 @@
+context_window,status,instantaneous_spike_active,tier0_rails_active,startup_fp_eliminated,notes
+< 6.0 hours (Cold),INSUFFICIENT_CONTEXT,False,True,27156.0,
+6.0 - 8.0 hours,PROVISIONAL,True,True,,Causal jump evaluated against valid prior
+>= 8.0 hours,MATURE,True,True,,Full dynamic expectation and temporal baseline mature

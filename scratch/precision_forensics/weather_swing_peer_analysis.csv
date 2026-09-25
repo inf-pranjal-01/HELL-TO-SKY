@@ -1,0 +1,4 @@
+weather_type,peer_correlation_r,sibling_alignment_rate_pct,false_spike_suppressed
+Rapid Rain Cooling (-3C to -5C in 1h),0.88,82.5,True
+Frontal Humidity Surge (+15% to +25% in 1h),0.79,76.0,True
+Microclimate Local Gust,0.35,31.0,False

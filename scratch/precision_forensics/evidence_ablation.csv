@@ -1,0 +1,5 @@
+ablation_name,hypothetical_fp_reduction,estimated_fp_remaining,estimated_precision_pct,estimated_recall_pct,notes
+Baseline (Current Locked),0,34006,72.34902384882463,97.27877025342751,Current production performance (zero tuning).
+Ablation A: Sibling Peer Divergence Boost Removal (1.0x instead of 1.4x),287,33719,72.51825650387951,96.85,Hypothesis: Reduces false drift triggers when local microclimate diverges from 3 sibling peers.
+Ablation B: Diurnal Uncertainty Dynamic Scaling (1.3x during rapid solar transitions),3911,30095,74.72537624294544,96.9,Hypothesis: Widens predictive envelope during steep dawn heating / dusk cooling without affecting true sensor faults.
+Ablation C: Combined Diurnal Scaling + Wald Slack Reference Adjust,12922,21083,80.84408504452118,96.5,Hypothesis: Substantially curbs low-SNR drift accumulation in quiet channels while maintaining high recall on true injected drift.

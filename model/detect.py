@@ -103,22 +103,35 @@ def evaluate_spike_evidence(
     expected_val: float,
     prior_val: Optional[float],
     current_sigma: float,
-    dt_hours: float
+    dt_hours: float,
+    valid_history_hours: float = 24.0,
+    sibling_changes: Optional[List[float]] = None
 ) -> Tuple[float, Optional[str], Dict[str, any]]:
     """
     Tier 1 Spike Check: Evaluates dynamic jump likelihood ratio relative to pre-jump state.
+    Requires at least 6.0 hours of valid contextual history. Never substitutes expected_val for missing prior.
+    Incorporates sibling peer directional movement to distinguish isolated transducer spikes from regional weather events.
     """
+    # ── 1. Physical-Time History Maturity Guard ─────────────────────────
+    # If history is insufficient (< 6.0h) or prior is missing/stale (> 6.0h gap), jump evidence is unavailable.
+    if prior_val is None or valid_history_hours < 6.0 or dt_hours > 6.0:
+        return 0.0, None, {
+            "jump_llr": 0.0,
+            "is_spike": False,
+            "status": "INSUFFICIENT_CONTEXT",
+            "valid_history_hours": valid_history_hours,
+            "dt_hours": dt_hours
+        }
+
     sensor_floor = SENSOR_QUANTIZATION_FLOORS.get(param, 0.10)
     
-    # Measure discontinuity against immediate causal prior reading
-    if prior_val is not None:
-        jump_mag = abs(current_val - prior_val)
-    else:
-        jump_mag = abs(current_val - expected_val)
+    # Measure discontinuity strictly against immediate causal prior reading
+    raw_delta = current_val - prior_val
+    jump_mag = abs(raw_delta)
     
     # Sub-uncertainty perturbation check
     if jump_mag < 2.5 * sensor_floor:
-        return 0.0, None, {"jump_llr": 0.0, "is_spike": False}
+        return 0.0, None, {"jump_llr": 0.0, "is_spike": False, "status": "SUB_QUANTIZATION"}
     
     sigma_jump = math.sqrt(2.0 * (sensor_floor ** 2) + 0.25 * max(0.5, dt_hours))
     z_jump = jump_mag / max(1e-4, sigma_jump)
@@ -126,14 +139,38 @@ def evaluate_spike_evidence(
     # Jump LLR
     jump_llr = float(0.5 * (z_jump ** 2) - math.log(max(1.1, sigma_jump / sensor_floor)))
     
-    is_spike = jump_llr >= WALD_UPPER_ALERT and z_jump >= 3.0
-    reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})" if is_spike else None
+    # ── 2. Sibling Peer Common-Mode Corroboration ─────────────────────────
+    is_common_mode = False
+    peer_diag = {}
+    if sibling_changes is not None and len(sibling_changes) >= 2:
+        # Check directional alignment with sibling peers (normalized changes)
+        target_sign = 1.0 if raw_delta > 0 else -1.0
+        aligned_siblings = [z for z in sibling_changes if (z * target_sign) >= 1.5]
+        peer_diag["sibling_count"] = len(sibling_changes)
+        peer_diag["aligned_siblings_count"] = len(aligned_siblings)
+        
+        # Case B: Common-Mode Environmental Movement (>=2 siblings show aligned movement)
+        if len(aligned_siblings) >= 2:
+            is_common_mode = True
+            jump_llr = 0.0  # Discount spike evidence in favor of regional environmental front
+    
+    is_spike = (jump_llr >= WALD_UPPER_ALERT) and (z_jump >= 3.0) and (not is_common_mode)
+    
+    if is_spike:
+        reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})"
+    elif is_common_mode:
+        reason = f"Common-mode environmental movement corroborated by {len(aligned_siblings)} sibling peers"
+    else:
+        reason = None
     
     diagnostics = {
         "jump_mag": jump_mag,
         "z_jump": z_jump,
         "jump_llr": jump_llr,
-        "is_spike": is_spike
+        "is_spike": is_spike,
+        "is_common_mode": is_common_mode,
+        "valid_history_hours": valid_history_hours,
+        "peer_corroboration": peer_diag
     }
     return jump_llr, reason, diagnostics
 
@@ -252,15 +289,48 @@ def score_reading(
             }
         }
     
-    # ── Compute Elapsed Physical Time (\Delta t) ────────────────────────
+    # ── Compute Elapsed Physical Time & Context Maturity Duration ───────
+    valid_history_hours = 0.0
     prior_time = None
     if not history_df.empty and "timestamp" in history_df.columns:
-        valid_ts = pd.to_datetime(history_df["timestamp"], utc=True, errors="coerce").dropna()
-        if not valid_ts.empty:
-            prior_time = valid_ts.iloc[-1]
+        ts_col = history_df["timestamp"]
+        if not ts_col.empty:
+            p_raw = ts_col.iloc[-1]
+            f_raw = ts_col.iloc[0]
+            prior_time = p_raw if isinstance(p_raw, pd.Timestamp) else pd.to_datetime(p_raw, utc=True)
+            first_time = f_raw if isinstance(f_raw, pd.Timestamp) else pd.to_datetime(f_raw, utc=True)
+            valid_history_hours = max(0.0, (prior_time - first_time).total_seconds() / 3600.0)
     
     dt_hours = max(0.1, (current_time - prior_time).total_seconds() / 3600.0) if prior_time is not None else 1.0
     solar_hour = calculate_solar_hour(current_time, station_id)
+    
+    # Sibling peer changes for candidate spike evaluation (strictly 3 cluster siblings)
+    sibling_peer_changes = {p: [] for p in PARAMS}
+    if neighbor_buffers:
+        for nid, nbuf in neighbor_buffers.items():
+            rows = getattr(nbuf, "_raw_rows", None)
+            if rows is not None and len(rows) >= 2:
+                r_curr = rows[-1]
+                r_prev = rows[-2]
+                for p in PARAMS:
+                    v_c = r_curr.get(p)
+                    v_p = r_prev.get(p)
+                    if v_c is not None and v_p is not None and not (pd.isna(v_c) or pd.isna(v_p)):
+                        d_v = float(v_c) - float(v_p)
+                        floor = SENSOR_QUANTIZATION_FLOORS.get(p, 0.10)
+                        s_jump = math.sqrt(2.0 * (floor ** 2) + 0.25 * max(0.5, dt_hours))
+                        sibling_peer_changes[p].append(d_v / max(1e-4, s_jump))
+            else:
+                nhist = nbuf.raw_history_df() if hasattr(nbuf, "raw_history_df") else None
+                if nhist is not None and not nhist.empty and len(nhist) >= 2:
+                    for p in PARAMS:
+                        if p in nhist.columns:
+                            valid_p = pd.to_numeric(nhist[p], errors="coerce").dropna()
+                            if len(valid_p) >= 2:
+                                d_v = float(valid_p.iloc[-1]) - float(valid_p.iloc[-2])
+                                floor = SENSOR_QUANTIZATION_FLOORS.get(p, 0.10)
+                                s_jump = math.sqrt(2.0 * (floor ** 2) + 0.25 * max(0.5, dt_hours))
+                                sibling_peer_changes[p].append(d_v / max(1e-4, s_jump))
     
     # ── Dynamic Expectation & Uncertainty Evaluation ────────────────────
     innovations = {}
@@ -306,7 +376,16 @@ def score_reading(
                 prior_val = float(valid_pvals.iloc[-1])
         
         # 1. Spike Jump Check
-        s_llr, s_reason, s_diag = evaluate_spike_evidence(param, val, exp_val, prior_val, sigma_tot, dt_hours)
+        s_llr, s_reason, s_diag = evaluate_spike_evidence(
+            param=param,
+            current_val=val,
+            expected_val=exp_val,
+            prior_val=prior_val,
+            current_sigma=sigma_tot,
+            dt_hours=dt_hours,
+            valid_history_hours=valid_history_hours,
+            sibling_changes=sibling_peer_changes.get(param, [])
+        )
         if s_diag["is_spike"]:
             tier1_evidence.append({
                 "tier": 1,

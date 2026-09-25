@@ -1,0 +1,4 @@
+case_type,peer_condition,detection_verdict,empirical_precision_contribution
+Case A (Isolated Sensor Movement),"Target moves >3sigma, peers <1.5sigma",CONFIRMED_SPIKE,High specificity on true injected spikes
+Case B (Common-Mode Environmental Movement),>=2 sibling peers aligned >1.5sigma,COMMON_MODE_VETO,Suppresses weather gust & pressure wave FPs
+Case C (Mixed / Ambiguous),Peers disagree or only 1 aligned sibling,PRESERVE_AMBIGUITY,Prevents over-suppression of true faults
