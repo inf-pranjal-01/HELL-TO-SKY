@@ -1,0 +1,2265 @@
+{
+  "seeds": [
+    42,
+    101,
+    202,
+    2024,
+    8888,
+    20260924,
+    45456231412727229999
+  ],
+  "mean_precision": 0.7232459475937506,
+  "std_precision": 0.015955991334076918,
+  "mean_recall": 0.9716699486281993,
+  "std_recall": 0.006806261790389946,
+  "mean_f1": 0.8291624006277013,
+  "std_f1": 0.011597083312589507,
+  "seed_details": [
+    {
+      "seed": 42,
+      "row_metrics": {
+        "tp": 12665,
+        "fp": 5005,
+        "fn": 244,
+        "precision": 0.7167515563101302,
+        "recall": 0.9810984584398482,
+        "f1": 0.8283462506949214
+      },
+      "fault_breakdown": {
+        "spike": {
+          "total_rows": 630,
+          "tp": 617,
+          "fn": 13,
+          "recall": 0.9793650793650793
+        },
+        "frozen_value": {
+          "total_rows": 1104,
+          "tp": 1048,
+          "fn": 56,
+          "recall": 0.9492753623188406
+        },
+        "drift": {
+          "total_rows": 7555,
+          "tp": 7392,
+          "fn": 163,
+          "recall": 0.9784248841826605
+        },
+        "multivariate_inconsistency": {
+          "total_rows": 1102,
+          "tp": 1102,
+          "fn": 0,
+          "recall": 1.0
+        },
+        "sensor_fail_low": {
+          "total_rows": 1079,
+          "tp": 1079,
+          "fn": 0,
+          "recall": 1.0
+        },
+        "dropout": {
+          "total_rows": 276,
+          "tp": 276,
+          "fn": 0,
+          "recall": 1.0
+        }
+      },
+      "drift_episodic": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 280,
+        "truth_episodes": 280,
+        "predicted_episodes": 1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "matches": []
+      },
+      "frozen_episodic": {
+        "tp": 6,
+        "fp": 4,
+        "fn": 274,
+        "truth_episodes": 280,
+        "predicted_episodes": 10,
+        "precision": 0.6,
+        "recall": 0.02142857142857143,
+        "f1": 0.041379310344827586,
+        "matches": [
+          [
+            0,
+            16
+          ],
+          [
+            1,
+            110
+          ],
+          [
+            3,
+            199
+          ],
+          [
+            4,
+            156
+          ],
+          [
+            5,
+            191
+          ],
+          [
+            8,
+            114
+          ]
+        ]
+      },
+      "pred_events": [
+        {
+          "station_id": "AWS-VAR-052",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-101",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 02:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 04:00:00+00:00",
+          "end_timestamp": "2025-03-05 04:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 04:00:00+00:00"
+        }
+      ],
+      "true_events": [
+        {
+          "episode_id": "AWS-MUM-103:42:0001",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 126,
+          "end_index": 130,
+          "start_timestamp": "2025-03-10 06:00:00+00:00",
+          "end_timestamp": "2025-03-10 10:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0002",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 495,
+          "end_index": 500,
+          "start_timestamp": "2025-03-25 15:00:00+00:00",
+          "end_timestamp": "2025-03-25 20:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0003",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 523,
+          "end_index": 526,
+          "start_timestamp": "2025-03-26 19:00:00+00:00",
+          "end_timestamp": "2025-03-26 22:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0004",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 459,
+          "end_index": 459,
+          "start_timestamp": "2025-03-24 03:00:00+00:00",
+          "end_timestamp": "2025-03-24 03:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0005",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 533,
+          "end_index": 533,
+          "start_timestamp": "2025-03-27 05:00:00+00:00",
+          "end_timestamp": "2025-03-27 05:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0006",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 262,
+          "end_index": 266,
+          "start_timestamp": "2025-03-15 22:00:00+00:00",
+          "end_timestamp": "2025-03-16 02:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0007",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 491,
+          "end_index": 493,
+          "start_timestamp": "2025-03-25 11:00:00+00:00",
+          "end_timestamp": "2025-03-25 13:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0008",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 404,
+          "end_index": 404,
+          "start_timestamp": "2025-03-21 20:00:00+00:00",
+          "end_timestamp": "2025-03-21 20:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0009",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 302,
+          "end_index": 305,
+          "start_timestamp": "2025-03-17 14:00:00+00:00",
+          "end_timestamp": "2025-03-17 17:00:00+00:00",
+          "seed": 42
+        },
+        {
+          "episode_id": "AWS-MUM-103:42:0010",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 388,
+          "end_index": 393,
+          "start_timestamp": "2025-03-21 04:00:00+00:00",
+          "end_timestamp": "2025-03-21 09:00:00+00:00",
+          "seed": 42
+        }
+      ]
+    },
+    {
+      "seed": 101,
+      "row_metrics": {
+        "tp": 12548,
+        "fp": 4793,
+        "fn": 472,
+        "precision": 0.723603021740384,
+        "recall": 0.9637480798771121,
+        "f1": 0.8265867395672079
+      },
+      "fault_breakdown": {
+        "spike": {
+          "total_rows": 336,
+          "tp": 332,
+          "fn": 4,
+          "recall": 0.9880952380952381
+        },
+        "frozen_value": {
+          "total_rows": 1084,
+          "tp": 1014,
+          "fn": 70,
+          "recall": 0.9354243542435424
+        },
+        "drift": {
+          "total_rows": 7632,
+          "tp": 7276,
+          "fn": 356,
+          "recall": 0.9533542976939203
+        },
+        "multivariate_inconsistency": {
+          "total_rows": 1140,
+          "tp": 1128,
+          "fn": 12,
+          "recall": 0.9894736842105263
+        },
+        "sensor_fail_low": {
+          "total_rows": 1106,
+          "tp": 1106,
+          "fn": 0,
+          "recall": 1.0
+        },
+        "dropout": {
+          "total_rows": 254,
+          "tp": 254,
+          "fn": 0,
+          "recall": 1.0
+        }
+      },
+      "drift_episodic": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 280,
+        "truth_episodes": 280,
+        "predicted_episodes": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "matches": []
+      },
+      "frozen_episodic": {
+        "tp": 2,
+        "fp": 30,
+        "fn": 278,
+        "truth_episodes": 280,
+        "predicted_episodes": 32,
+        "precision": 0.0625,
+        "recall": 0.007142857142857143,
+        "f1": 0.01282051282051282,
+        "matches": [
+          [
+            17,
+            184
+          ],
+          [
+            23,
+            102
+          ]
+        ]
+      },
+      "pred_events": [
+        {
+          "station_id": "AWS-VAR-052",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-101",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 02:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 04:00:00+00:00",
+          "end_timestamp": "2025-03-05 04:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 04:00:00+00:00"
+        }
+      ],
+      "true_events": [
+        {
+          "episode_id": "AWS-MUM-103:101:0001",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 368,
+          "end_index": 372,
+          "start_timestamp": "2025-03-20 08:00:00+00:00",
+          "end_timestamp": "2025-03-20 12:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0002",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 68,
+          "end_index": 73,
+          "start_timestamp": "2025-03-07 20:00:00+00:00",
+          "end_timestamp": "2025-03-08 01:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0003",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 575,
+          "end_index": 578,
+          "start_timestamp": "2025-03-28 23:00:00+00:00",
+          "end_timestamp": "2025-03-29 02:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0004",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 361,
+          "end_index": 363,
+          "start_timestamp": "2025-03-20 01:00:00+00:00",
+          "end_timestamp": "2025-03-20 03:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0005",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 113,
+          "end_index": 117,
+          "start_timestamp": "2025-03-09 17:00:00+00:00",
+          "end_timestamp": "2025-03-09 21:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0006",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 141,
+          "end_index": 141,
+          "start_timestamp": "2025-03-10 21:00:00+00:00",
+          "end_timestamp": "2025-03-10 21:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0007",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 294,
+          "end_index": 294,
+          "start_timestamp": "2025-03-17 06:00:00+00:00",
+          "end_timestamp": "2025-03-17 06:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0008",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 457,
+          "end_index": 457,
+          "start_timestamp": "2025-03-24 01:00:00+00:00",
+          "end_timestamp": "2025-03-24 01:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0009",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 400,
+          "end_index": 402,
+          "start_timestamp": "2025-03-21 16:00:00+00:00",
+          "end_timestamp": "2025-03-21 18:00:00+00:00",
+          "seed": 101
+        },
+        {
+          "episode_id": "AWS-MUM-103:101:0010",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 288,
+          "end_index": 293,
+          "start_timestamp": "2025-03-17 00:00:00+00:00",
+          "end_timestamp": "2025-03-17 05:00:00+00:00",
+          "seed": 101
+        }
+      ]
+    },
+    {
+      "seed": 202,
+      "row_metrics": {
+        "tp": 13146,
+        "fp": 4556,
+        "fn": 300,
+        "precision": 0.7426279516438821,
+        "recall": 0.9776885319053994,
+        "f1": 0.8440991395916271
+      },
+      "fault_breakdown": {
+        "spike": {
+          "total_rows": 594,
+          "tp": 593,
+          "fn": 1,
+          "recall": 0.9983164983164983
+        },
+        "frozen_value": {
+          "total_rows": 1297,
+          "tp": 1243,
+          "fn": 54,
+          "recall": 0.9583654587509638
+        },
+        "drift": {
+          "total_rows": 7453,
+          "tp": 7225,
+          "fn": 228,
+          "recall": 0.969408291962968
+        },
+        "multivariate_inconsistency": {
+          "total_rows": 1257,
+          "tp": 1256,
+          "fn": 1,
+          "recall": 0.9992044550517104
+        },
+        "sensor_fail_low": {
+          "total_rows": 1039,
+          "tp": 1039,
+          "fn": 0,
+          "recall": 1.0
+        },
+        "dropout": {
+          "total_rows": 278,
+          "tp": 278,
+          "fn": 0,
+          "recall": 1.0
+        }
+      },
+      "drift_episodic": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 280,
+        "truth_episodes": 280,
+        "predicted_episodes": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "matches": []
+      },
+      "frozen_episodic": {
+        "tp": 5,
+        "fp": 5,
+        "fn": 275,
+        "truth_episodes": 280,
+        "predicted_episodes": 10,
+        "precision": 0.5,
+        "recall": 0.017857142857142856,
+        "f1": 0.03448275862068965,
+        "matches": [
+          [
+            0,
+            16
+          ],
+          [
+            1,
+            264
+          ],
+          [
+            3,
+            21
+          ],
+          [
+            5,
+            41
+          ],
+          [
+            6,
+            49
+          ]
+        ]
+      },
+      "pred_events": [
+        {
+          "station_id": "AWS-VAR-052",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-101",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 02:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 04:00:00+00:00",
+          "end_timestamp": "2025-03-05 04:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 04:00:00+00:00"
+        }
+      ],
+      "true_events": [
+        {
+          "episode_id": "AWS-MUM-103:202:0001",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 117,
+          "end_index": 122,
+          "start_timestamp": "2025-03-09 21:00:00+00:00",
+          "end_timestamp": "2025-03-10 02:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0002",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 79,
+          "end_index": 82,
+          "start_timestamp": "2025-03-08 07:00:00+00:00",
+          "end_timestamp": "2025-03-08 10:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0003",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 536,
+          "end_index": 536,
+          "start_timestamp": "2025-03-27 08:00:00+00:00",
+          "end_timestamp": "2025-03-27 08:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0004",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 290,
+          "end_index": 295,
+          "start_timestamp": "2025-03-17 02:00:00+00:00",
+          "end_timestamp": "2025-03-17 07:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0005",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 79,
+          "end_index": 83,
+          "start_timestamp": "2025-03-08 07:00:00+00:00",
+          "end_timestamp": "2025-03-08 11:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0006",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 229,
+          "end_index": 231,
+          "start_timestamp": "2025-03-14 13:00:00+00:00",
+          "end_timestamp": "2025-03-14 15:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0007",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 349,
+          "end_index": 349,
+          "start_timestamp": "2025-03-19 13:00:00+00:00",
+          "end_timestamp": "2025-03-19 13:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0008",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 549,
+          "end_index": 549,
+          "start_timestamp": "2025-03-27 21:00:00+00:00",
+          "end_timestamp": "2025-03-27 21:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0009",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 375,
+          "end_index": 375,
+          "start_timestamp": "2025-03-20 15:00:00+00:00",
+          "end_timestamp": "2025-03-20 15:00:00+00:00",
+          "seed": 202
+        },
+        {
+          "episode_id": "AWS-MUM-103:202:0010",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 472,
+          "end_index": 472,
+          "start_timestamp": "2025-03-24 16:00:00+00:00",
+          "end_timestamp": "2025-03-24 16:00:00+00:00",
+          "seed": 202
+        }
+      ]
+    },
+    {
+      "seed": 2024,
+      "row_metrics": {
+        "tp": 12783,
+        "fp": 4604,
+        "fn": 475,
+        "precision": 0.7352044631046184,
+        "recall": 0.964172575049027,
+        "f1": 0.834263338228096
+      },
+      "fault_breakdown": {
+        "spike": {
+          "total_rows": 490,
+          "tp": 483,
+          "fn": 7,
+          "recall": 0.9857142857142858
+        },
+        "frozen_value": {
+          "total_rows": 985,
+          "tp": 938,
+          "fn": 47,
+          "recall": 0.9522842639593908
+        },
+        "drift": {
+          "total_rows": 7981,
+          "tp": 7587,
+          "fn": 394,
+          "recall": 0.9506327527878712
+        },
+        "multivariate_inconsistency": {
+          "total_rows": 1154,
+          "tp": 1142,
+          "fn": 12,
+          "recall": 0.9896013864818024
+        },
+        "sensor_fail_low": {
+          "total_rows": 1102,
+          "tp": 1102,
+          "fn": 0,
+          "recall": 1.0
+        },
+        "dropout": {
+          "total_rows": 257,
+          "tp": 257,
+          "fn": 0,
+          "recall": 1.0
+        }
+      },
+      "drift_episodic": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 280,
+        "truth_episodes": 280,
+        "predicted_episodes": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "matches": []
+      },
+      "frozen_episodic": {
+        "tp": 2,
+        "fp": 24,
+        "fn": 278,
+        "truth_episodes": 280,
+        "predicted_episodes": 26,
+        "precision": 0.07692307692307693,
+        "recall": 0.007142857142857143,
+        "f1": 0.0130718954248366,
+        "matches": [
+          [
+            0,
+            198
+          ],
+          [
+            4,
+            114
+          ]
+        ]
+      },
+      "pred_events": [
+        {
+          "station_id": "AWS-VAR-052",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-101",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 02:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 04:00:00+00:00",
+          "end_timestamp": "2025-03-05 04:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 04:00:00+00:00"
+        }
+      ],
+      "true_events": [
+        {
+          "episode_id": "AWS-MUM-103:2024:0001",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 55,
+          "end_index": 57,
+          "start_timestamp": "2025-03-07 07:00:00+00:00",
+          "end_timestamp": "2025-03-07 09:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0002",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 162,
+          "end_index": 162,
+          "start_timestamp": "2025-03-11 18:00:00+00:00",
+          "end_timestamp": "2025-03-11 18:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0003",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 366,
+          "end_index": 368,
+          "start_timestamp": "2025-03-20 06:00:00+00:00",
+          "end_timestamp": "2025-03-20 08:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0004",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 573,
+          "end_index": 575,
+          "start_timestamp": "2025-03-28 21:00:00+00:00",
+          "end_timestamp": "2025-03-28 23:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0005",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_index": 133,
+          "end_index": 135,
+          "start_timestamp": "2025-03-10 13:00:00+00:00",
+          "end_timestamp": "2025-03-10 15:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0006",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 175,
+          "end_index": 177,
+          "start_timestamp": "2025-03-12 07:00:00+00:00",
+          "end_timestamp": "2025-03-12 09:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0007",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 529,
+          "end_index": 533,
+          "start_timestamp": "2025-03-27 01:00:00+00:00",
+          "end_timestamp": "2025-03-27 05:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0008",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 330,
+          "end_index": 333,
+          "start_timestamp": "2025-03-18 18:00:00+00:00",
+          "end_timestamp": "2025-03-18 21:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0009",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 141,
+          "end_index": 145,
+          "start_timestamp": "2025-03-10 21:00:00+00:00",
+          "end_timestamp": "2025-03-11 01:00:00+00:00",
+          "seed": 2024
+        },
+        {
+          "episode_id": "AWS-MUM-103:2024:0010",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 202,
+          "end_index": 206,
+          "start_timestamp": "2025-03-13 10:00:00+00:00",
+          "end_timestamp": "2025-03-13 14:00:00+00:00",
+          "seed": 2024
+        }
+      ]
+    },
+    {
+      "seed": 8888,
+      "row_metrics": {
+        "tp": 12880,
+        "fp": 4770,
+        "fn": 302,
+        "precision": 0.7297450424929178,
+        "recall": 0.9770899711728114,
+        "f1": 0.8354955889984431
+      },
+      "fault_breakdown": {
+        "spike": {
+          "total_rows": 726,
+          "tp": 724,
+          "fn": 2,
+          "recall": 0.9972451790633609
+        },
+        "frozen_value": {
+          "total_rows": 885,
+          "tp": 873,
+          "fn": 12,
+          "recall": 0.9864406779661017
+        },
+        "drift": {
+          "total_rows": 7613,
+          "tp": 7346,
+          "fn": 267,
+          "recall": 0.964928411926967
+        },
+        "multivariate_inconsistency": {
+          "total_rows": 1138,
+          "tp": 1125,
+          "fn": 13,
+          "recall": 0.9885764499121266
+        },
+        "sensor_fail_low": {
+          "total_rows": 1120,
+          "tp": 1120,
+          "fn": 0,
+          "recall": 1.0
+        },
+        "dropout": {
+          "total_rows": 276,
+          "tp": 276,
+          "fn": 0,
+          "recall": 1.0
+        }
+      },
+      "drift_episodic": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 280,
+        "truth_episodes": 280,
+        "predicted_episodes": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "matches": []
+      },
+      "frozen_episodic": {
+        "tp": 3,
+        "fp": 8,
+        "fn": 277,
+        "truth_episodes": 280,
+        "predicted_episodes": 11,
+        "precision": 0.2727272727272727,
+        "recall": 0.010714285714285714,
+        "f1": 0.020618556701030927,
+        "matches": [
+          [
+            0,
+            190
+          ],
+          [
+            1,
+            110
+          ],
+          [
+            2,
+            240
+          ]
+        ]
+      },
+      "pred_events": [
+        {
+          "station_id": "AWS-VAR-052",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-101",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 02:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 04:00:00+00:00",
+          "end_timestamp": "2025-03-05 04:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 04:00:00+00:00"
+        }
+      ],
+      "true_events": [
+        {
+          "episode_id": "AWS-MUM-103:8888:0001",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 36,
+          "end_index": 40,
+          "start_timestamp": "2025-03-06 12:00:00+00:00",
+          "end_timestamp": "2025-03-06 16:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0002",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 371,
+          "end_index": 374,
+          "start_timestamp": "2025-03-20 11:00:00+00:00",
+          "end_timestamp": "2025-03-20 14:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0003",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 48,
+          "end_index": 50,
+          "start_timestamp": "2025-03-07 00:00:00+00:00",
+          "end_timestamp": "2025-03-07 02:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0004",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 83,
+          "end_index": 87,
+          "start_timestamp": "2025-03-08 11:00:00+00:00",
+          "end_timestamp": "2025-03-08 15:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0005",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 52,
+          "end_index": 56,
+          "start_timestamp": "2025-03-07 04:00:00+00:00",
+          "end_timestamp": "2025-03-07 08:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0006",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 368,
+          "end_index": 372,
+          "start_timestamp": "2025-03-20 08:00:00+00:00",
+          "end_timestamp": "2025-03-20 12:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0007",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 152,
+          "end_index": 155,
+          "start_timestamp": "2025-03-11 08:00:00+00:00",
+          "end_timestamp": "2025-03-11 11:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0008",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 184,
+          "end_index": 187,
+          "start_timestamp": "2025-03-12 16:00:00+00:00",
+          "end_timestamp": "2025-03-12 19:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0009",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 43,
+          "end_index": 45,
+          "start_timestamp": "2025-03-06 19:00:00+00:00",
+          "end_timestamp": "2025-03-06 21:00:00+00:00",
+          "seed": 8888
+        },
+        {
+          "episode_id": "AWS-MUM-103:8888:0010",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 234,
+          "end_index": 234,
+          "start_timestamp": "2025-03-14 18:00:00+00:00",
+          "end_timestamp": "2025-03-14 18:00:00+00:00",
+          "seed": 8888
+        }
+      ]
+    },
+    {
+      "seed": 20260924,
+      "row_metrics": {
+        "tp": 12776,
+        "fp": 4827,
+        "fn": 352,
+        "precision": 0.7257853774924728,
+        "recall": 0.9731870810481413,
+        "f1": 0.8314731053333767
+      },
+      "fault_breakdown": {
+        "spike": {
+          "total_rows": 424,
+          "tp": 422,
+          "fn": 2,
+          "recall": 0.9952830188679245
+        },
+        "frozen_value": {
+          "total_rows": 1302,
+          "tp": 1265,
+          "fn": 37,
+          "recall": 0.9715821812596006
+        },
+        "drift": {
+          "total_rows": 7477,
+          "tp": 7180,
+          "fn": 297,
+          "recall": 0.9602781864384111
+        },
+        "multivariate_inconsistency": {
+          "total_rows": 1109,
+          "tp": 1099,
+          "fn": 10,
+          "recall": 0.9909828674481514
+        },
+        "sensor_fail_low": {
+          "total_rows": 1115,
+          "tp": 1115,
+          "fn": 0,
+          "recall": 1.0
+        },
+        "dropout": {
+          "total_rows": 247,
+          "tp": 247,
+          "fn": 0,
+          "recall": 1.0
+        }
+      },
+      "drift_episodic": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 280,
+        "truth_episodes": 280,
+        "predicted_episodes": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "matches": []
+      },
+      "frozen_episodic": {
+        "tp": 4,
+        "fp": 8,
+        "fn": 276,
+        "truth_episodes": 280,
+        "predicted_episodes": 12,
+        "precision": 0.3333333333333333,
+        "recall": 0.014285714285714285,
+        "f1": 0.0273972602739726,
+        "matches": [
+          [
+            2,
+            104
+          ],
+          [
+            3,
+            106
+          ],
+          [
+            4,
+            186
+          ],
+          [
+            5,
+            24
+          ]
+        ]
+      },
+      "pred_events": [
+        {
+          "station_id": "AWS-VAR-052",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-101",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 02:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 04:00:00+00:00",
+          "end_timestamp": "2025-03-05 04:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 04:00:00+00:00"
+        }
+      ],
+      "true_events": [
+        {
+          "episode_id": "AWS-MUM-103:20260924:0001",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 224,
+          "end_index": 228,
+          "start_timestamp": "2025-03-14 08:00:00+00:00",
+          "end_timestamp": "2025-03-14 12:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0002",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 549,
+          "end_index": 553,
+          "start_timestamp": "2025-03-27 21:00:00+00:00",
+          "end_timestamp": "2025-03-28 01:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0003",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 12,
+          "end_index": 12,
+          "start_timestamp": "2025-03-05 12:00:00+00:00",
+          "end_timestamp": "2025-03-05 12:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0004",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 173,
+          "end_index": 173,
+          "start_timestamp": "2025-03-12 05:00:00+00:00",
+          "end_timestamp": "2025-03-12 05:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0005",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 397,
+          "end_index": 399,
+          "start_timestamp": "2025-03-21 13:00:00+00:00",
+          "end_timestamp": "2025-03-21 15:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0006",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 562,
+          "end_index": 565,
+          "start_timestamp": "2025-03-28 10:00:00+00:00",
+          "end_timestamp": "2025-03-28 13:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0007",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 246,
+          "end_index": 250,
+          "start_timestamp": "2025-03-15 06:00:00+00:00",
+          "end_timestamp": "2025-03-15 10:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0008",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 51,
+          "end_index": 53,
+          "start_timestamp": "2025-03-07 03:00:00+00:00",
+          "end_timestamp": "2025-03-07 05:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0009",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 342,
+          "end_index": 345,
+          "start_timestamp": "2025-03-19 06:00:00+00:00",
+          "end_timestamp": "2025-03-19 09:00:00+00:00",
+          "seed": 20260924
+        },
+        {
+          "episode_id": "AWS-MUM-103:20260924:0010",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 205,
+          "end_index": 205,
+          "start_timestamp": "2025-03-13 13:00:00+00:00",
+          "end_timestamp": "2025-03-13 13:00:00+00:00",
+          "seed": 20260924
+        }
+      ]
+    },
+    {
+      "seed": 45456231412727229999,
+      "row_metrics": {
+        "tp": 12081,
+        "fp": 5453,
+        "fn": 442,
+        "precision": 0.6890042203718489,
+        "recall": 0.9647049429050547,
+        "f1": 0.8038726419802376
+      },
+      "fault_breakdown": {
+        "spike": {
+          "total_rows": 551,
+          "tp": 547,
+          "fn": 4,
+          "recall": 0.9927404718693285
+        },
+        "frozen_value": {
+          "total_rows": 1288,
+          "tp": 1244,
+          "fn": 44,
+          "recall": 0.9658385093167702
+        },
+        "drift": {
+          "total_rows": 6826,
+          "tp": 6468,
+          "fn": 358,
+          "recall": 0.9475534720187518
+        },
+        "multivariate_inconsistency": {
+          "total_rows": 1196,
+          "tp": 1184,
+          "fn": 12,
+          "recall": 0.9899665551839465
+        },
+        "sensor_fail_low": {
+          "total_rows": 1074,
+          "tp": 1074,
+          "fn": 0,
+          "recall": 1.0
+        },
+        "dropout": {
+          "total_rows": 264,
+          "tp": 264,
+          "fn": 0,
+          "recall": 1.0
+        }
+      },
+      "drift_episodic": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 280,
+        "truth_episodes": 280,
+        "predicted_episodes": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "matches": []
+      },
+      "frozen_episodic": {
+        "tp": 4,
+        "fp": 18,
+        "fn": 276,
+        "truth_episodes": 280,
+        "predicted_episodes": 22,
+        "precision": 0.18181818181818182,
+        "recall": 0.014285714285714285,
+        "f1": 0.026490066225165563,
+        "matches": [
+          [
+            0,
+            16
+          ],
+          [
+            10,
+            192
+          ],
+          [
+            12,
+            102
+          ],
+          [
+            14,
+            198
+          ]
+        ]
+      },
+      "pred_events": [
+        {
+          "station_id": "AWS-VAR-052",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 00:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 01:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-101",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 02:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-101",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 02:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 02:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-KOL-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_timestamp": "2025-03-05 00:00:00+00:00",
+          "end_timestamp": "2025-03-05 03:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 00:00:00+00:00"
+        },
+        {
+          "station_id": "AWS-VAR-102",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_timestamp": "2025-03-05 04:00:00+00:00",
+          "end_timestamp": "2025-03-05 04:00:00+00:00",
+          "first_detect_timestamp": "2025-03-05 04:00:00+00:00"
+        }
+      ],
+      "true_events": [
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0001",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 238,
+          "end_index": 242,
+          "start_timestamp": "2025-03-14 22:00:00+00:00",
+          "end_timestamp": "2025-03-15 02:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0002",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 51,
+          "end_index": 54,
+          "start_timestamp": "2025-03-07 03:00:00+00:00",
+          "end_timestamp": "2025-03-07 06:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0003",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 569,
+          "end_index": 569,
+          "start_timestamp": "2025-03-28 17:00:00+00:00",
+          "end_timestamp": "2025-03-28 17:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0004",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "humidity_pct"
+          ],
+          "start_index": 534,
+          "end_index": 534,
+          "start_timestamp": "2025-03-27 06:00:00+00:00",
+          "end_timestamp": "2025-03-27 06:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0005",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 120,
+          "end_index": 122,
+          "start_timestamp": "2025-03-10 00:00:00+00:00",
+          "end_timestamp": "2025-03-10 02:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0006",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 533,
+          "end_index": 533,
+          "start_timestamp": "2025-03-27 05:00:00+00:00",
+          "end_timestamp": "2025-03-27 05:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0007",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "pressure_hpa"
+          ],
+          "start_index": 179,
+          "end_index": 182,
+          "start_timestamp": "2025-03-12 11:00:00+00:00",
+          "end_timestamp": "2025-03-12 14:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0008",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 293,
+          "end_index": 296,
+          "start_timestamp": "2025-03-17 05:00:00+00:00",
+          "end_timestamp": "2025-03-17 08:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0009",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 58,
+          "end_index": 63,
+          "start_timestamp": "2025-03-07 10:00:00+00:00",
+          "end_timestamp": "2025-03-07 15:00:00+00:00",
+          "seed": 45456231412727229999
+        },
+        {
+          "episode_id": "AWS-MUM-103:45456231412727229999:0010",
+          "station_id": "AWS-MUM-103",
+          "fault_type": "spike",
+          "parameters": [
+            "temperature_c"
+          ],
+          "start_index": 581,
+          "end_index": 585,
+          "start_timestamp": "2025-03-29 05:00:00+00:00",
+          "end_timestamp": "2025-03-29 09:00:00+00:00",
+          "seed": 45456231412727229999
+        }
+      ]
+    }
+  ]
+}

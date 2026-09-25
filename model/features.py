@@ -189,7 +189,6 @@ FEATURE_COLUMNS = [
     # inject_multivariate, which manufactures faults as a real
     # Clausius-Clapeyron violation, not two independent sigma bumps.)
     "dewpoint_depression_c", "vapor_pressure_deficit_kpa",
-    "vapor_pressure_consistency_dev",
     # cyclical time
     "hour_sin", "hour_cos", "doy_sin", "doy_cos",
     # Phase 2 advanced features
@@ -219,6 +218,31 @@ RULE_ONLY_PREFIXES = [
 
 # Lookback for multi-timescale drift tracking (30 days = 720 hours)
 DRIFT_LOOKBACK_HOURS = 720
+
+
+def _compute_time_offset_slope(df_station: pd.DataFrame, col: str, target_offset_hours: float):
+    """
+    Computes (x(t) - x(t_past)) / dt_actual in continuous physical time.
+    Uses causal merge_asof with exact timestamps rather than row position shift(N).
+    """
+    ts = pd.to_datetime(df_station["timestamp"], utc=True)
+    vals = pd.to_numeric(df_station[col], errors="coerce")
+    
+    df_lookup = pd.DataFrame({"target_time": ts - pd.to_timedelta(target_offset_hours, unit="h"), "orig_ts": ts, "orig_val": vals})
+    df_source = pd.DataFrame({"target_time": ts, "past_val": vals, "past_ts": ts}).sort_values("target_time")
+    
+    merged = pd.merge_asof(
+        df_lookup.sort_values("target_time"),
+        df_source,
+        on="target_time",
+        direction="backward",
+        tolerance=pd.to_timedelta(max(1.5, target_offset_hours * 0.75), unit="h")
+    ).sort_values("orig_ts")
+    
+    actual_dt_hours = (merged["orig_ts"] - merged["past_ts"]).dt.total_seconds() / 3600.0
+    val_diff = merged["orig_val"] - merged["past_val"]
+    slope = val_diff / actual_dt_hours.replace(0, np.nan)
+    return slope.values, val_diff.values
 
 
 def _rolling_baseline(series: pd.Series, exclude_mask: pd.Series = None):
@@ -336,21 +360,14 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         roc_per_hour = values.diff() / safe_dt
         df[f"{prefix}_roc_1h"] = roc_per_hour
         
-        # For longer lookbacks (3h, 6h, 24h), we should ideally interpolate or resample.
-        # But to avoid massive rewrite of the pipeline, if we assume roughly 1-hour intervals for history buffers,
-        # we can use shift(N) divided by actual time difference to that shift:
-        dt_3h = (df.index.to_series() - df.index.to_series().shift(ROC_LONG_HOURS)).dt.total_seconds() / 3600.0
-        df[f"{prefix}_roc_3h"] = (values - values.shift(ROC_LONG_HOURS)) / dt_3h.replace(0, np.nan)
-        
-        # Robust slopes
-        dt_6h = (df.index.to_series() - df.index.to_series().shift(6)).dt.total_seconds() / 3600.0
-        df[f"{prefix}_slope_6h"] = (values - values.shift(6)) / dt_6h.replace(0, np.nan)
-        
-        dt_24h = (df.index.to_series() - df.index.to_series().shift(24)).dt.total_seconds() / 3600.0
-        df[f"{prefix}_slope_24h"] = (values - values.shift(24)) / dt_24h.replace(0, np.nan)
-        
-        # Same-hour residual
-        df[f"{prefix}_same_hour_res"] = values - values.shift(24)
+        # Continuous-time causal slopes and residuals via exact timestamp lookup
+        slope_3h, _ = _compute_time_offset_slope(df, col, ROC_LONG_HOURS)
+        df[f"{prefix}_roc_3h"] = slope_3h
+        slope_6h, _ = _compute_time_offset_slope(df, col, 6.0)
+        df[f"{prefix}_slope_6h"] = slope_6h
+        slope_24h, diff_24h = _compute_time_offset_slope(df, col, 24.0)
+        df[f"{prefix}_slope_24h"] = slope_24h
+        df[f"{prefix}_same_hour_res"] = diff_24h
         
         df[f"{prefix}_normalized_roc_1h"] = df[f"{prefix}_roc_1h"] / safe_scale
 
@@ -430,11 +447,7 @@ def add_cross_parameter_features(df: pd.DataFrame) -> pd.DataFrame:
     es_now = saturation_vapor_pressure_kpa(temp_c)
     df["vapor_pressure_deficit_kpa"] = es_now * (1 - humidity_pct / 100.0)
 
-    temp_prev = temp_c.shift(1)
-    humidity_prev = pd.to_numeric(df["humidity_pct"], errors="coerce").shift(1)
-    es_prev = saturation_vapor_pressure_kpa(temp_prev)
-    rh_expected = (humidity_prev * (es_prev / es_now)).clip(0.0, 100.0)
-    df["vapor_pressure_consistency_dev"] = humidity_pct - rh_expected
+    # Replaced rigid Clausius-Clapeyron equality with 3D thermodynamic covariance in CrossChannelEngine
 
     return df
 

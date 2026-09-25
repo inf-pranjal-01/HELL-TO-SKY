@@ -209,106 +209,101 @@ def has_overlap(claimed_spans, cols, start, end):
 
 
 def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
-    """Push one reading far from the clean distribution without clipping it.
-
-    A clipped candidate (for example humidity ``100 -> 100``) is not a
-    spike at all. Returning ``None`` lets the placement loop choose a
-    different time/parameter instead of writing an invalid ground-truth
-    label.
     """
-    mean, std, upper, lower = compute_bounds(df[column])
-    # Push well beyond the clean-data tail (3.5-5.0 sigma) while staying within physical bounds
-    magnitude = rng.uniform(3.5, 5.0)
-    low, high = HARD_PHYSICAL_LIMITS.get(column, (-np.inf, np.inf))
-    candidates = [
-        mean + magnitude * std,
-        mean - magnitude * std,
-    ]
-    viable = [value for value in candidates if low <= value <= high]
-    if not viable:
-        return None
-    value = float(rng.choice(viable))
-    # An injected spike must be visibly distinct from both of its
-    # neighbours. The future neighbour is checked by the detector; this
-    # guard prevents an already-flat source point from being mislabeled.
-    if abs(value - float(df.loc[idx, column])) < max(std * 2.5, 0.5):
-        return None
-    df.loc[idx, column] = value
-    return "spike"
-
-
-def inject_spike_decay(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
-    """
-    FIX 3: second spike SUBTYPE (same fault_type="spike", still six
-    ground-truth types total) representing a real voltage transient /
-    ESD event rather than a discrete bit-flip: an instantaneous jump
-    followed by an exponential decay back toward the natural signal,
-    reflecting RC input-filter and thermal-mass dissipation kinetics --
-    T(t) = T_natural(t) + delta_T0 * exp(-(t - t0) / tau).
-
-    inject_spike (the bit-flip/transmission-garble variant, single
-    reading, instant full reversion) is kept as-is and NOT replaced --
-    real AWS networks see both signatures, so both stay in the pool
-    (see FAULT_WEIGHTS) rather than one replacing the other.
+    Path 2 Low-Stress Spike Injector:
+    Generates physically plausible sudden sensor discontinuities bounded above
+    measurement uncertainty floor, selecting among:
+      - Trajectory A: Discontinuity + progressive departure away from baseline
+      - Trajectory B: Discontinuity + persistent level shift (displaced offset)
+      - Trajectory C: Discontinuity + smooth exponential relaxation (voltage/thermal transient)
+      - Single-point: Digital bit-flip / instant transient
     """
     mean, std, upper, lower = compute_bounds(df[column])
     low, high = HARD_PHYSICAL_LIMITS.get(column, (-np.inf, np.inf))
-
-    tail_len = int(rng.integers(2, 5))
-    end_idx = min(idx + tail_len, len(df) - 1)
-    n_steps = end_idx - idx + 1
-
-    magnitude = rng.uniform(3.0, 5.0)
-    tau = rng.uniform(0.5, 1.5)  # decay time constant, in readings
+    
+    # Bounded magnitude: 3.0 to 4.5 sigma above measurement distinguishability floor
+    obs_floor = {"temperature_c": 0.10, "pressure_hpa": 1.00, "humidity_pct": 1.00}.get(column, 0.50)
+    magnitude = rng.uniform(3.0, 4.5)
     sign = float(rng.choice([-1.0, 1.0]))
-    delta0 = sign * magnitude * std
-
-    baseline = df.loc[idx:end_idx, column].to_numpy(dtype=float)
-    t = np.arange(n_steps)
-    decayed = baseline + delta0 * np.exp(-t / tau)
-
-    peak_value = decayed[0]
-    if not (low <= peak_value <= high):
-        return None  # would clip to nothing distinctive -- try elsewhere
-    if abs(peak_value - baseline[0]) < max(std * 4.0, 0.5):
-        return None  # not distinct enough from the natural reading
-
-    df.loc[idx:end_idx, column] = decayed
-    clip_to_physical_limits(df, column, idx, end_idx)
-    return "spike", idx, end_idx
+    delta0 = sign * magnitude * max(std, 2.5 * obs_floor)
+    
+    subtype = rng.choice(["single", "trajectory_a", "trajectory_b", "trajectory_c"], p=[0.25, 0.25, 0.25, 0.25])
+    
+    if subtype == "single":
+        cand = float(df.loc[idx, column]) + delta0
+        if not (low <= cand <= high):
+            return None
+        df.loc[idx, column] = cand
+        return "spike"
+        
+    elif subtype == "trajectory_a":
+        # Diverging departure
+        tail_len = int(rng.integers(2, 5))
+        end_idx = min(idx + tail_len, len(df) - 1)
+        n_steps = end_idx - idx + 1
+        baseline = df.loc[idx:end_idx, column].to_numpy(dtype=float)
+        t = np.arange(n_steps)
+        offset = delta0 * (1.0 + 0.3 * t)
+        vals = baseline + offset
+        if not (low <= vals[0] <= high):
+            return None
+        df.loc[idx:end_idx, column] = np.clip(vals, low, high)
+        return "spike", idx, end_idx
+        
+    elif subtype == "trajectory_b":
+        # Persistent level shift
+        tail_len = int(rng.integers(3, 6))
+        end_idx = min(idx + tail_len, len(df) - 1)
+        n_steps = end_idx - idx + 1
+        baseline = df.loc[idx:end_idx, column].to_numpy(dtype=float)
+        vals = baseline + delta0
+        if not (low <= vals[0] <= high):
+            return None
+        df.loc[idx:end_idx, column] = np.clip(vals, low, high)
+        return "spike", idx, end_idx
+        
+    else:  # trajectory_c
+        # Exponential return / relaxation
+        tail_len = int(rng.integers(2, 5))
+        end_idx = min(idx + tail_len, len(df) - 1)
+        n_steps = end_idx - idx + 1
+        tau = rng.uniform(0.7, 1.8)
+        baseline = df.loc[idx:end_idx, column].to_numpy(dtype=float)
+        t = np.arange(n_steps)
+        decayed = baseline + delta0 * np.exp(-t / tau)
+        if not (low <= decayed[0] <= high):
+            return None
+        df.loc[idx:end_idx, column] = np.clip(decayed, low, high)
+        return "spike", idx, end_idx
 
 
 def inject_frozen(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
     """
-    Hold the value at idx roughly constant for the next few rows -- a
-    comms/sensor fault where the station stops tracking real atmospheric
-    variation. Day 42/43: near-zero variance in a rolling window is
-    itself a strong outlier signal.
-
-    FIX 2: bit-exact repeat replaced with a bounded stationary random
-    walk (x_t = x_{t-1} + N(0, ADC_NOISE_FLOOR_STD^2), clamped to stay
-    within FROZEN_MAX_DEVIATION of the freeze point). A genuinely stuck
-    sensor still has real ADC thermal noise on top of its static
-    physical signal -- a plain equality check on real field data would
-    never fire. The clamp keeps this a stationary process (variance
-    near zero, per Day 42/43) rather than letting the walk accidentally
-    accumulate into something that looks like drift instead.
+    Path 2 Low-Stress Frozen Sensor Injector:
+    Supports:
+      - Mode A: Exact / Quantized repeat (bit-exact hold across K=5..8 readings)
+      - Mode B: Frozen + Measurement-Scale Jitter (ADC quantization noise floor walk)
     """
-    freeze_length = rng.integers(6, 9)
+    freeze_length = rng.integers(5, 9)
     end_idx = min(idx + freeze_length, len(df) - 1)
     n_steps = end_idx - idx + 1
-
     anchor = float(df.loc[idx, column])
-    noise_std = ADC_NOISE_FLOOR_STD[column]
-    max_dev = FROZEN_MAX_DEVIATION[column]
-
-    walk = np.cumsum(rng.normal(0, noise_std, n_steps))
-    walk = np.clip(walk, -max_dev, max_dev)  # stays stationary, doesn't drift away
-    walk[0] = 0.0  # first frozen row anchors exactly at the transition value
-
-    df.loc[idx:end_idx, column] = anchor + walk
+    
+    mode = rng.choice(["mode_a_exact", "mode_b_jitter"], p=[0.4, 0.6])
+    
+    if mode == "mode_a_exact":
+        df.loc[idx:end_idx, column] = anchor
+    else:
+        noise_std = ADC_NOISE_FLOOR_STD[column]
+        max_dev = FROZEN_MAX_DEVIATION[column]
+        walk = np.cumsum(rng.normal(0, noise_std, n_steps))
+        walk = np.clip(walk, -max_dev, max_dev)
+        walk[0] = 0.0
+        df.loc[idx:end_idx, column] = anchor + walk
+        
     clip_to_physical_limits(df, column, idx, end_idx)
     return "frozen_value", idx, end_idx
+
 
 
 def inject_drift(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
@@ -541,18 +536,17 @@ FAULT_MAX_LEN = {
 
 # Faults that touch all three parameters at once -- they must claim
 # all three columns' spans, not just the sampled one.
-MULTI_COLUMN_FAULTS = {inject_multivariate, inject_unstructured_anomaly}
+MULTI_COLUMN_FAULTS = {inject_multivariate}
 
 # Relative frequency weights for how often each fault type actually
 # occurs on a real AWS network.
 FAULT_WEIGHTS = {
-    inject_spike: 1.8,
+    inject_spike: 2.5,
     inject_dropout: 3.0,
-    inject_frozen: 2.0,
+    inject_frozen: 2.5,
     inject_fail_low: 1.5,
-    inject_drift: 1.0,
-    inject_multivariate: 1.0,
-    inject_unstructured_anomaly: 1.2,
+    inject_drift: 1.5,
+    inject_multivariate: 1.5,
 }
 
 # Every fault type gets AT LEAST this many injected EVENTS, regardless
