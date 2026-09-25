@@ -19,7 +19,6 @@ export type AnomalyType =
   | 'multivariate_inconsistency'
   | 'physical_bounds'
   | 'statistical_anomaly'
-  | 'unstructured_anomaly'
   | (string & {});
 
 export type NetworkCorroborationState = 'LOCALIZED' | 'REGIONAL' | 'INSUFFICIENT_CORROBORATION';

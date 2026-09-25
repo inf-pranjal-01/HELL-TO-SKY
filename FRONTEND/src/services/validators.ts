@@ -46,7 +46,6 @@ const VALID_ANOMALY_TYPES: readonly AnomalyType[] = [
   'multivariate_inconsistency',
   'physical_bounds',
   'statistical_anomaly',
-  'unstructured_anomaly',
 ];
 
 // ---------------------------------------------------------------------------
