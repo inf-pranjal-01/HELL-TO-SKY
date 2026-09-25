@@ -25,7 +25,7 @@ BASE_FEATURES = [
     "temp_deviation", "pressure_deviation", "humidity_deviation",
     "temp_roc_1h", "pressure_roc_1h", "humidity_roc_1h",
     "temp_roc_3h", "pressure_roc_3h", "humidity_roc_3h",
-    "vapor_pressure_consistency_dev",
+    "dewpoint_depression_c",
 ]
 
 
