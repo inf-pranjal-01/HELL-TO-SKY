@@ -261,11 +261,13 @@ class StationBuffer:
         self.recovery_clean_count = 0
 
         self.health.status = "WARNING"
+        self.health.health_index = 50.0
         self.health.offline_reason = None
         self.health._clean_streak = 0
 
         for p in self.health.param_status:
             self.health.param_status[p] = "WARNING"
+            self.health.param_health[p] = 50.0
             if hasattr(self.health, "param_offline_reason") and p in self.health.param_offline_reason:
                 self.health.param_offline_reason[p] = None
             if hasattr(self.health, "_param_clean_streak") and p in self.health._param_clean_streak:
@@ -282,32 +284,10 @@ class StationBuffer:
         should immediately flip the sensor back to HEALTHY rather than
         waiting out the 3-reading recovery streak." No clean-reading
         wait at all.
-
-        Use this for "this sensor is stuck in a bad state that isn't a
-        real ongoing fault" -- e.g. any sensor left OFFLINE by a
-        pre-fix replay/live bleed-through, or any other stuck state an
-        operator wants to clear without restarting the server.
-        mark_repaired() stays the right call for a genuine physical
-        repair, where verifying a few clean readings first is actually
-        wanted.
         """
         self.recovery_active = False
         self.recovery_clean_count = 0
-
-        self.health.status = "HEALTHY"
-        self.health.offline_reason = None
-        self.health._clean_streak = 0
-
-        for p in self.health.param_status:
-            self.health.param_status[p] = "HEALTHY"
-            if hasattr(self.health, "param_offline_reason") and p in self.health.param_offline_reason:
-                self.health.param_offline_reason[p] = None
-            if hasattr(self.health, "_param_clean_streak") and p in self.health._param_clean_streak:
-                self.health._param_clean_streak[p] = 0
-            if p in self.health._param_recent_10h:
-                self.health._param_recent_10h[p].clear()
-            if p in self.health._param_recent_24h:
-                self.health._param_recent_24h[p].clear()
+        self.health.force_recover()
 
     def update_recovery(self, verdict: dict):
         """
@@ -328,11 +308,17 @@ class StationBuffer:
             return
 
         self.recovery_clean_count += 1
+        # Boost health index towards 100 on clean streak
+        self.health.health_index = min(100.0, 50.0 + (50.0 * (self.recovery_clean_count / RECOVERY_CLEAN_STREAK_REQUIRED)))
 
         if self.recovery_clean_count >= RECOVERY_CLEAN_STREAK_REQUIRED:
             self.recovery_active = False
             self.recovery_clean_count = 0
             self.health.status = "HEALTHY"
+            self.health.health_index = 100.0
+            for p in self.health.param_status:
+                self.health.param_status[p] = "HEALTHY"
+                self.health.param_health[p] = 100.0
 
 
 class StateManager:
@@ -514,8 +500,12 @@ class StateManager:
         return {
             "station_id": station_id,
             "status": buf.health.status,
+            "health_pct": round(buf.health.health_index),
+            "needs_maintenance": buf.health.needs_maintenance,
             "offline_reason": buf.health.offline_reason,
             "recovery_active": buf.recovery_active,
+            "parameters": buf.health.param_status,
+            "param_health": {p: round(v, 1) for p, v in buf.health.param_health.items()},
             "mode": self.mode,
         }
 

@@ -1376,19 +1376,16 @@ def get_sensor_health(station_id: Optional[str] = None):
     if station_id:
         if station_id not in sim.manager.buffers:
             raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
+        buf = sim.manager.buffers[station_id]
         status = sim.manager.get_station_status(station_id)
         mapped = {"HEALTHY": "HEALTHY", "WARNING": "WARNING", "OFFLINE": "OFFLINE"}.get(status["status"], "HEALTHY")
-        parameter_status = sim.manager.buffers[station_id].health.param_status
-        base_health = _health_pct(parameter_status)
-        if mapped == "OFFLINE":
-            base_health = min(base_health, 0)
-        elif mapped == "WARNING":
-            base_health = min(base_health, 50)
         return {
             "station_id": station_id,
-            "health_pct": base_health,
+            "health_pct": round(buf.health.health_index),
             "status": mapped,
-            "parameters": parameter_status,
+            "needs_maintenance": buf.health.needs_maintenance,
+            "parameters": buf.health.param_status,
+            "param_health": {p: round(v, 1) for p, v in buf.health.param_health.items()},
             "offline_reason": status["offline_reason"],
             "recovery_active": status["recovery_active"],
         }
@@ -1396,19 +1393,16 @@ def get_sensor_health(station_id: Optional[str] = None):
     # Return all stations
     results = []
     for sid in sim.manager.buffers:
+        buf = sim.manager.buffers[sid]
         st = sim.manager.get_station_status(sid)
         mp = {"HEALTHY": "HEALTHY", "WARNING": "WARNING", "OFFLINE": "OFFLINE"}.get(st["status"], "HEALTHY")
-        param_st = sim.manager.buffers[sid].health.param_status
-        bh = _health_pct(param_st)
-        if mp == "OFFLINE":
-            bh = min(bh, 0)
-        elif mp == "WARNING":
-            bh = min(bh, 50)
         results.append({
             "station_id": sid,
-            "health_pct": bh,
+            "health_pct": round(buf.health.health_index),
             "status": mp,
-            "parameters": param_st,
+            "needs_maintenance": buf.health.needs_maintenance,
+            "parameters": buf.health.param_status,
+            "param_health": {p: round(v, 1) for p, v in buf.health.param_health.items()},
             "offline_reason": st["offline_reason"],
             "recovery_active": st["recovery_active"],
         })
