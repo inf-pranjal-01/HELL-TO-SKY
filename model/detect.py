@@ -566,11 +566,37 @@ def score_reading(
         }
 
     # ── TIER 3: Cross-Channel 3D Mahalanobis & Spatial Contrast ──────────
-    d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
-        z_scores["temperature_c"], z_scores["pressure_hpa"], z_scores["humidity_pct"]
-    )
-    
-    is_multivariate = cc_diag["is_multivariate_outlier"] and (not history_df.empty and len(history_df) >= 2 or d_sq > 60.0)
+    # Pure peer-driven microclimate adaptation: compute spatial contrast against regional peer cluster
+    peer_z = {}
+    eligible_peer_count = 0
+    for p in PARAMS:
+        p_med, p_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(
+            station_id, p, current_time, neighbor_buffers or {}
+        )
+        if p_med is not None and not pd.isna(p_med) and n_p >= 2:
+            spatial_diff = float(raw_reading[p]) - float(p_med)
+            spatial_sigma = math.sqrt((uncertainties[p] ** 2) + ((p_disp or 0.5) ** 2))
+            peer_z[p] = spatial_diff / max(1e-4, spatial_sigma)
+            eligible_peer_count = max(eligible_peer_count, n_p)
+        else:
+            peer_z[p] = z_scores[p]
+
+    if eligible_peer_count >= 2:
+        # Spatial peer-subtracted Mahalanobis: captures true isolated transducer divergence
+        d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
+            peer_z["temperature_c"], peer_z["pressure_hpa"], peer_z["humidity_pct"]
+        )
+        is_multivariate = cc_diag["is_multivariate_outlier"] and d_sq > 16.27
+    else:
+        # Isolated station fallback: evaluate local temporal innovation with strict physical invariants
+        d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
+            z_scores["temperature_c"], z_scores["pressure_hpa"], z_scores["humidity_pct"]
+        )
+        is_hard_phys, _ = CrossChannelEngine.check_physical_invariants(
+            raw_reading.get("temperature_c"), raw_reading.get("pressure_hpa"), raw_reading.get("humidity_pct")
+        )
+        is_multivariate = is_hard_phys or (cc_diag["is_multivariate_outlier"] and d_sq > 60.0)
+
     if is_multivariate:
         implicated = ["temperature_c", "humidity_pct"]
         return {
@@ -581,12 +607,13 @@ def score_reading(
             "decision_basis": "TIER_3_MAHALANOBIS_CROSS_CHANNEL",
             "likely_faulty_sensors": implicated,
             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
-            "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "joint", "confidence": 90.0, "reason": f"3D Mahalanobis distance D^2={d_sq:.2f} exceeded critical threshold (p={p_val:.4e})"}],
+            "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "joint", "confidence": 90.0, "reason": f"3D Spatial Mahalanobis distance D^2={d_sq:.2f} exceeded critical threshold (p={p_val:.4e})"}],
             "regime": regime,
             "evaluation_diagnostics": {
                 "tier": 3,
                 "d_squared": d_sq,
-                "p_value": p_val
+                "p_value": p_val,
+                "eligible_peers": eligible_peer_count
             }
         }
 
@@ -620,7 +647,8 @@ def score_reading(
                             "evaluation_diagnostics": {
                                 "tier": 4,
                                 "z_if": z_if,
-                                "d_squared": d_sq
+                                "d_squared": d_sq,
+                                "eligible_peers": eligible_peer_count
                             }
                         }
         except Exception:

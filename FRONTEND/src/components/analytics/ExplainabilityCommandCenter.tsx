@@ -19,8 +19,14 @@ export interface ExplainabilityCommandCenterProps {
 
 const displayParameter = (value: string) => {
   const lower = value.toLowerCase();
+  if (lower.includes('cross-channel cluster divergence') || lower.includes('cross channel cluster divergence')) {
+    return 'Cross-Channel Cluster Divergence (3D Mahalanobis)';
+  }
+  if (lower.includes('thermodynamic limit violation') || lower.includes('thermodynamic limit')) {
+    return 'Thermodynamic Saturation Limit Violation';
+  }
   if (lower.includes('vapor_pressure_consistency') || lower.includes('vapor pressure consistency')) {
-    return 'Thermodynamic Consistency (Clausius-Clapeyron)';
+    return 'Thermodynamic Saturation Consistency';
   }
   if (lower.includes('vapor_pressure_deficit') || lower.includes('vapor pressure deficit')) {
     return 'Vapor Pressure Deficit (VPD)';
@@ -33,8 +39,11 @@ const displayParameter = (value: string) => {
 
 function explainFeature(name: string): string {
   const value = name.toLowerCase();
-  if (value.includes('vapor_pressure_consistency') || value.includes('vapor pressure consistency')) {
-    return 'Physical impossibility: Under the Clausius-Clapeyron relation, relative humidity must decrease as temperature rises. The simultaneous surge in both temperature and humidity violates water vapor conservation in ambient air.';
+  if (value.includes('cross-channel cluster divergence') || value.includes('cross channel cluster divergence')) {
+    return 'Station temperature and relative humidity diverged simultaneously from regional cluster peer consensus (Mahalanobis D² exceeded critical threshold), isolating the failure to this node.';
+  }
+  if (value.includes('thermodynamic limit violation') || value.includes('thermodynamic limit') || value.includes('vapor_pressure_consistency')) {
+    return 'Thermodynamic violation: Calculated dewpoint exceeds ambient dry-bulb temperature, or relative humidity departed from physical psychrometric saturation limits.';
   }
   if (value.includes('vapor_pressure_deficit') || value.includes('vapor pressure deficit')) {
     return 'Atmospheric vapor pressure deficit (VPD) departed from equilibrium relative to ambient temperature and barometric pressure.';
@@ -331,13 +340,14 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                 };
 
                 if (isMultivariate || thermo?.is_violation) {
+                  const isHardPhys = thermo?.law?.includes('Psychrometric') || thermo?.law?.includes('Limit');
                   return (
                     <>
                       <p className="sg-explain-card__muted">
-                        State: <strong style={{ color: '#f87171' }}>THERMODYNAMIC INCONSISTENCY</strong>
+                        State: <strong style={{ color: '#f87171' }}>{isHardPhys ? 'THERMODYNAMIC SATURATION VIOLATION' : 'CROSS-CHANNEL CLUSTER DIVERGENCE'}</strong>
                       </p>
                       <p className="sg-explain-card__muted" style={{ fontSize: '0.78rem' }}>
-                        Coupled cross-sensor conflict: Reported temperature and relative humidity cannot co-occur in natural terrestrial atmosphere. Barometric pressure is nominal.
+                        {thermo?.explanation || 'Coupled cross-sensor conflict: Reported temperature and relative humidity diverged significantly from the regional cluster peer consensus.'}
                       </p>
                     </>
                   );
@@ -401,7 +411,7 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                           lineHeight: '1.45',
                         }}>
                           <strong style={{ display: 'block', marginBottom: '0.2rem', color: '#fecaca' }}>
-                            Thermodynamic Verification (Clausius-Clapeyron):
+                            {spatial.thermodynamic_context.law || 'Physical Invariant Verification'}:
                           </strong>
                           {spatial.thermodynamic_context.explanation}
                         </div>
@@ -484,13 +494,14 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                 const thermo = explanation?.spatial_context?.thermodynamic_context;
 
                 if (isMultivariate || thermo?.is_violation) {
+                  const isHardPhys = thermo?.law?.includes('Psychrometric') || thermo?.law?.includes('Limit');
                   return (
                     <div style={{ marginBottom: '0.5rem' }}>
                       <p className="sg-explain-card__conclusion" style={{ color: '#f8fafc', fontWeight: 600 }}>
-                        Thermodynamic Violation: Coupled temperature-hygrometer failure detected.
+                        {isHardPhys ? 'Thermodynamic Saturation Violation: Instrument limit breach detected.' : 'Cross-Channel Divergence: Coupled temperature-hygrometer anomaly detected.'}
                       </p>
                       <p className="sg-explain-card__muted" style={{ fontSize: '0.8rem', lineHeight: '1.45', margin: '0.3rem 0' }}>
-                        The station recorded mutually contradictory values ({formatSuggestedList(observed)}). By the Clausius-Clapeyron relation, maintaining high relative humidity at elevated temperatures requires an unphysical water vapor concentration under standard surface barometric pressure. Surrounding regional peer stations confirm ambient conditions are nominal, isolating the fault to this station's sensor pair.
+                        {thermo?.explanation || `The station recorded cross-channel values (${formatSuggestedList(observed)}) diverging from cluster peer consensus while barometric pressure remained nominal, isolating the fault to this station's transducer pair.`}
                       </p>
                     </div>
                   );

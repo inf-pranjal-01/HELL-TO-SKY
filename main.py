@@ -25,10 +25,13 @@ os.environ['OPENBLAS_NUM_THREADS']='1'
 os.environ['OMP_NUM_THREADS']='1'
 import asyncio
 import json
+import math
+import numpy as np
 import pandas as pd
 
 sys.path.append(str(Path(__file__).parent))
 from model.simulator import create_simulator_state, run_simulation_loop
+from model.cross_channel_covariance import compute_dewpoint_c
 from config import CLUSTERS, get_station_normal_ranges
 
 
@@ -1277,24 +1280,65 @@ def _compute_spatial_context(sim, match: dict) -> dict:
         recommended_action = f"Monitor {target_name} readings and cross-corroborate with secondary meteorological sensors."
         spatial_impact = "Peer Baseline Unavailable"
 
-    # Clausius-Clapeyron thermodynamic check
+    # Psychrometric Thermodynamic & Cross-Channel Evaluation
     thermodynamic_context = None
-    is_multivariate = "multivariate" in str(match.get("type", "")).lower() or "multivariate" in str(match.get("fault_type", "")).lower()
     t_val = param_evals["temperature_c"]["target"]
     h_val = param_evals["humidity_pct"]["target"]
     p_val = param_evals["pressure_hpa"]["target"]
-    if is_multivariate or (t_val > 45.0 and h_val > 60.0):
+
+    dewpoint_c = compute_dewpoint_c(t_val, h_val) if t_val is not None and h_val is not None else float("nan")
+    is_dewpoint_violation = not np.isnan(dewpoint_c) and dewpoint_c > (t_val + 1.5)
+    is_humidity_impossible = h_val is not None and (h_val > 100.0 or h_val < 0.0)
+    is_pressure_impossible = p_val is not None and (p_val < 750.0 or p_val > 1100.0)
+
+    # Stull (2011) wet-bulb temperature evaluation
+    is_wetbulb_impossible = False
+    tw_val = None
+    if t_val is not None and h_val is not None:
+        try:
+            tw_val = (
+                t_val * math.atan(0.151977 * math.sqrt(h_val + 8.313659))
+                + math.atan(t_val + h_val)
+                - math.atan(h_val - 1.676331)
+                + 0.00391838 * (h_val ** 1.5) * math.atan(0.023101 * h_val)
+                - 4.686035
+            )
+            if tw_val > 36.0:  # Beyond maximum terrestrial surface wet-bulb
+                is_wetbulb_impossible = True
+        except Exception:
+            pass
+
+    is_multivariate = "multivariate" in str(match.get("type", "")).lower() or "multivariate" in str(match.get("fault_type", "")).lower()
+
+    if is_dewpoint_violation or is_humidity_impossible or is_wetbulb_impossible or is_pressure_impossible:
+        if is_dewpoint_violation:
+            detail_msg = f"Thermodynamic saturation violation: Calculated dewpoint ({dewpoint_c:.1f}°C) exceeds dry-bulb temperature ({t_val:.1f}°C), violating vapor saturation equilibrium."
+        elif is_humidity_impossible:
+            detail_msg = f"Physical transducer limit: Relative humidity ({h_val:.1f}%) is outside physical atmospheric limits [0%, 100%]."
+        elif is_pressure_impossible:
+            detail_msg = f"Physical barometer limit: Barometric pressure ({p_val:.1f} hPa) is outside terrestrial limits [750, 1100 hPa]."
+        else:
+            detail_msg = f"Extreme thermodynamic exceedance: Equivalent wet-bulb temperature ({tw_val:.1f}°C) exceeds the maximum terrestrial threshold (36.0°C)."
+            
         thermodynamic_context = {
             "is_violation": True,
-            "law": "Clausius-Clapeyron Relation",
+            "law": "Psychrometric Saturation Limit",
+            "temperature_c": t_val,
+            "humidity_pct": h_val,
+            "pressure_hpa": p_val,
+            "explanation": detail_msg
+        }
+    elif is_multivariate:
+        thermodynamic_context = {
+            "is_violation": True,
+            "law": "Cross-Sensor Spatial Cluster Consensus",
             "temperature_c": t_val,
             "humidity_pct": h_val,
             "pressure_hpa": p_val,
             "explanation": (
-                f"Physical impossibility: Under atmospheric thermodynamics (Clausius-Clapeyron equation), "
-                f"saturation vapor pressure rises exponentially with temperature. At {t_val}°C, maintaining {h_val}% relative "
-                f"humidity requires an impossible atmospheric water vapor concentration under standard surface pressure ({p_val} hPa). "
-                f"Relative humidity must decrease as temperature increases; their simultaneous surge confirms a coupled sensor or calibration fault."
+                f"Cross-channel divergence: Reported temperature ({t_val}°C) and relative humidity ({h_val}%) "
+                f"diverged significantly from the regional cluster peer consensus (Mahalanobis distance exceeded critical chi-square boundary), "
+                f"indicating an isolated transducer or dual-channel sensor calibration fault."
             )
         }
 
@@ -1323,14 +1367,16 @@ def _compute_explanation_features(match: dict, spatial_ctx: dict | None) -> list
     features = []
     seen_names = set()
 
-    # 1. Thermodynamic Context (Clausius-Clapeyron)
+    # 1. Thermodynamic / Cross-Channel Context
     if spatial_ctx and spatial_ctx.get("thermodynamic_context") and spatial_ctx["thermodynamic_context"].get("is_violation"):
+        law_name = spatial_ctx["thermodynamic_context"].get("law", "Cross-Sensor Consistency")
+        feat_name = "Thermodynamic Limit Violation" if "Psychrometric" in law_name else "Cross-Channel Cluster Divergence"
         features.append({
-            "name": "Thermodynamic Consistency (Clausius-Clapeyron)",
+            "name": feat_name,
             "impact": 4.85,
             "column": "vapor_pressure_consistency"
         })
-        seen_names.add("Thermodynamic Consistency (Clausius-Clapeyron)")
+        seen_names.add(feat_name)
 
     # 2. Observed vs Suggested / Baseline Deviations
     observed = match.get("observed_values") or {}
