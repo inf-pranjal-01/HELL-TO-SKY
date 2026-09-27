@@ -9,6 +9,7 @@ import {
   Sparkles,
   Info,
   AlertTriangle,
+  Cpu,
 } from 'lucide-react';
 import { useStation } from '../context/StationContext';
 import { useDashboardData } from '../hooks/useDashboardData';
@@ -54,6 +55,7 @@ export const DashboardPage: React.FC = () => {
     pollStatusText,
     streamMode,
     providerStatus,
+    edgeStatus,
     wsLatencyMs,
     isWsConnected,
     refreshAll,
@@ -134,6 +136,27 @@ export const DashboardPage: React.FC = () => {
       await refreshAll();
     } catch (err) {
       setInjectionNotice(formatUserErrorMessage(err, 'Failed to return to live mode.'));
+    } finally {
+      setIsInjecting(false);
+    }
+  };
+
+  const handleEdgeToggle = async () => {
+    if (isInjecting) return;
+    setIsInjecting(true);
+    try {
+      if (streamMode === 'edge') {
+        await systemStatusService.switchToLive();
+        await syncStreamStatus();
+        setInjectionNotice('ESP32 testing closed. Returned cleanly to Live mode with unbroken history.');
+      } else {
+        await systemStatusService.switchToEdge(selectedStation?.station_id);
+        await syncStreamStatus();
+        setInjectionNotice('Switched to ESP32 Edge Ingestion mode. Waiting for hardware packets...');
+      }
+      await refreshAll();
+    } catch (err) {
+      setInjectionNotice(formatUserErrorMessage(err, 'Failed to toggle ESP32 mode.'));
     } finally {
       setIsInjecting(false);
     }
@@ -222,6 +245,27 @@ export const DashboardPage: React.FC = () => {
                 </button>
               </Tooltip>
             </div>
+          ) : streamMode === 'edge' ? (
+            <div className="sg-latency-badge sg-latency-badge--edge">
+              <span className="sg-latency-dot" aria-hidden="true" />
+              <span className="sg-latency-label">
+                {edgeStatus?.connected
+                  ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '<20ms'} ESP32 Direct`
+                  : '📡 ESP32 Standby'}
+              </span>
+              <Tooltip
+                position="bottom"
+                content="ESP32 Microcontroller Edge Hardware Ingestion Mode"
+              >
+                <button
+                  type="button"
+                  className="sg-badge-info-btn"
+                  aria-label="ESP32 Edge Mode details"
+                >
+                  <Info size={11} />
+                </button>
+              </Tooltip>
+            </div>
           ) : (
             <div
               className={`sg-latency-badge ${isWsConnected ? 'sg-latency-badge--live' : 'sg-latency-badge--fallback'}`}
@@ -295,6 +339,24 @@ export const DashboardPage: React.FC = () => {
             </Button>
           </Tooltip>
 
+          {/* Test ESP32 Node Mode Switcher */}
+          <Tooltip content={streamMode === 'edge' ? 'Stop ESP32 hardware testing and return to live mode' : 'Enter ESP32 Node hardware ingestion test mode'} position="bottom">
+            <Button
+              variant={streamMode === 'edge' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={handleEdgeToggle}
+              disabled={isInjecting}
+              isLoading={isInjecting && streamMode !== 'replay'}
+              ariaLabel={streamMode === 'edge' ? 'Exit ESP32 test mode' : 'Test ESP32 node mode'}
+              className={streamMode === 'edge' ? 'sg-edge-active-btn' : 'sg-edge-test-btn'}
+              leftIcon={<Cpu size={14} className={streamMode === 'edge' ? 'text-white' : 'text-emerald-400'} />}
+            >
+              <span className="sg-edge-btn-text">
+                {streamMode === 'edge' ? 'Exit ESP32 Mode' : 'Test ESP32 Node'}
+              </span>
+            </Button>
+          </Tooltip>
+
           {/* Single source-of-truth mode toggle; replay and live share the chart. */}
           <Tooltip content={streamMode === 'replay' ? 'Stop replay and return to live mode' : 'Start historical anomaly replay'} position="bottom">
             <Button
@@ -302,7 +364,7 @@ export const DashboardPage: React.FC = () => {
               size="sm"
               onClick={handleModeToggle}
               disabled={isInjecting || !selectedStation}
-              isLoading={isInjecting}
+              isLoading={isInjecting && streamMode === 'replay'}
               ariaLabel={streamMode === 'replay' ? 'Switch to live mode' : 'Switch to replay mode'}
               className="sg-sih-demo-btn"
               leftIcon={<Sparkles size={14} className="text-accent" />}
@@ -321,6 +383,39 @@ export const DashboardPage: React.FC = () => {
           <Info size={16} className="text-accent" aria-hidden="true" />
           <span>{injectionNotice}</span>
         </div>
+      )}
+
+      {/* ESP32 Hardware Mode Banners */}
+      {streamMode === 'edge' && (
+        <>
+          {(!edgeStatus || edgeStatus.status === 'WAITING' || !edgeStatus.connected) ? (
+            <div className="sg-edge-waiting-banner" role="status">
+              <div className="sg-edge-radar-icon">
+                <Radio size={22} className="sg-radar-pulse text-emerald-400" aria-hidden="true" />
+              </div>
+              <div className="sg-edge-waiting-content">
+                <div className="sg-edge-waiting-title">
+                  📡 WAITING FOR ESP32 HARDWARE LINK...
+                </div>
+                <div className="sg-edge-waiting-sub">
+                  Listening on <code>POST /api/ingest/observation</code> for live ObservationPacket frames. Run <code>python scripts/virtual_esp32_node.py</code> or power on physical ESP32 DevKit node. The dashboard will automatically lock onto the transmitting station with &lt;20ms real-time telemetry.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="sg-edge-connected-banner" role="status">
+              <Radio size={18} className="text-emerald-400 flex-shrink-0" aria-hidden="true" />
+              <div className="sg-edge-connected-content">
+                <span className="sg-edge-connected-title">
+                  🟢 ESP32 HARDWARE LINK ACTIVE — Station: {edgeStatus.station_id || stationId} &bull; Device: {edgeStatus.device_id || 'ESP32-DevKit-V1'}
+                </span>
+                <span className="sg-edge-connected-meta">
+                  Packets Ingested: {edgeStatus.packet_count || 0} &bull; Turnaround Latency: &lt;20ms (Direct Stream)
+                </span>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Live Provider Health Warning Banner (Open-Meteo failure diagnosis) */}

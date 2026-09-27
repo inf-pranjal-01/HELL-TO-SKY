@@ -143,13 +143,23 @@ export interface ProviderStatus {
   timestamp?: string | null;
 }
 
+export interface EdgeStatus {
+  status: 'WAITING' | 'CONNECTED' | 'DISCONNECTED';
+  connected: boolean;
+  station_id?: string | null;
+  device_id?: string | null;
+  last_packet_time?: string | null;
+  packet_count?: number;
+}
+
 /** Backend control-plane state. The frontend renders it; it never infers mode. */
 export interface SystemStreamStatus {
-  mode: 'live' | 'replay';
+  mode: 'live' | 'replay' | 'edge';
   replay_step_seconds: number | null;
   live_poll_interval_seconds: number;
   is_pre_warming?: boolean;
   provider_status?: ProviderStatus;
+  edge_status?: EdgeStatus;
 }
 
 /**

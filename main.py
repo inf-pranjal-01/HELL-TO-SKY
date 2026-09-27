@@ -215,17 +215,41 @@ async def get_system_status():
             "diagnosed_cause": None,
             "last_error": None,
         }),
+        "edge_status": getattr(sim, "edge_status", {
+            "status": "DISCONNECTED",
+            "connected": False,
+            "station_id": None,
+            "device_id": None,
+            "last_packet_time": None,
+            "packet_count": 0,
+        }),
     }
 
 
 @app.post("/api/system-mode")
 async def set_system_mode(body: dict):
-    """Switch safely back to live when the dashboard replay toggle is off."""
-    if body.get("mode") != "live":
-        raise HTTPException(status_code=400, detail="Only mode='live' is supported by this endpoint.")
+    """Switch mode safely: mode='live', mode='replay', or mode='edge'."""
+    mode = body.get("mode")
+    station_id = body.get("station_id")
     sim = app.state.sim
-    sim.stop_replay()
-    return {"mode": "live", "message": "Replay stopped; live buffers and view were reset."}
+    if mode == "live":
+        if sim.mode == "replay":
+            sim.stop_replay()
+        elif sim.mode == "edge":
+            sim.stop_edge_mode()
+        else:
+            sim.manager.switch_to_live()
+        return {"mode": "live", "message": "Switched to live mode; live buffers and view restored."}
+    elif mode == "edge":
+        if sim.mode == "replay":
+            sim.stop_replay()
+        sim.start_edge_mode(target_station_id=station_id)
+        return {"mode": "edge", "message": "Switched to ESP32 Edge Ingestion mode. Waiting for hardware packets."}
+    elif mode == "replay":
+        anomaly_id = await asyncio.to_thread(sim.start_replay, station_id)
+        return {"mode": "replay", "anomaly_id": anomaly_id, "message": "Switched to replay mode."}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid mode. Supported: 'live', 'replay', 'edge'.")
 
 
 @app.post("/api/admin/clear-history")
@@ -417,6 +441,23 @@ async def ingest_edge_observation(payload: dict):
         raw_reading,
         ts,
     )
+
+    # Update edge status
+    if getattr(sim, "edge_status", None) is not None:
+        was_connected = sim.edge_status.get("connected", False)
+        sim.edge_status["status"] = "CONNECTED"
+        sim.edge_status["connected"] = True
+        sim.edge_status["station_id"] = station_id
+        sim.edge_status["device_id"] = payload.get("device_id")
+        sim.edge_status["last_packet_time"] = ts.isoformat()
+        sim.edge_status["packet_count"] = sim.edge_status.get("packet_count", 0) + 1
+        
+        # Broadcast EDGE_STATUS if state changed or first connection
+        if not was_connected or sim.edge_status["packet_count"] % 5 == 1:
+            await ws_manager.broadcast({
+                "type": "EDGE_STATUS",
+                "edge_status": dict(sim.edge_status),
+            })
 
     sim.latest[station_id] = {
         "raw_reading": raw_reading,

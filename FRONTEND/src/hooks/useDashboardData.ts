@@ -46,8 +46,9 @@ export interface DashboardDataState {
   staleStatusText: 'LIVE' | 'DATA DELAYED' | 'DATA STALE';
   freshness: FreshnessState;
   pollStatusText: string;
-  streamMode: 'live' | 'replay';
+  streamMode: 'live' | 'replay' | 'edge';
   providerStatus: ProviderStatus | null;
+  edgeStatus: SystemStreamStatus['edge_status'] | null;
 
   // Live WebSocket Ingestion & Latency Readout
   wsLatencyMs: number | null;
@@ -79,7 +80,7 @@ function mergeTrendPoints(
   base: TrendsResponse['points'],
   additions: TrendsResponse['points'],
   hours: number,
-  activeMode?: 'live' | 'replay'
+  activeMode?: 'live' | 'replay' | 'edge'
 ) {
   const byTimestamp = new Map<string, TrendsResponse['points'][number]>();
   for (const point of base) {
@@ -157,7 +158,7 @@ export function useDashboardData(
   const wsConnectedRef = useRef(false);
   const timerRef = useRef<number | null>(null);
   const modeTimerRef = useRef<number | null>(null);
-  const priorStreamModeRef = useRef<'live' | 'replay'>(streamStatus.mode);
+  const priorStreamModeRef = useRef<'live' | 'replay' | 'edge'>(streamStatus.mode);
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
   const fetchAnomaliesRef = useRef<() => Promise<void>>(() => Promise.resolve());
@@ -252,7 +253,7 @@ export function useDashboardData(
                       fault_type: data.verdict?.fault_type ?? null,
                       severity: data.verdict?.severity ?? null,
                       suggested_values: data.verdict?.suggested_values ?? (prev?.suggested_values || {}),
-                      source: (data.mode ?? 'live') as 'live' | 'replay',
+                      source: (data.mode ?? 'live') as 'live' | 'replay' | 'edge',
                       risk_level: riskLevel,
                       sensor_health_pct: prev?.sensor_health_pct ?? (data.verdict?.health_status === 'OFFLINE' ? 0 : 100),
                       sensor_health_status: (data.verdict?.health_status ?? (prev?.sensor_health_status || 'HEALTHY')) as 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'OFFLINE',
@@ -386,6 +387,19 @@ export function useDashboardData(
                   });
                 }
                 fetchAnomaliesRef.current();
+              }
+
+            } else if (data.type === 'EDGE_STATUS') {
+              if (data.edge_status) {
+                setStreamStatus((prev) => ({
+                  ...prev,
+                  edge_status: data.edge_status,
+                }));
+                if (data.edge_status.connected && data.edge_status.station_id) {
+                  window.dispatchEvent(new CustomEvent('sg-select-station', {
+                    detail: { stationId: data.edge_status.station_id }
+                  }));
+                }
               }
 
             } else if (data.type === 'MODE_CHANGE') {
@@ -871,7 +885,7 @@ export function useDashboardData(
       return;
     }
 
-    const effectivePollingMs = streamStatus.mode === 'replay' ? 1000 : pollingIntervalMs;
+    const effectivePollingMs = streamStatus.mode === 'replay' ? 1000 : streamStatus.mode === 'edge' ? 2000 : pollingIntervalMs;
     timerRef.current = window.setInterval(() => {
       if (!isPausedRef.current) {
         if (streamStatus.mode === 'live') {
@@ -882,12 +896,19 @@ export function useDashboardData(
           // pollingIntervalMs is already 30 min, so this adds zero extra load.
           fetchReading();
           fetchHealth();
-        } else {
+        } else if (streamStatus.mode === 'replay') {
           // In replay mode: poll current reading (which continuously updates trends seamlessly)
           fetchReading();
           fetchHealth();
           if (!wsConnectedRef.current || !trendsRef.current || trendsRef.current.points.length < 2) {
             fetchTrends(trendHoursRef.current);
+          }
+        } else if (streamStatus.mode === 'edge') {
+          // In edge mode: WS pushes all hardware ticks (<20ms).
+          // If WS disconnects, fallback poll every 2s
+          if (!wsConnectedRef.current) {
+            fetchReading();
+            fetchHealth();
           }
         }
       }
@@ -907,7 +928,7 @@ export function useDashboardData(
   const freshness = calculateFreshness(
     lastUpdated,
     isPaused,
-    streamStatus.mode === 'replay' ? 2 : streamStatus.live_poll_interval_seconds
+    streamStatus.mode === 'replay' ? 2 : streamStatus.mode === 'edge' ? 10 : streamStatus.live_poll_interval_seconds
   );
   const isDelayed = freshness.status === 'DATA DELAYED';
   const isStale = freshness.status === 'DATA STALE';
@@ -919,6 +940,10 @@ export function useDashboardData(
   const replaySeconds = streamStatus.replay_step_seconds ?? 2;
   const pollStatusText = streamStatus.mode === 'replay'
     ? `REPLAY · 1H / ${replaySeconds}S`
+    : streamStatus.mode === 'edge'
+    ? streamStatus.edge_status?.connected
+      ? `ESP32 HARDWARE · ${streamStatus.edge_status.packet_count || 0} PKTS`
+      : 'WAITING FOR ESP32 LINK...'
     : freshness.label;
 
   return {
@@ -944,6 +969,7 @@ export function useDashboardData(
     pollStatusText,
     streamMode: streamStatus.mode,
     providerStatus: streamStatus.provider_status || null,
+    edgeStatus: streamStatus.edge_status || null,
     wsLatencyMs,
     isWsConnected,
     isPaused,

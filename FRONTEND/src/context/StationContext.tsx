@@ -7,6 +7,7 @@ export interface StationContextType {
   stations: Station[];
   selectedStation: Station | null;
   setSelectedStation: (station: Station) => void;
+  selectStationById: (stationId: string) => void;
   isLoading: boolean;
   error: string | null;
   refreshStations: () => Promise<void>;
@@ -51,6 +52,16 @@ export const StationProvider: React.FC<{ children: React.ReactNode }> = ({ child
     fetchStations(false);
   }, [fetchStations]);
 
+  const selectStationById = useCallback((stationId: string) => {
+    setStations((currentStations) => {
+      const target = currentStations.find((s) => s.station_id === stationId);
+      if (target) {
+        setSelectedStationState(target);
+      }
+      return currentStations;
+    });
+  }, []);
+
   useEffect(() => {
     fetchStations(true);
     const interval = setInterval(() => {
@@ -60,13 +71,21 @@ export const StationProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const handleRefreshEvent = () => {
       fetchStations(false);
     };
+    const handleSelectStationEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ stationId: string }>;
+      if (customEvent.detail?.stationId) {
+        selectStationById(customEvent.detail.stationId);
+      }
+    };
     window.addEventListener('sg-refresh-stations', handleRefreshEvent);
+    window.addEventListener('sg-select-station', handleSelectStationEvent);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('sg-refresh-stations', handleRefreshEvent);
+      window.removeEventListener('sg-select-station', handleSelectStationEvent);
     };
-  }, [fetchStations]);
+  }, [fetchStations, selectStationById]);
 
   return (
     <StationContext.Provider

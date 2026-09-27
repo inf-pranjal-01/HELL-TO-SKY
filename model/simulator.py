@@ -225,6 +225,16 @@ class SimulatorState:
             "timestamp": None,
         }
 
+        # ESP32 Edge hardware testing tracker
+        self.edge_status: dict = {
+            "status": "DISCONNECTED",
+            "connected": False,
+            "station_id": None,
+            "device_id": None,
+            "last_packet_time": None,
+            "packet_count": 0,
+        }
+
     async def _broadcast_event(self, payload: dict):
         """Asynchronously dispatch real-time events to connected WebSocket clients."""
         if self.broadcast_callback:
@@ -346,6 +356,90 @@ class SimulatorState:
         """Operator-initiated replay -> live transition."""
         if self.mode == "replay":
             self._stop_replay()
+
+    def start_edge_mode(self, target_station_id: str | None = None) -> str:
+        """
+        Switches system to EDGE mode (ESP32 hardware testing).
+        Initializes edge status to WAITING until the ESP32 node sends its first packet.
+        """
+        self.manager.switch_to_edge()
+        self._replay_frames = {}
+        self._last_ingested = {}
+        self._last_ingested_timestamp = {}
+        self.latest = {}
+        self.trend_history = {
+            sid: deque(maxlen=TREND_HISTORY_MAXLEN)
+            for sid in self.metadata["station_id"]
+        }
+        self.recent_anomalies.clear()
+
+        self.edge_status = {
+            "status": "WAITING",
+            "connected": False,
+            "station_id": target_station_id,
+            "device_id": None,
+            "last_packet_time": None,
+            "packet_count": 0,
+        }
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._broadcast_event({
+                "type": "MODE_CHANGE",
+                "mode": "edge",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            loop.create_task(self._broadcast_event({
+                "type": "EDGE_STATUS",
+                "edge_status": self.edge_status,
+            }))
+        except RuntimeError:
+            pass
+
+        return "edge_ready"
+
+    def stop_edge_mode(self):
+        """
+        Switches back from EDGE to LIVE mode.
+        Purges edge scratch state, restores live buffers, and resumes live Open-Meteo updates.
+        """
+        self.manager.switch_to_live()
+        self._replay_frames = {}
+        self._last_ingested = {}
+        self._last_ingested_timestamp = {}
+        self.latest = dict(self._last_live_latest)
+        self.trend_history = {
+            sid: deque(maxlen=TREND_HISTORY_MAXLEN)
+            for sid in self.metadata["station_id"]
+        }
+        self.recent_anomalies.clear()
+
+        self.edge_status = {
+            "status": "DISCONNECTED",
+            "connected": False,
+            "station_id": None,
+            "device_id": None,
+            "last_packet_time": None,
+            "packet_count": 0,
+        }
+
+        self._live_last_fetch = None
+        self._live_refresh_requested = True
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._broadcast_event({
+                "type": "MODE_CHANGE",
+                "mode": "live",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }))
+            loop.create_task(self._broadcast_event({
+                "type": "EDGE_STATUS",
+                "edge_status": self.edge_status,
+            }))
+            loop.create_task(self.refresh_live_now())
+        except RuntimeError:
+            pass
 
     async def refresh_live_now(self, priority_station_id: str | None = None) -> None:
         """Fetch the current provider observation outside the 30-min cadence.
@@ -705,27 +799,40 @@ class SimulatorState:
 
 
 async def run_simulation_loop(sim_state: SimulatorState):
-    """Replay steps every 2s; live fetch/ingest runs every 30 minutes."""
+    """Replay steps every 2s; live/edge fetch/ingest runs on cadence."""
     next_live_tick = 0.0
     while True:
         tick_start = asyncio.get_running_loop().time()
         try:
             now = tick_start
-            if sim_state.mode == "replay" or now >= next_live_tick:
+            if sim_state.mode == "replay":
                 await sim_state.tick()
+            elif sim_state.mode in ("live", "edge") and now >= next_live_tick:
                 if sim_state.mode == "live":
-                    # A replay can end inside tick(). Honour the requested
-                    # immediate live refresh on the very next loop rather
-                    # than scheduling the first live sample 30 minutes away.
+                    await sim_state.tick()
                     if sim_state._live_refresh_requested:
                         next_live_tick = 0.0
                         sim_state._live_refresh_requested = False
                     else:
                         next_live_tick = asyncio.get_running_loop().time() + LIVE_FETCH_INTERVAL_SECONDS
+                else:
+                    # In EDGE mode: background live fetching continues to persist unbroken records
+                    # for all 20 stations to TimescaleDB/CSV without interrupting active edge testing UI.
+                    await sim_state._maybe_refresh_live_cache()
+                    batch_bg = []
+                    b_now = datetime.now(timezone.utc)
+                    for sid in sim_state.metadata["station_id"]:
+                        r_reading = sim_state._next_live_row(sid)
+                        if r_reading:
+                            r_ts = sim_state._live_observed_at.get(sid, b_now)
+                            batch_bg.append((sid, r_ts, r_reading, {"is_anomaly": False, "health_status": "HEALTHY"}))
+                    if batch_bg:
+                        await asyncio.to_thread(sim_state.manager.history.append_batch, batch_bg, source="live")
+                    next_live_tick = asyncio.get_running_loop().time() + LIVE_FETCH_INTERVAL_SECONDS
         except Exception as e:
             # Preserve the actual file/line in server logs. A one-line error
             # hides whether an upstream record or detector rule failed.
-            print(f"[simulator] tick failed: {e!r}\n{traceback.format_exc()}")
+            print(f"[simulator] loop error: {e!r}\n{traceback.format_exc()}")
         
         tick_elapsed = asyncio.get_running_loop().time() - tick_start
         wait_seconds = max(0.05, REPLAY_STEP_SECONDS - tick_elapsed) if sim_state.mode == "replay" else 1.0

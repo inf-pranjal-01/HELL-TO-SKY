@@ -158,6 +158,7 @@ RAW_HISTORY_MAXLEN_HOURS = max(int(str(ROLLING_WINDOW_HOURS).replace('h', '')), 
 
 MODE_LIVE = "live"
 MODE_REPLAY = "replay"
+MODE_EDGE = "edge"
 
 
 class StationBuffer:
@@ -399,6 +400,16 @@ class StateManager:
         closed for completeness even though it wasn't the one reported.
         """
         self.mode = MODE_REPLAY
+        for buf in self.buffers.values():
+            buf.reset_detection_state()
+
+    def switch_to_edge(self):
+        """
+        Switches to dedicated ESP32 edge hardware testing mode. Resets
+        short-window detection buffers to ensure zero bleed-through from
+        prior live or replay sessions.
+        """
+        self.mode = MODE_EDGE
         for buf in self.buffers.values():
             buf.reset_detection_state()
 

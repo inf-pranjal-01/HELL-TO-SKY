@@ -17,26 +17,41 @@ export const systemStatusService = {
       throw ApiError.validationError('System status response must be an object.');
     }
     const status = data as Record<string, unknown>;
-    if ((status.mode !== 'live' && status.mode !== 'replay') || typeof status.live_poll_interval_seconds !== 'number') {
+    const validModes = ['live', 'replay', 'edge'];
+    if (!validModes.includes(status.mode as string) || typeof status.live_poll_interval_seconds !== 'number') {
       throw ApiError.validationError('System status response has an invalid mode or cadence.');
     }
     return {
-      mode: status.mode,
+      mode: status.mode as 'live' | 'replay' | 'edge',
       replay_step_seconds: typeof status.replay_step_seconds === 'number' ? status.replay_step_seconds : null,
       live_poll_interval_seconds: status.live_poll_interval_seconds,
       is_pre_warming: typeof status.is_pre_warming === 'boolean' ? status.is_pre_warming : false,
+      provider_status: status.provider_status as any,
+      edge_status: status.edge_status as any,
+    };
+  },
+
+  async setMode(mode: 'live' | 'replay' | 'edge', stationId?: string, options?: RequestOptions): Promise<SystemStreamStatus> {
+    if (isMockMode()) {
+      return { mode, replay_step_seconds: mode === 'replay' ? 2 : null, live_poll_interval_seconds: 30 * 60 };
+    }
+    const data = await apiClient.post<unknown>(API_CONFIG.endpoints.systemMode, { mode, station_id: stationId }, options);
+    if (!data || typeof data !== 'object' || (data as Record<string, unknown>).mode !== mode) {
+      throw ApiError.validationError('Mode switch response is invalid.');
+    }
+    return {
+      mode,
+      replay_step_seconds: mode === 'replay' ? 2 : null,
+      live_poll_interval_seconds: 30 * 60,
     };
   },
 
   async switchToLive(options?: RequestOptions): Promise<SystemStreamStatus> {
-    if (isMockMode()) {
-      return { mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60 };
-    }
-    const data = await apiClient.post<unknown>(API_CONFIG.endpoints.systemMode, { mode: 'live' }, options);
-    if (!data || typeof data !== 'object' || (data as Record<string, unknown>).mode !== 'live') {
-      throw ApiError.validationError('Live-mode switch response is invalid.');
-    }
-    return { mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60 };
+    return this.setMode('live', undefined, options);
+  },
+
+  async switchToEdge(stationId?: string, options?: RequestOptions): Promise<SystemStreamStatus> {
+    return this.setMode('edge', stationId, options);
   },
 
   async refreshLive(stationId?: string, options?: RequestOptions): Promise<void> {
