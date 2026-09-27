@@ -331,7 +331,7 @@ async def get_network_status():
             station_health["status"], "NORMAL"
         )
         statuses.append(mapped)
-        health_pcts.append(_health_pct(sim.manager.buffers[sid].health.param_status))
+        health_pcts.append(round(station_health["health_pct"]))
 
     if "CRITICAL" in statuses:
         overall = "CRITICAL"
@@ -717,7 +717,7 @@ async def get_current_reading(station_id: str):
         "model_confidence_pct": verdict.get("model_confidence_pct"),
         "rule_confidence_pct": verdict.get("rule_confidence_pct"),
         "risk_level": risk_level,
-        "sensor_health_pct": _health_pct(parameter_status),
+        "sensor_health_pct": round(station_health["health_pct"]),
         "sensor_health_status": station_health["status"],
         "sensor_parameters": parameter_status,
         "suggested_values": verdict.get("suggested_values", {}),
