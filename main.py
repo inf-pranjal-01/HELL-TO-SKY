@@ -514,7 +514,10 @@ async def ingest_edge_observation(payload: dict):
     })
 
     is_level2_anomaly = bool(verdict.get("is_anomaly", False))
-    is_edge_alert = isinstance(edge_inference, dict) and edge_inference.get("status") == "ALERT"
+    is_edge_alert = isinstance(edge_inference, dict) and (
+        edge_inference.get("status") in ("ALERT", "CERTAIN_FAULT") or
+        edge_inference.get("edge_status") == "CERTAIN_FAULT"
+    )
 
     if is_level2_anomaly or is_edge_alert:
         sim._anomaly_counter += 1
@@ -563,151 +566,6 @@ async def ingest_edge_observation(payload: dict):
             "fault_type": verdict.get("fault_type"),
         }
     }
-
-
-# ---------------- ESP32 Edge Hardware Handshake & Serial Stream Orchestrator ----------------
-
-class EdgeTestOrchestrator:
-    def __init__(self):
-        self.status = "idle"  # idle, handshaking, streaming, error, stopped
-        self.connected_port = None
-        self.device_id = None
-        self.firmware_version = None
-        self.active_station_id = "AWS-CHN-024"
-        self.feeder_task = None
-        self.stop_event = asyncio.Event()
-
-edge_orchestrator = EdgeTestOrchestrator()
-
-
-async def _run_csv_serial_feeder(port: str, station_id: str):
-    import serial
-    csv_path = Path(__file__).parent / f"data/{station_id}_labeled.csv"
-    if not csv_path.exists():
-        csv_path = Path(__file__).parent / "data/AWS-CHN-024_labeled.csv"
-
-    try:
-        df = pd.read_csv(csv_path)
-        ser = await asyncio.to_thread(serial.Serial, port, 115200, timeout=1.0)
-        await asyncio.sleep(1.0)
-
-        for idx, row in df.iterrows():
-            if edge_orchestrator.stop_event.is_set():
-                break
-
-            payload = {
-                "station_id": station_id,
-                "timestamp": str(row.get("timestamp", pd.Timestamp.now(tz="UTC").isoformat())),
-                "temperature_c": None if pd.isna(row.get("temperature_c")) else float(row.get("temperature_c")),
-                "pressure_hpa": None if pd.isna(row.get("pressure_hpa")) else float(row.get("pressure_hpa")),
-                "humidity_pct": None if pd.isna(row.get("humidity_pct")) else float(row.get("humidity_pct")),
-            }
-
-            line = json.dumps(payload) + "\n"
-            await asyncio.to_thread(ser.write, line.encode("utf-8"))
-            await asyncio.sleep(2.0)
-
-        await asyncio.to_thread(ser.close)
-        edge_orchestrator.status = "idle"
-    except Exception as e:
-        print(f"[_run_csv_serial_feeder] Serial feeder error: {e!r}")
-        edge_orchestrator.status = "idle"
-
-
-@app.get("/api/edge/status")
-async def get_edge_status():
-    return {
-        "status": edge_orchestrator.status,
-        "connected_port": edge_orchestrator.connected_port,
-        "device_id": edge_orchestrator.device_id,
-        "firmware_version": edge_orchestrator.firmware_version,
-        "active_station_id": edge_orchestrator.active_station_id,
-    }
-
-
-@app.post("/api/edge/start-test")
-async def start_edge_hardware_test(station_id: Optional[str] = "AWS-CHN-024", port: Optional[str] = None):
-    import serial
-    import serial.tools.list_ports
-
-    edge_orchestrator.status = "handshaking"
-    target_port = port
-
-    if not target_port:
-        ports = serial.tools.list_ports.comports()
-        for p in ports:
-            if any(k in p.description.lower() for k in ("cp210", "ch340", "usb", "uart", "dev")):
-                target_port = p.device
-                break
-        if not target_port and len(ports) > 0:
-            target_port = ports[0].device
-
-    if not target_port:
-        edge_orchestrator.status = "error"
-        raise HTTPException(status_code=404, detail="No COM port found. Ensure ESP32 USB cable is connected.")
-
-    # 2-Way Handshake
-    try:
-        ser = await asyncio.to_thread(serial.Serial, target_port, 115200, timeout=1.0)
-        await asyncio.sleep(0.5)
-        handshake_cmd = json.dumps({"type": "HANDSHAKE_PING"}) + "\n"
-        await asyncio.to_thread(ser.write, handshake_cmd.encode("utf-8"))
-
-        ack_line = ""
-        start_time = asyncio.get_event_loop().time()
-        while asyncio.get_event_loop().time() - start_time < 3.0:
-            if ser.in_waiting:
-                line = (await asyncio.to_thread(ser.readline)).decode("utf-8", errors="replace").strip()
-                if "HANDSHAKE_ACK" in line:
-                    ack_line = line
-                    break
-            await asyncio.sleep(0.05)
-
-        await asyncio.to_thread(ser.close)
-
-        if not ack_line:
-            edge_orchestrator.status = "error"
-            raise HTTPException(status_code=504, detail=f"Handshake failed on {target_port}. Press EN/RST on ESP32 and try again.")
-
-        try:
-            ack_doc = json.loads(ack_line)
-        except Exception:
-            ack_doc = {}
-
-        edge_orchestrator.connected_port = target_port
-        edge_orchestrator.device_id = ack_doc.get("device_id", "esp32-node")
-        edge_orchestrator.firmware_version = ack_doc.get("firmware", "v1.0.0")
-        edge_orchestrator.active_station_id = station_id
-        edge_orchestrator.status = "streaming"
-        edge_orchestrator.stop_event.clear()
-
-        if edge_orchestrator.feeder_task and not edge_orchestrator.feeder_task.done():
-            edge_orchestrator.feeder_task.cancel()
-
-        edge_orchestrator.feeder_task = asyncio.create_task(
-            _run_csv_serial_feeder(target_port, station_id)
-        )
-
-        return {
-            "success": True,
-            "status": "streaming",
-            "com_port": target_port,
-            "device_id": edge_orchestrator.device_id,
-            "station_id": station_id,
-            "message": f"2-Way Handshake successful on {target_port}. Automated CSV stream started."
-        }
-    except Exception as e:
-        edge_orchestrator.status = "error"
-        raise HTTPException(status_code=500, detail=f"Serial error on {target_port}: {str(e)}")
-
-
-@app.post("/api/edge/stop-test")
-async def stop_edge_hardware_test():
-    edge_orchestrator.stop_event.set()
-    if edge_orchestrator.feeder_task and not edge_orchestrator.feeder_task.done():
-        edge_orchestrator.feeder_task.cancel()
-    edge_orchestrator.status = "idle"
-    return {"success": True, "message": "Edge hardware test stopped."}
 
 
 # ---------------- GET /api/stations ----------------
@@ -1582,6 +1440,7 @@ def get_explanation(anomaly_id: str):
         ),
         "spatial_context": spatial_ctx,
         "edge_inference": match.get("edge_inference"),
+        "source": match.get("source", "central"),
     }
 
 
