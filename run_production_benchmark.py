@@ -15,7 +15,8 @@ import numpy as np
 
 from model.detect import score_reading, PARAM_PREFIXES
 from model.features import build_feature_matrix, FEATURE_COLUMNS
-from model.state import RAW_HISTORY_MAXLEN_HOURS
+from model.state import StationBuffer
+from model.peer_spatial_engine import PeerSpatialEngine
 
 DATA_DIR = Path("data")
 ARTIFACTS_PATH = Path("model_artifacts/isolation_forest.pkl")
@@ -54,7 +55,6 @@ def run_benchmark():
     n_stations = full_df["station_id"].nunique()
     
     print(f"Loaded {total_rows:,} readings across {n_stations} stations.", flush=True)
-    print(f"Estimated Execution Time: ~2.5 to 3.5 seconds", flush=True)
     print("-"*65, flush=True)
     
     feat_start = time.perf_counter()
@@ -63,36 +63,31 @@ def run_benchmark():
     featured_df = build_feature_matrix(clean_inputs)
     print(f" DONE in {time.perf_counter() - feat_start:.2f}s", flush=True)
     
-    # Organize features and raw readings by station
-    feature_groups = {}
-    positions = {}
-    for station_id, group in featured_df.groupby("station_id", sort=False):
-        group = group.reset_index(drop=True)
-        group["timestamp"] = pd.to_datetime(group["timestamp"], utc=True)
-        station_id = str(station_id)
-        feature_groups[station_id] = group
-        for pos, ts in enumerate(group["timestamp"]):
-            positions[(station_id, ts)] = pos
-            
-    raw_groups = {}
-    for station_id, group in full_df.groupby("station_id", sort=False):
-        station_id = str(station_id)
-        raw_groups[station_id] = group.reset_index(drop=True)
+    # Organize feature rows by (station_id, timestamp) for instant O(1) retrieval
+    station_ids = list(full_df["station_id"].unique())
+    buffers = {st_id: StationBuffer(st_id) for st_id in station_ids}
+    
+    feature_dict = {}
+    for idx, f_row in featured_df.iterrows():
+        feature_dict[(str(f_row["station_id"]), f_row["timestamp"])] = f_row
         
     print("[2/3] Evaluating 6-Tier Bayesian Decision Engine across all rows...", end="", flush=True)
     score_start = time.perf_counter()
     
+    records = full_df.to_dict("records")
     results = []
-    for idx, row in full_df.iterrows():
+    
+    for row in records:
         sid = str(row["station_id"])
         ts = row["timestamp"]
-        pos = positions.get((sid, ts), 0)
+        buf = buffers[sid]
         
-        feat_grp = feature_groups.get(sid)
-        feat_row = feat_grp.iloc[pos] if feat_grp is not None else None
+        # Sibling neighbor buffers for peer spatial consensus
+        sibling_ids = PeerSpatialEngine.get_sibling_peers(sid)
+        neighbor_bufs = {nid: buffers[nid] for nid in sibling_ids if nid in buffers}
         
-        hist_start = max(0, pos + 1 - RAW_HISTORY_MAXLEN_HOURS)
-        raw_hist = raw_groups[sid].iloc[hist_start:pos + 1].drop(columns=list(LABEL_COLUMNS), errors="ignore")
+        hist_df = buf.raw_history_df()
+        feat_row = feature_dict.get((sid, ts))
         
         raw_reading = {
             "station_id": sid,
@@ -104,15 +99,18 @@ def run_benchmark():
         
         verdict = score_reading(
             raw_reading=raw_reading,
-            history_df=raw_hist,
+            history_df=hist_df,
             artifact=artifact,
-            neighbor_buffers={},
+            neighbor_buffers=neighbor_bufs,
             precomputed_features=feat_row,
             include_evaluation_diagnostics=False
         )
         
         is_pred = bool(verdict.get("is_anomaly", False))
         fault_pred = str(verdict.get("fault_type", "none") or "none")
+        
+        # Update station causal buffer
+        buf.record_raw_reading(raw_reading, timestamp=ts, verdict=verdict)
         
         results.append({
             "is_gt": bool(row["is_anomaly"]),
@@ -157,13 +155,13 @@ def run_benchmark():
     
     # Breakdown by fault type
     print("\nBreakdown by Ground-Truth Fault Type:")
-    print(f"{'Fault Type':<25} {'Total':<8} {'Detected':<10} {'Recall':<10}")
-    print("-"*55)
+    print(f"{'Fault Type':<28} {'Total':<8} {'Detected':<10} {'Recall':<10}")
+    print("-"*58)
     for ftype, grp in df_res[df_res["is_gt"] == True].groupby("fault_gt"):
         f_total = len(grp)
         f_det = int((grp["is_pred"] == True).sum())
         f_rec = (f_det / f_total) if f_total > 0 else 0.0
-        print(f"{ftype:<25} {f_total:<8} {f_det:<10} {f_rec:.1%}")
+        print(f"{ftype:<28} {f_total:<8} {f_det:<10} {f_rec:.1%}")
     print("="*65)
 
 if __name__ == "__main__":
