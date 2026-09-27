@@ -41,38 +41,82 @@ WALD_UPPER_ALERT, WALD_LOWER_NORMAL = SequentialSPRT.get_wald_boundaries(alpha=0
 
 class SensorHealthTracker:
     """
-    Per-station / per-parameter health state tracker and circuit breaker.
+    Per-station / per-parameter health state tracker with Continuous Health Index Hysteresis.
+    Eliminates state flickering / flapping on intermittent transducer noise using asymmetric decay/recovery:
+      - Anomaly degradation: H <- max(0.0, H - penalty) [penalty 25-40 based on severity/type]
+      - Asymmetric gradual recovery: H <- min(100.0, H + 2.0) per clean reading
+      - Hysteresis thresholds:
+          H >= 70.0 -> HEALTHY (Green)
+          30.0 <= H < 70.0 -> WARNING / DEGRADED (Yellow; maintenance recommended at H < 50.0)
+          H < 30.0 -> OFFLINE (Red; quarantined from peer spatial and temporal baselines)
     """
     def __init__(self, station_id: str):
         self.station_id = station_id
         self.status = "HEALTHY"
-        self.offline_reason = None
-        self.param_status = {p: "HEALTHY" for p in PARAMS}
-        self._clean_streak = 0
-        self._param_recent_10h = {p: deque(maxlen=10) for p in PARAMS}
-        self._param_recent_24h = {p: deque(maxlen=24) for p in PARAMS}
+        self.health_index: float = 100.0
+        self.offline_reason: Optional[str] = None
+        self.param_status: dict[str, str] = {p: "HEALTHY" for p in PARAMS}
+        self.param_health: dict[str, float] = {p: 100.0 for p in PARAMS}
+        self.needs_maintenance: bool = False
+        self._clean_streak: int = 0
+        self._param_recent_10h: dict[str, deque] = {p: deque(maxlen=10) for p in PARAMS}
+        self._param_recent_24h: dict[str, deque] = {p: deque(maxlen=24) for p in PARAMS}
 
     def should_include_in_baseline(self) -> bool:
-        return self.status != "OFFLINE"
+        return self.status != "OFFLINE" and self.health_index >= 30.0
 
     def record(self, verdict: dict):
-        if verdict.get("is_anomaly"):
+        is_anom = bool(verdict.get("is_anomaly", False))
+        severity = str(verdict.get("severity", "medium")).lower()
+        fault = verdict.get("fault_type") or "anomaly"
+        affected = verdict.get("likely_faulty_sensors") or verdict.get("affected_parameters") or []
+
+        if is_anom:
             self._clean_streak = 0
-            fault = verdict.get("fault_type") or "anomaly"
-            self.status = "WARNING"
+            penalty = 40.0 if severity == "critical" else (30.0 if severity == "high" else 25.0)
+            self.health_index = max(0.0, self.health_index - penalty)
             self.offline_reason = fault
+
+            for p in PARAMS:
+                if p in affected or not affected:
+                    self.param_health[p] = max(0.0, self.param_health[p] - penalty)
+                else:
+                    self.param_health[p] = min(100.0, self.param_health[p] + 1.0)
         else:
             self._clean_streak += 1
-            if self._clean_streak >= 2:
-                self.status = "HEALTHY"
-                self.offline_reason = None
+            # Asymmetric gradual recovery (+2.0 points per clean reading)
+            self.health_index = min(100.0, self.health_index + 2.0)
+            for p in PARAMS:
+                self.param_health[p] = min(100.0, self.param_health[p] + 2.0)
+
+        # Hysteresis state transition evaluation
+        if self.health_index >= 70.0:
+            self.status = "HEALTHY"
+            self.offline_reason = None
+        elif self.health_index >= 30.0:
+            self.status = "WARNING"
+        else:
+            self.status = "OFFLINE"
+
+        self.needs_maintenance = self.health_index < 50.0
+
+        for p in PARAMS:
+            if self.param_health[p] >= 70.0:
+                self.param_status[p] = "HEALTHY"
+            elif self.param_health[p] >= 30.0:
+                self.param_status[p] = "WARNING"
+            else:
+                self.param_status[p] = "OFFLINE"
 
     def force_recover(self):
         self.status = "HEALTHY"
+        self.health_index = 100.0
         self.offline_reason = None
+        self.needs_maintenance = False
         self._clean_streak = 0
         for p in PARAMS:
             self.param_status[p] = "HEALTHY"
+            self.param_health[p] = 100.0
             self._param_recent_10h[p].clear()
             self._param_recent_24h[p].clear()
 
