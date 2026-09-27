@@ -44,7 +44,7 @@ class SensorHealthTracker:
     Per-station / per-parameter health state tracker with Continuous Health Index Hysteresis.
     Eliminates state flickering / flapping on intermittent transducer noise using asymmetric decay/recovery:
       - Anomaly degradation: H <- max(0.0, H - penalty) [penalty 25-40 based on severity/type]
-      - Asymmetric gradual recovery: H <- min(100.0, H + 2.0) per clean reading
+      - Asymmetric gradual recovery: H <- min(100.0, H + 6.67) per clean reading (full recovery in 15 normal readings)
       - Hysteresis thresholds:
           H >= 70.0 -> HEALTHY (Green)
           30.0 <= H < 70.0 -> WARNING / DEGRADED (Yellow; maintenance recommended at H < 50.0)
@@ -84,10 +84,11 @@ class SensorHealthTracker:
                     self.param_health[p] = min(100.0, self.param_health[p] + 1.0)
         else:
             self._clean_streak += 1
-            # Asymmetric gradual recovery (+2.0 points per clean reading)
-            self.health_index = min(100.0, self.health_index + 2.0)
+            # Asymmetric gradual recovery: 100.0 / 15 readings = ~6.67 points per clean reading (full recovery in 15 normal readings)
+            recovery_step = 100.0 / 15.0
+            self.health_index = min(100.0, self.health_index + recovery_step)
             for p in PARAMS:
-                self.param_health[p] = min(100.0, self.param_health[p] + 2.0)
+                self.param_health[p] = min(100.0, self.param_health[p] + recovery_step)
 
         # Hysteresis state transition evaluation
         if self.health_index >= 70.0:
