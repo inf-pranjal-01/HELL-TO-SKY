@@ -175,19 +175,26 @@ def evaluate_spike_evidence(
 
     jump_mag = abs(delta - expected_change)
 
-    # Sub-uncertainty perturbation check
-    if jump_mag < 2.5 * sensor_floor:
+    # Sub-quantization gate (ignores sub-ADC noise within 2.5x sensor resolution floor)
+    if abs(delta) < 2.5 * sensor_floor or jump_mag < 2.5 * sensor_floor:
         return 0.0, None, {"jump_mag": jump_mag, "z_jump": 0.0, "jump_llr": 0.0, "is_spike": False}
 
     from model.uncertainty_budget import GAP_GROWTH_RATES
     kappa = GAP_GROWTH_RATES.get(param, 0.25)
-    sigma_jump = math.sqrt(2.0 * (sensor_floor ** 2) + (peer_dispersion ** 2) + kappa * max(0.05, dt_hours))
+    
+    # 1-step natural innovation scale combining quantization noise, diurnal channel volatility, and peer dispersion
+    sigma_jump = math.sqrt(
+        2.0 * (sensor_floor ** 2)
+        + (0.6 * current_sigma) ** 2 * min(1.0, max(0.05, dt_hours))
+        + (peer_dispersion ** 2)
+        + kappa * max(0.05, dt_hours)
+    )
     z_jump = jump_mag / max(1e-4, sigma_jump)
 
-    # Jump LLR
+    # Dynamic Wald Jump LLR
     jump_llr = float(0.5 * (z_jump ** 2) - math.log(max(1.1, sigma_jump / sensor_floor)))
 
-    is_spike = jump_llr >= WALD_UPPER_ALERT and z_jump >= 3.0
+    is_spike = jump_llr >= WALD_UPPER_ALERT and z_jump >= 3.5
     reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})" if is_spike else None
 
     diagnostics = {
@@ -388,10 +395,15 @@ def score_reading(
     prior_time = None
     if not history_df.empty and "timestamp" in history_df.columns:
         valid_ts = pd.to_datetime(history_df["timestamp"], utc=True, errors="coerce").dropna()
-        if not valid_ts.empty:
-            prior_time = valid_ts.iloc[-1]
+        prior_ts = valid_ts[valid_ts < current_time]
+        if not prior_ts.empty:
+            prior_time = prior_ts.iloc[-1]
     
-    dt_hours = max(0.1, (current_time - prior_time).total_seconds() / 3600.0) if prior_time is not None else 1.0
+    if prior_time is not None:
+        raw_dt = (current_time - prior_time).total_seconds() / 3600.0
+        dt_hours = max(0.1, min(24.0, raw_dt))
+    else:
+        dt_hours = 1.0
     solar_hour = calculate_solar_hour(current_time, station_id)
     regime = _classify_regime(precomputed_features, raw_reading, history_df)
     
@@ -419,7 +431,8 @@ def score_reading(
         
         if precomputed_features is not None and f"{prefix}_rolling_mean" in precomputed_features and not pd.isna(precomputed_features[f"{prefix}_rolling_mean"]):
             exp_val = float(precomputed_features[f"{prefix}_rolling_mean"])
-            sigma_tot = max(0.4, float(precomputed_features.get(f"{prefix}_robust_scale", 1.0)))
+            channel_sigma_floor = DEFAULT_DIURNAL_SPREAD.get(param, 1.0)
+            sigma_tot = max(channel_sigma_floor, float(precomputed_features.get(f"{prefix}_robust_scale", 1.0)))
             residual = val - exp_val
         else:
             # Composite uncertainty
@@ -443,12 +456,17 @@ def score_reading(
         
         prior_val = None
         if not history_df.empty and param in history_df.columns:
-            raw_vals = history_df[param].to_numpy()
-            for idx in range(len(raw_vals) - 1, -1, -1):
-                pv = raw_vals[idx]
-                if pv is not None and not pd.isna(pv):
-                    prior_val = float(pv)
-                    break
+            if "timestamp" in history_df.columns:
+                valid_prior_rows = history_df[pd.to_datetime(history_df["timestamp"], utc=True) < current_time]
+            else:
+                valid_prior_rows = history_df.iloc[:-1]
+            if not valid_prior_rows.empty and param in valid_prior_rows.columns:
+                raw_vals = valid_prior_rows[param].to_numpy()
+                for idx in range(len(raw_vals) - 1, -1, -1):
+                    pv = raw_vals[idx]
+                    if pv is not None and not pd.isna(pv):
+                        prior_val = float(pv)
+                        break
         
         # 1. Spike Jump Check with diurnal rate-of-change compensation
         s_llr, s_reason, s_diag = evaluate_spike_evidence(
@@ -596,7 +614,13 @@ def score_reading(
         is_hard_phys, _ = CrossChannelEngine.check_physical_invariants(
             raw_reading.get("temperature_c"), raw_reading.get("pressure_hpa"), raw_reading.get("humidity_pct")
         )
-        is_multivariate = is_hard_phys or (cc_diag["is_multivariate_outlier"] and d_sq > 60.0)
+        has_sufficient_history = (
+            not history_df.empty
+            and len(history_df[pd.to_datetime(history_df["timestamp"], utc=True) < current_time]) >= 3
+            if "timestamp" in history_df.columns
+            else len(history_df) >= 3
+        )
+        is_multivariate = is_hard_phys or (has_sufficient_history and cc_diag["is_multivariate_outlier"] and d_sq > 60.0)
 
     if is_multivariate:
         implicated = ["temperature_c", "humidity_pct"]
