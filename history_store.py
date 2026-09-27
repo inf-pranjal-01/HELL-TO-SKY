@@ -532,6 +532,129 @@ class HistoryStore:
         if count % TRIM_CHECK_INTERVAL == 0:
             self.trim(station_id)
 
+    def append_batch(
+        self,
+        batch_items: list[tuple[str, any, dict, dict]],
+        source: str = "live",
+    ):
+        """
+        High-throughput vectorized batch append across multiple stations.
+        Dual-writes to TimescaleDB via a SINGLE execute_values transaction,
+        and flushes to per-station CSV files with zero thread contention.
+        """
+        if not batch_items:
+            return
+
+        db_rows = []
+        csv_rows_by_station = {}
+
+        for station_id, timestamp, raw_reading, verdict in batch_items:
+            suggested = verdict.get("suggested_values", {}) or {}
+            ts_obj = pd.Timestamp(timestamp)
+            if ts_obj.tzinfo is None:
+                ts_obj = ts_obj.tz_localize("UTC")
+            ts_iso = ts_obj.isoformat()
+
+            row = {
+                "timestamp": ts_iso,
+                "station_id": station_id,
+                **{p: raw_reading.get(p) for p in RAW_PARAMS},
+                "is_anomaly": bool(verdict.get("is_anomaly", False)),
+                "fault_type": verdict.get("fault_type"),
+                "severity": verdict.get("severity"),
+                "anomaly_score_pct": verdict.get("anomaly_score_pct"),
+                "decision_basis": verdict.get("decision_basis"),
+                **{f"suggested_{p}": suggested.get(p) for p in RAW_PARAMS},
+                "health_status": verdict.get("health_status"),
+                "source": source,
+                "model_confidence_pct": verdict.get("model_confidence_pct"),
+                "rule_confidence_pct": verdict.get("rule_confidence_pct"),
+            }
+
+            db_rows.append((
+                ts_obj.to_pydatetime(),
+                station_id,
+                row["temperature_c"],
+                row["pressure_hpa"],
+                row["humidity_pct"],
+                row["is_anomaly"],
+                row["fault_type"],
+                row["severity"],
+                row["anomaly_score_pct"],
+                row["suggested_temperature_c"],
+                row["suggested_pressure_hpa"],
+                row["suggested_humidity_pct"],
+                row["health_status"],
+                row["source"],
+                row["decision_basis"],
+                row["model_confidence_pct"],
+                row["rule_confidence_pct"],
+            ))
+
+            csv_rows_by_station.setdefault(station_id, []).append(row)
+
+        # 1. Single Vectorized Batch Write to TimescaleDB
+        if self.use_db and source == "live" and db_rows:
+            try:
+                from psycopg2.extras import execute_values
+                with self._get_db_conn() as conn:
+                    if conn:
+                        with conn.cursor() as cur:
+                            cur.execute("SET statement_timeout = '10000ms';")
+                            execute_values(
+                                cur,
+                                """
+                                INSERT INTO sensor_readings (
+                                    time, station_id, temperature_c, pressure_hpa, humidity_pct,
+                                    is_anomaly, fault_type, severity, anomaly_score_pct,
+                                    suggested_temperature_c, suggested_pressure_hpa, suggested_humidity_pct,
+                                    health_status, source, decision_basis,
+                                    model_confidence_pct, rule_confidence_pct
+                                ) VALUES %s
+                                ON CONFLICT (station_id, time) DO UPDATE SET
+                                    temperature_c = EXCLUDED.temperature_c,
+                                    pressure_hpa = EXCLUDED.pressure_hpa,
+                                    humidity_pct = EXCLUDED.humidity_pct,
+                                    is_anomaly = EXCLUDED.is_anomaly,
+                                    fault_type = EXCLUDED.fault_type,
+                                    severity = EXCLUDED.severity,
+                                    anomaly_score_pct = EXCLUDED.anomaly_score_pct,
+                                    suggested_temperature_c = EXCLUDED.suggested_temperature_c,
+                                    suggested_pressure_hpa = EXCLUDED.suggested_pressure_hpa,
+                                    suggested_humidity_pct = EXCLUDED.suggested_humidity_pct,
+                                    health_status = EXCLUDED.health_status,
+                                    source = EXCLUDED.source,
+                                    decision_basis = EXCLUDED.decision_basis,
+                                    model_confidence_pct = EXCLUDED.model_confidence_pct,
+                                    rule_confidence_pct = EXCLUDED.rule_confidence_pct;
+                                """,
+                                db_rows,
+                                page_size=len(db_rows) + 10,
+                            )
+                        conn.commit()
+            except Exception as e:
+                print(f"[HistoryStore] TimescaleDB batch insert error: {e!r}")
+                err_str = str(e).lower()
+                if any(k in err_str for k in ("closed", "connection", "terminat", "timeout", "broken", "network", "operationalerror")):
+                    self.use_db = False
+
+        # 2. Local CSV Mirror Writes
+        for sid, rows in csv_rows_by_station.items():
+            path = self._path(sid)
+            write_header = not path.exists()
+            with self._lock_for(sid):
+                if not hasattr(self, "_last_appended"):
+                    self._last_appended = {}
+                with open(path, "a", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=HISTORY_COLUMNS)
+                    if write_header:
+                        writer.writeheader()
+                    for r in rows:
+                        if self._last_appended.get(sid) != (r["timestamp"], source):
+                            self._last_appended[sid] = (r["timestamp"], source)
+                            writer.writerow(r)
+                            self._append_counts[sid] = self._append_counts.get(sid, 0) + 1
+
     def log_health_transition(self, station_id: str, timestamp, old_state: str, new_state: str, reason: str):
         ts_obj = pd.Timestamp(timestamp)
         if ts_obj.tzinfo is None:

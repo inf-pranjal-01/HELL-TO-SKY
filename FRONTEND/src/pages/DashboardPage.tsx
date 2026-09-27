@@ -150,7 +150,7 @@ export const DashboardPage: React.FC = () => {
     }
 
     try {
-      const res = await systemStatusService.clearHistory('all');
+      const res = await systemStatusService.clearHistory('all', selectedStation?.station_id);
       setInjectionNotice(res.message || 'Database purged. Telemetry reset to pristine state.');
       await refreshAll();
     } catch (err) {

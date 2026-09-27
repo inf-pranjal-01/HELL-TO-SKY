@@ -39,9 +39,9 @@ export const systemStatusService = {
     return { mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60 };
   },
 
-  async refreshLive(options?: RequestOptions): Promise<void> {
+  async refreshLive(stationId?: string, options?: RequestOptions): Promise<void> {
     if (isMockMode()) return;
-    await apiClient.post<unknown>(API_CONFIG.endpoints.refreshLive, undefined, options);
+    await apiClient.post<unknown>(API_CONFIG.endpoints.refreshLive, { station_id: stationId }, options);
   },
 
   async getNetworkStatus(options?: RequestOptions): Promise<SystemStatusSummary> {
@@ -56,13 +56,13 @@ export const systemStatusService = {
     return validateNetworkStatus(data);
   },
 
-  async clearHistory(target: 'all' | 'replay' = 'all', options?: RequestOptions): Promise<{ success: boolean; message: string }> {
+  async clearHistory(target: 'all' | 'replay' = 'all', stationId?: string, options?: RequestOptions): Promise<{ success: boolean; message: string }> {
     if (isMockMode()) {
       return { success: true, message: 'Mock data purged.' };
     }
     const data = await apiClient.post<{ success: boolean; message: string }>(
       API_CONFIG.endpoints.clearHistory,
-      { target },
+      { target, station_id: stationId },
       options
     );
     return data;

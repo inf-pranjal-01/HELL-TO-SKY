@@ -413,6 +413,7 @@ class StateManager:
         timestamp,
         current_network_readings: Optional[dict] = None,
         include_evaluation_diagnostics: bool = False,
+        persist_history: bool = True,
     ) -> dict:
         buf = self.buffers[station_id]
         history_df = buf.raw_history_df()
@@ -488,7 +489,8 @@ class StateManager:
         # Persisted long-horizon log -- mode-independent, tagged with
         # the CURRENT mode so live vs replay stretches stay
         # distinguishable after the fact. See history_store.py.
-        self.history.append(station_id, timestamp, raw_reading, verdict, source=self.mode)
+        if persist_history:
+            self.history.append(station_id, timestamp, raw_reading, verdict, source=self.mode)
 
         return verdict
 

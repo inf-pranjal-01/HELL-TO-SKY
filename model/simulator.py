@@ -343,11 +343,9 @@ class SimulatorState:
         if self.mode == "replay":
             self._stop_replay()
 
-    async def refresh_live_now(self) -> None:
+    async def refresh_live_now(self, priority_station_id: str | None = None) -> None:
         """Fetch the current provider observation outside the 30-min cadence.
-
-        Used on explicit UI refresh or station switch. Executes concurrent
-        Open-Meteo current condition requests via Semaphore(10).
+        Prioritizes the active station for immediate processing.
         """
         if self.mode != "live":
             return
@@ -355,23 +353,34 @@ class SimulatorState:
         self._force_live_ingest = True
         self._last_ingested_timestamp.clear()
         self._last_ingested.clear()
-        await self._maybe_refresh_live_cache()
+        await self._maybe_refresh_live_cache(priority_station_id=priority_station_id)
         await self.tick()
 
     # ---------------- per-tick data sourcing ----------------
 
 
-    async def _maybe_refresh_live_cache(self):
+    async def _maybe_refresh_live_cache(self, priority_station_id: str | None = None):
         now = datetime.now(timezone.utc)
         if (
             self._live_last_fetch is not None
             and (now - self._live_last_fetch).total_seconds() < LIVE_FETCH_INTERVAL_SECONDS
+            and not getattr(self, "_force_live_ingest", False)
         ):
             return
+        self._live_last_fetch = now
+
+        # Ensure priority station is at the front of the queue
+        metadata_records = self.metadata.to_dict(orient="records")
+        if priority_station_id:
+            metadata_records = sorted(
+                metadata_records,
+                key=lambda r: 0 if r["station_id"] == priority_station_id else 1
+            )
+
         async with httpx.AsyncClient() as client:
             station_requests = [
-                (row["station_id"], _fetch_live_reading(client, row["lat"], row["lon"]))
-                for _, row in self.metadata.iterrows()
+                (row["station_id"], _fetch_live_reading(client, float(row["lat"]), float(row["lon"])))
+                for row in metadata_records
             ]
             readings = await asyncio.gather(
                 *(request for _, request in station_requests),
@@ -463,6 +472,8 @@ class SimulatorState:
                     raw_reading,
                     reading_timestamp,
                     network_snapshot,
+                    False,  # include_evaluation_diagnostics
+                    False,  # persist_history (batched below)
                 )
                 self._last_ingested[station_id] = dict(raw_reading)
                 self._last_ingested_timestamp[station_id] = reading_timestamp
@@ -474,18 +485,17 @@ class SimulatorState:
 
             return station_id, raw_reading, reading_timestamp, verdict, should_ingest
 
-        ingest_semaphore = asyncio.Semaphore(5)
+        results = await asyncio.gather(*[_ingest_station(sid) for sid in self.metadata["station_id"]], return_exceptions=True)
 
-        async def _bounded_ingest(sid):
-            async with ingest_semaphore:
-                return await _ingest_station(sid)
-
-        results = await asyncio.gather(*[_bounded_ingest(sid) for sid in self.metadata["station_id"]], return_exceptions=True)
+        batch_to_persist = []
 
         for res in results:
             if res is None or isinstance(res, Exception):
                 continue
             station_id, raw_reading, reading_timestamp, verdict, should_ingest = res
+
+            if should_ingest:
+                batch_to_persist.append((station_id, reading_timestamp, raw_reading, verdict))
 
             self.latest[station_id] = {
                 "raw_reading": raw_reading,
@@ -513,6 +523,14 @@ class SimulatorState:
                 "health_status": verdict.get("health_status"),
                 "source": current_mode,
             })
+
+        # Phase 3: High-throughput single vectorized batch commit to TimescaleDB & CSV
+        if batch_to_persist:
+            await asyncio.to_thread(
+                self.manager.history.append_batch,
+                batch_to_persist,
+                source=current_mode,
+            )
 
             # Broadcast live push over WebSocket with precise turnaround timestamp
             ingest_time_ms = int(time.time() * 1000)

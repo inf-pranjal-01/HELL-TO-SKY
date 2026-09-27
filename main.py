@@ -222,14 +222,18 @@ async def set_system_mode(body: dict):
 
 
 @app.post("/api/admin/clear-history")
-async def clear_history(target: Optional[str] = "all", body: Optional[dict] = None):
+async def clear_history(target: Optional[str] = "all", station_id: Optional[str] = None, body: Optional[dict] = None):
     """
     Purges historical sensor readings from TimescaleDB and local CSV store.
     target='all' clears everything (resets system to pristine state).
     target='replay' clears only replay simulation scratch data.
     """
-    if body and "target" in body:
-        target = body["target"]
+    target_sid = station_id
+    if body and isinstance(body, dict):
+        if "target" in body:
+            target = body["target"]
+        if "station_id" in body and not target_sid:
+            target_sid = body["station_id"]
     sim = app.state.sim
     source = None if target == "all" else "replay"
     await asyncio.to_thread(sim.manager.history.clear_all, source=source)
@@ -251,7 +255,7 @@ async def clear_history(target: Optional[str] = "all", body: Optional[dict] = No
         sim._last_ingested.clear()
         sim._live_last_fetch = None
         sim._live_refresh_requested = True
-        asyncio.create_task(sim.refresh_live_now())
+        asyncio.create_task(sim.refresh_live_now(priority_station_id=target_sid))
     else:
         # target == 'replay': purge replay scratch data in memory only, preserving live telemetry
         from collections import deque
@@ -312,11 +316,31 @@ async def get_network_status():
 
 
 @app.post("/api/refresh-live")
-async def refresh_live_snapshot():
-    """Explicit, user-triggered Open-Meteo refresh; does not alter cadence."""
+async def refresh_live_snapshot(station_id: Optional[str] = None, body: Optional[dict] = None):
+    """Explicit, user-triggered Open-Meteo refresh; prioritizes active station with spam protection."""
+    import time
+    target_sid = station_id
+    if body and isinstance(body, dict) and "station_id" in body and not target_sid:
+        target_sid = body["station_id"]
     sim = app.state.sim
-    asyncio.create_task(sim.refresh_live_now())
-    return {"mode": sim.mode, "message": "Live provider snapshot refresh initiated."}
+    # 5-second spam protection cooldown
+    now = time.time()
+    last_refresh = getattr(sim, "_last_explicit_refresh_time", 0.0)
+    if (now - last_refresh) < 5.0:
+        return {
+            "mode": sim.mode,
+            "message": "Snapshot current (rate-limit protected).",
+            "priority_station": target_sid,
+            "cached": True,
+        }
+    sim._last_explicit_refresh_time = now
+    asyncio.create_task(sim.refresh_live_now(priority_station_id=target_sid))
+    return {
+        "mode": sim.mode,
+        "message": "Live provider snapshot refresh initiated.",
+        "priority_station": target_sid,
+        "cached": False,
+    }
 
 
 @app.post("/api/admin/sync-db")
@@ -659,6 +683,17 @@ async def get_trends(station_id: str, hours: int = 6):
 
         if not points:
             points = [p for p in list(sim.trend_history.get(station_id, [])) if p.get("source", "live") == "live"]
+
+        if not points and sim.mode == "live":
+            path_labeled = DATA_DIR / f"{station_id}_labeled.csv"
+            if path_labeled.exists():
+                try:
+                    df_base = pd.read_csv(path_labeled, parse_dates=["timestamp"]).sort_values("timestamp")
+                    if not df_base.empty:
+                        tail_n = min(hours, len(df_base))
+                        points = df_base.tail(tail_n).to_dict(orient="records")
+                except Exception:
+                    pass
 
     # Strictly guarantee monotonic timestamp ordering
     try:
