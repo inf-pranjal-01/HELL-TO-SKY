@@ -78,11 +78,9 @@ def run_custom_injection_and_benchmark(custom_seed: int, generate_h_header: bool
         elif ft_type in ("frozen_value", "sensor_fail_low"):
             is_hard_rule = True
 
-        if is_hard_rule:
-            rule_certain_faults += 1
-            rule_vs_model_breakdown[ft_type] = rule_vs_model_breakdown.get(ft_type, 0) + 1
-        elif gt_anom:
+        if gt_anom:
             model_defers += 1
+            rule_vs_model_breakdown[ft_type] = rule_vs_model_breakdown.get(ft_type, 0) + 1
         else:
             safe_forwards += 1
 
@@ -93,14 +91,13 @@ def run_custom_injection_and_benchmark(custom_seed: int, generate_h_header: bool
     print("  SCRATCH BENCHMARK EVALUATION SUMMARY")
     print("=" * 70)
     print(f"Total Observations Processed     : {total_obs}")
-    print(f"Hard Physical Rule (CERTAIN_FAULT): {rule_certain_faults} ({rule_certain_faults/total_obs*100:.2f}%)")
-    print(f"Model Advisory (DEFER_TO_CENTRAL) : {model_defers} ({model_defers/total_obs*100:.2f}%)")
-    print(f"Safe Forwarded (SAFE_FORWARD)    : {safe_forwards} ({safe_forwards/total_obs*100:.2f}%)")
-    print(f"Transmission Integrity to Central: {total_transmitted}/{total_obs} (100.00% Zero-Loss)")
+    print(f"Forwarded for Central Analysis (DEFER_TO_CENTRAL): {model_defers} ({model_defers/total_obs*100:.2f}%)")
+    print(f"Safe Forwarded (SAFE_FORWARD)                   : {safe_forwards} ({safe_forwards/total_obs*100:.2f}%)")
+    print(f"Transmission Integrity to Central               : {total_transmitted}/{total_obs} (100.00% Zero-Loss)")
 
-    print("\n--- Rule vs Model Fault Breakdown ---")
+    print("\n--- Fault Type Forwarding Breakdown ---")
     for ftype, count in rule_vs_model_breakdown.items():
-        print(f"  * {ftype:30s} -> {count} caught by ESP32 Hard Physical Rules")
+        print(f"  * {ftype:30s} -> {count} forwarded to Central SkyGuard for Decision")
 
     # 4. Optionally update embedded_test_dataset.h
     if generate_h_header:

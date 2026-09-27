@@ -173,12 +173,12 @@ def run_esp32_hardware_test(port: str, baudrate: int, csv_path: str, interval: f
                 time.sleep(0.05)
 
             decision_status = edge_verdict["status"]
-            if decision_status == "CERTAIN_FAULT":
-                status_display = "CERTAIN_FAULT ⛔ (Locally Quarantined)"
+            if decision_status in ("CERTAIN_FAULT", "ALERT"):
+                status_display = "EDGE_ADVISORY ↗️ (Forwarded — Central SkyGuard Decides)"
             elif decision_status == "DEFER_TO_CENTRAL":
-                status_display = "DEFER_TO_CENTRAL ↗️ (Forwarded for Central Analysis)"
+                status_display = "DEFER_TO_CENTRAL ↗️ (Forwarded — Central SkyGuard Decides)"
             else:
-                status_display = "SAFE_FORWARD 🟢 (Certified Clear)"
+                status_display = "SAFE_FORWARD 🟢 (Forwarded — Central SkyGuard Decides)"
 
             print(f"│  ESP32 Edge AI    : {status_display} | Tier: {edge_verdict['tier_fired']} | Type: {edge_verdict['anomaly_type']} | LLR: {edge_verdict['confidence_llr']:.2f}")
 

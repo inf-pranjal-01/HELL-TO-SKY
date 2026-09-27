@@ -34,9 +34,9 @@ def detect_reading_c_emulator(state: EdgeNodeState, temp_c, pressure_hpa, humidi
 
     # Step 1: Monotonic Timestamp Integrity Check
     if state.has_valid_ts and timestamp_s < state.last_valid_ts_s:
-        state.certain_fault_count += 1
+        state.deferred_count += 1
         return {
-            "decision": "CERTAIN_FAULT",
+            "decision": "DEFER_TO_CENTRAL",
             "is_anomaly": True,
             "fault_type": "timestamp_corruption",
             "severity": "critical",
@@ -49,10 +49,10 @@ def detect_reading_c_emulator(state: EdgeNodeState, temp_c, pressure_hpa, humidi
     # Step 2: Group A — Edge Certifiable Electrical / Bounds / Dropouts
     # 2.1 Dropout / NaN
     if temp_c is None or pressure_hpa is None or humidity_pct is None or math.isnan(temp_c) or math.isnan(pressure_hpa) or math.isnan(humidity_pct):
-        state.certain_fault_count += 1
+        state.deferred_count += 1
         state.has_raw_prev = False
         return {
-            "decision": "CERTAIN_FAULT",
+            "decision": "DEFER_TO_CENTRAL",
             "is_anomaly": True,
             "fault_type": "dropout",
             "severity": "critical",
@@ -62,11 +62,11 @@ def detect_reading_c_emulator(state: EdgeNodeState, temp_c, pressure_hpa, humidi
 
     # 2.2 Electrical Fail-Low / Rail Floor
     if temp_c <= -35.0 or pressure_hpa <= 150.0 or humidity_pct <= 0.0:
-        state.certain_fault_count += 1
+        state.deferred_count += 1
         state.last_raw_t, state.last_raw_p, state.last_raw_h = temp_c, pressure_hpa, humidity_pct
         state.has_raw_prev = True
         return {
-            "decision": "CERTAIN_FAULT",
+            "decision": "DEFER_TO_CENTRAL",
             "is_anomaly": True,
             "fault_type": "sensor_fail_low",
             "severity": "critical",
@@ -76,11 +76,11 @@ def detect_reading_c_emulator(state: EdgeNodeState, temp_c, pressure_hpa, humidi
 
     # 2.3 Gross Physical Limits
     if temp_c < -50.0 or temp_c > 60.0 or pressure_hpa < 800.0 or pressure_hpa > 1100.0 or humidity_pct < 0.0 or humidity_pct > 100.0:
-        state.certain_fault_count += 1
+        state.deferred_count += 1
         state.last_raw_t, state.last_raw_p, state.last_raw_h = temp_c, pressure_hpa, humidity_pct
         state.has_raw_prev = True
         return {
-            "decision": "CERTAIN_FAULT",
+            "decision": "DEFER_TO_CENTRAL",
             "is_anomaly": True,
             "fault_type": "physical_bounds",
             "severity": "high",
@@ -90,9 +90,9 @@ def detect_reading_c_emulator(state: EdgeNodeState, temp_c, pressure_hpa, humidi
 
     # 2.4 Sensor Rail Saturation (0% or 100% RH rail)
     if (humidity_pct == 0.0 or humidity_pct == 100.0) and state.has_raw_prev and state.last_raw_h == humidity_pct:
-        state.certain_fault_count += 1
+        state.deferred_count += 1
         return {
-            "decision": "CERTAIN_FAULT",
+            "decision": "DEFER_TO_CENTRAL",
             "is_anomaly": True,
             "fault_type": "sensor_saturation",
             "severity": "high",
@@ -107,10 +107,10 @@ def detect_reading_c_emulator(state: EdgeNodeState, temp_c, pressure_hpa, humidi
         dt_h = abs(humidity_pct - state.last_raw_h)
 
         if dt_t > 30.0 or dt_p > 50.0 or dt_h > 50.0:
-            state.certain_fault_count += 1
+            state.deferred_count += 1
             state.last_raw_t, state.last_raw_p, state.last_raw_h = temp_c, pressure_hpa, humidity_pct
             return {
-                "decision": "CERTAIN_FAULT",
+                "decision": "DEFER_TO_CENTRAL",
                 "is_anomaly": True,
                 "fault_type": "impossible_jump",
                 "severity": "critical",
@@ -129,9 +129,9 @@ def detect_reading_c_emulator(state: EdgeNodeState, temp_c, pressure_hpa, humidi
             state.stuck_sample_count += 1
             stuck_dur = timestamp_s - state.stuck_start_ts_s
             if stuck_dur >= 3600:
-                state.certain_fault_count += 1
+                state.deferred_count += 1
                 return {
-                    "decision": "CERTAIN_FAULT",
+                    "decision": "DEFER_TO_CENTRAL",
                     "is_anomaly": True,
                     "fault_type": "frozen_value",
                     "severity": "high",

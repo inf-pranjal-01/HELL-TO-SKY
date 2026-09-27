@@ -95,10 +95,10 @@ SkyGuardVerdict skyguard_detect_reading(
     if (state->has_valid_ts) {
         if (current_ts_s < state->last_valid_ts_s) {
             // Backward timestamp regression -> CERTAIN_FAULT
-            v.decision = EDGE_DECISION_CERTAIN_FAULT;
-            v.is_anomaly = true;
-            v.status = STR_CERTAIN_FAULT;
-            v.edge_status = STR_CERTAIN_FAULT;
+        v.decision = EDGE_DECISION_DEFER_TO_CENTRAL;
+        v.is_anomaly = true;
+        v.status = STR_DEFER_TO_CENTRAL;
+        v.edge_status = STR_DEFER_TO_CENTRAL;
             v.fault_type = STR_FAULT_TIMESTAMP;
             v.affected_param = "timestamp";
             v.severity = "critical";
@@ -135,17 +135,17 @@ SkyGuardVerdict skyguard_detect_reading(
 
     // 2.2 Electrical Rail Floor / Fail-Low
     if (temp_c <= TIER0_TEMP_FAIL_LOW || pressure_hpa <= TIER0_PRES_FAIL_LOW || humidity_pct <= TIER0_HUM_FAIL_LOW) {
-        v.decision = EDGE_DECISION_CERTAIN_FAULT;
+        v.decision = EDGE_DECISION_DEFER_TO_CENTRAL;
         v.is_anomaly = true;
-        v.status = STR_CERTAIN_FAULT;
-        v.edge_status = STR_CERTAIN_FAULT;
+        v.status = STR_DEFER_TO_CENTRAL;
+        v.edge_status = STR_DEFER_TO_CENTRAL;
         v.fault_type = STR_FAULT_FAIL_LOW;
         v.affected_param = (temp_c <= TIER0_TEMP_FAIL_LOW) ? "temperature_c" : ((pressure_hpa <= TIER0_PRES_FAIL_LOW) ? "pressure_hpa" : "humidity_pct");
         v.severity = "critical";
         v.confidence_llr = 10.0f;
         v.tier_fired = 0;
-        v.local_evidence = "Electrical rail floor fail-low (ADC short-circuit or supply failure).";
-        state->certain_fault_count++;
+        v.local_evidence = "Electrical rail floor fail-low (Forwarded — Central SkyGuard Decides).";
+        state->deferred_count++;
         state->last_raw_t = temp_c; state->last_raw_p = pressure_hpa; state->last_raw_h = humidity_pct;
         state->has_raw_prev = true;
         return v;
@@ -155,17 +155,17 @@ SkyGuardVerdict skyguard_detect_reading(
     if (temp_c < TIER0_TEMP_PHYS_MIN || temp_c > TIER0_TEMP_PHYS_MAX ||
         pressure_hpa < TIER0_PRES_PHYS_MIN || pressure_hpa > TIER0_PRES_PHYS_MAX ||
         humidity_pct < TIER0_HUM_PHYS_MIN || humidity_pct > TIER0_HUM_PHYS_MAX) {
-        v.decision = EDGE_DECISION_CERTAIN_FAULT;
+        v.decision = EDGE_DECISION_DEFER_TO_CENTRAL;
         v.is_anomaly = true;
-        v.status = STR_CERTAIN_FAULT;
-        v.edge_status = STR_CERTAIN_FAULT;
+        v.status = STR_DEFER_TO_CENTRAL;
+        v.edge_status = STR_DEFER_TO_CENTRAL;
         v.fault_type = STR_FAULT_BOUNDS;
         v.affected_param = (temp_c < TIER0_TEMP_PHYS_MIN || temp_c > TIER0_TEMP_PHYS_MAX) ? "temperature_c" : "pressure_hpa";
         v.severity = "high";
         v.confidence_llr = 9.5f;
         v.tier_fired = 0;
-        v.local_evidence = "Gross physical limit violation (reading exceeds earthly meteorological limits).";
-        state->certain_fault_count++;
+        v.local_evidence = "Gross physical limit violation (Forwarded — Central SkyGuard Decides).";
+        state->deferred_count++;
         state->last_raw_t = temp_c; state->last_raw_p = pressure_hpa; state->last_raw_h = humidity_pct;
         state->has_raw_prev = true;
         return v;
@@ -174,10 +174,10 @@ SkyGuardVerdict skyguard_detect_reading(
     // 2.4 Sensor Rail Saturation / Clipping (e.g. constant 0% or 100% RH rail)
     if (humidity_pct == 0.0f || humidity_pct == 100.0f) {
         if (state->has_raw_prev && state->last_raw_h == humidity_pct) {
-            v.decision = EDGE_DECISION_CERTAIN_FAULT;
-            v.is_anomaly = true;
-            v.status = STR_CERTAIN_FAULT;
-            v.edge_status = STR_CERTAIN_FAULT;
+        v.decision = EDGE_DECISION_DEFER_TO_CENTRAL;
+        v.is_anomaly = true;
+        v.status = STR_DEFER_TO_CENTRAL;
+        v.edge_status = STR_DEFER_TO_CENTRAL;
             v.fault_type = STR_FAULT_SATURATION;
             v.affected_param = "humidity_pct";
             v.severity = "high";
@@ -196,10 +196,10 @@ SkyGuardVerdict skyguard_detect_reading(
         float dt_h = fabsf(humidity_pct - state->last_raw_h);
 
         if (dt_t > IMPOSSIBLE_JUMP_TEMP || dt_p > IMPOSSIBLE_JUMP_PRES || dt_h > IMPOSSIBLE_JUMP_HUM) {
-            v.decision = EDGE_DECISION_CERTAIN_FAULT;
-            v.is_anomaly = true;
-            v.status = STR_CERTAIN_FAULT;
-            v.edge_status = STR_CERTAIN_FAULT;
+        v.decision = EDGE_DECISION_DEFER_TO_CENTRAL;
+        v.is_anomaly = true;
+        v.status = STR_DEFER_TO_CENTRAL;
+        v.edge_status = STR_DEFER_TO_CENTRAL;
             v.fault_type = STR_FAULT_IMPOSSIBLE_JUMP;
             v.affected_param = (dt_t > IMPOSSIBLE_JUMP_TEMP) ? "temperature_c" : ((dt_p > IMPOSSIBLE_JUMP_PRES) ? "pressure_hpa" : "humidity_pct");
             v.severity = "critical";
