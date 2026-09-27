@@ -53,33 +53,39 @@ def test_level1_edge_inference_rules():
 def test_backend_edge_ingest_endpoint():
     buf = VirtualEdgeRingBuffer(capacity=128)
     with TestClient(app) as client:
-        # 1. Send normal observation
-        pkt1 = build_observation_packet(buf, "AWS-CHN-024", 1, 28.5, 1012.3, 62.0)
-        res1 = client.post("/api/ingest/observation", json=pkt1)
-        assert res1.status_code == 200
-        data1 = res1.json()
-        assert data1["accepted"] is True
-        assert data1["event_id"] == pkt1["event_id"]
-        assert data1["edge_status"] == "ok"
+        # Switch to dedicated edge testing mode
+        client.post("/api/system-mode", json={"mode": "edge", "station_id": "AWS-CHN-024"})
 
-        # 2. Test Idempotency / Duplicate
-        res_dup = client.post("/api/ingest/observation", json=pkt1)
-        assert res_dup.status_code == 200
-        assert res_dup.json()["status"] == "duplicate_acknowledged"
+        try:
+            # 1. Send normal observation
+            pkt1 = build_observation_packet(buf, "AWS-CHN-024", 1, 28.5, 1012.3, 62.0)
+            res1 = client.post("/api/ingest/observation", json=pkt1)
+            assert res1.status_code == 200
+            data1 = res1.json()
+            assert data1["accepted"] is True
+            assert data1["event_id"] == pkt1["event_id"]
+            assert data1["edge_status"] == "ok"
 
-        # 3. Send Edge Anomaly (Dropout)
-        pkt2 = build_observation_packet(buf, "AWS-CHN-024", 2, float("nan"), 1012.3, 62.0)
-        res2 = client.post("/api/ingest/observation", json=pkt2)
-        assert res2.status_code == 200
-        data2 = res2.json()
-        assert data2["accepted"] is True
-        assert data2["edge_status"] == "anomaly_detected"
+            # 2. Test Idempotency / Duplicate
+            res_dup = client.post("/api/ingest/observation", json=pkt1)
+            assert res_dup.status_code == 200
+            assert res_dup.json()["status"] == "duplicate_acknowledged"
 
-        # 4. Verify system current-reading endpoint reflects the edge update
-        cur = client.get("/api/current-reading?station_id=AWS-CHN-024")
-        assert cur.status_code == 200
-        cur_data = cur.json()
-        assert cur_data["station_id"] == "AWS-CHN-024"
-        assert cur_data["source"] == "edge"
+            # 3. Send Edge Anomaly (Dropout)
+            pkt2 = build_observation_packet(buf, "AWS-CHN-024", 2, float("nan"), 1012.3, 62.0)
+            res2 = client.post("/api/ingest/observation", json=pkt2)
+            assert res2.status_code == 200
+            data2 = res2.json()
+            assert data2["accepted"] is True
+            assert data2["edge_status"] == "anomaly_detected"
+
+            # 4. Verify system current-reading endpoint reflects the edge update
+            cur = client.get("/api/current-reading?station_id=AWS-CHN-024")
+            assert cur.status_code == 200
+            cur_data = cur.json()
+            assert cur_data["station_id"] == "AWS-CHN-024"
+            assert cur_data["source"] == "edge"
+        finally:
+            client.post("/api/system-mode", json={"mode": "live"})
 
 print("Test suite defined successfully.")

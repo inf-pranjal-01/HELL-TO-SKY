@@ -24,6 +24,7 @@ import os
 os.environ['OPENBLAS_NUM_THREADS']='1'
 os.environ['OMP_NUM_THREADS']='1'
 import asyncio
+import json
 import pandas as pd
 
 sys.path.append(str(Path(__file__).parent))
@@ -562,6 +563,151 @@ async def ingest_edge_observation(payload: dict):
     }
 
 
+# ---------------- ESP32 Edge Hardware Handshake & Serial Stream Orchestrator ----------------
+
+class EdgeTestOrchestrator:
+    def __init__(self):
+        self.status = "idle"  # idle, handshaking, streaming, error, stopped
+        self.connected_port = None
+        self.device_id = None
+        self.firmware_version = None
+        self.active_station_id = "AWS-CHN-024"
+        self.feeder_task = None
+        self.stop_event = asyncio.Event()
+
+edge_orchestrator = EdgeTestOrchestrator()
+
+
+async def _run_csv_serial_feeder(port: str, station_id: str):
+    import serial
+    csv_path = Path(__file__).parent / f"data/{station_id}_labeled.csv"
+    if not csv_path.exists():
+        csv_path = Path(__file__).parent / "data/AWS-CHN-024_labeled.csv"
+
+    try:
+        df = pd.read_csv(csv_path)
+        ser = await asyncio.to_thread(serial.Serial, port, 115200, timeout=1.0)
+        await asyncio.sleep(1.0)
+
+        for idx, row in df.iterrows():
+            if edge_orchestrator.stop_event.is_set():
+                break
+
+            payload = {
+                "station_id": station_id,
+                "timestamp": str(row.get("timestamp", pd.Timestamp.now(tz="UTC").isoformat())),
+                "temperature_c": None if pd.isna(row.get("temperature_c")) else float(row.get("temperature_c")),
+                "pressure_hpa": None if pd.isna(row.get("pressure_hpa")) else float(row.get("pressure_hpa")),
+                "humidity_pct": None if pd.isna(row.get("humidity_pct")) else float(row.get("humidity_pct")),
+            }
+
+            line = json.dumps(payload) + "\n"
+            await asyncio.to_thread(ser.write, line.encode("utf-8"))
+            await asyncio.sleep(2.0)
+
+        await asyncio.to_thread(ser.close)
+        edge_orchestrator.status = "idle"
+    except Exception as e:
+        print(f"[_run_csv_serial_feeder] Serial feeder error: {e!r}")
+        edge_orchestrator.status = "idle"
+
+
+@app.get("/api/edge/status")
+async def get_edge_status():
+    return {
+        "status": edge_orchestrator.status,
+        "connected_port": edge_orchestrator.connected_port,
+        "device_id": edge_orchestrator.device_id,
+        "firmware_version": edge_orchestrator.firmware_version,
+        "active_station_id": edge_orchestrator.active_station_id,
+    }
+
+
+@app.post("/api/edge/start-test")
+async def start_edge_hardware_test(station_id: Optional[str] = "AWS-CHN-024", port: Optional[str] = None):
+    import serial
+    import serial.tools.list_ports
+
+    edge_orchestrator.status = "handshaking"
+    target_port = port
+
+    if not target_port:
+        ports = serial.tools.list_ports.comports()
+        for p in ports:
+            if any(k in p.description.lower() for k in ("cp210", "ch340", "usb", "uart", "dev")):
+                target_port = p.device
+                break
+        if not target_port and len(ports) > 0:
+            target_port = ports[0].device
+
+    if not target_port:
+        edge_orchestrator.status = "error"
+        raise HTTPException(status_code=404, detail="No COM port found. Ensure ESP32 USB cable is connected.")
+
+    # 2-Way Handshake
+    try:
+        ser = await asyncio.to_thread(serial.Serial, target_port, 115200, timeout=1.0)
+        await asyncio.sleep(0.5)
+        handshake_cmd = json.dumps({"type": "HANDSHAKE_PING"}) + "\n"
+        await asyncio.to_thread(ser.write, handshake_cmd.encode("utf-8"))
+
+        ack_line = ""
+        start_time = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - start_time < 3.0:
+            if ser.in_waiting:
+                line = (await asyncio.to_thread(ser.readline)).decode("utf-8", errors="replace").strip()
+                if "HANDSHAKE_ACK" in line:
+                    ack_line = line
+                    break
+            await asyncio.sleep(0.05)
+
+        await asyncio.to_thread(ser.close)
+
+        if not ack_line:
+            edge_orchestrator.status = "error"
+            raise HTTPException(status_code=504, detail=f"Handshake failed on {target_port}. Press EN/RST on ESP32 and try again.")
+
+        try:
+            ack_doc = json.loads(ack_line)
+        except Exception:
+            ack_doc = {}
+
+        edge_orchestrator.connected_port = target_port
+        edge_orchestrator.device_id = ack_doc.get("device_id", "esp32-node")
+        edge_orchestrator.firmware_version = ack_doc.get("firmware", "v1.0.0")
+        edge_orchestrator.active_station_id = station_id
+        edge_orchestrator.status = "streaming"
+        edge_orchestrator.stop_event.clear()
+
+        if edge_orchestrator.feeder_task and not edge_orchestrator.feeder_task.done():
+            edge_orchestrator.feeder_task.cancel()
+
+        edge_orchestrator.feeder_task = asyncio.create_task(
+            _run_csv_serial_feeder(target_port, station_id)
+        )
+
+        return {
+            "success": True,
+            "status": "streaming",
+            "com_port": target_port,
+            "device_id": edge_orchestrator.device_id,
+            "station_id": station_id,
+            "message": f"2-Way Handshake successful on {target_port}. Automated CSV stream started."
+        }
+    except Exception as e:
+        edge_orchestrator.status = "error"
+        raise HTTPException(status_code=500, detail=f"Serial error on {target_port}: {str(e)}")
+
+
+@app.post("/api/edge/stop-test")
+async def stop_edge_hardware_test():
+    edge_orchestrator.stop_event.set()
+    if edge_orchestrator.feeder_task and not edge_orchestrator.feeder_task.done():
+        edge_orchestrator.feeder_task.cancel()
+    edge_orchestrator.status = "idle"
+    return {"success": True, "message": "Edge hardware test stopped."}
+
+
 # ---------------- GET /api/stations ----------------
 
 @app.get("/api/stations")
@@ -592,25 +738,75 @@ async def get_current_reading(station_id: str):
     if station_id not in sim.manager.buffers:
         raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
 
-    entry = sim.latest.get(station_id)
-    if sim.mode == "live" and (entry is None or entry.get("source") == "replay"):
-        live_entry = sim._last_live_latest.get(station_id)
-        if live_entry and live_entry.get("source") == "live":
-            entry = live_entry
+    nominal = get_station_normal_ranges(station_id)
+    station_health = sim.manager.get_station_status(station_id)
+    parameter_status = sim.manager.buffers[station_id].health.param_status
 
-    if entry is None and sim.mode == "live":
-        # Give live provider bootstrap / refresh up to 2.5s to finish
-        for _ in range(25):
-            await asyncio.sleep(0.1)
-            entry = sim.latest.get(station_id) or sim._last_live_latest.get(station_id)
-            if entry and (sim.mode != "live" or entry.get("source") == "live"):
-                break
+    if sim.mode == "edge":
+        entry = sim.latest.get(station_id)
+        if not entry or entry.get("source") != "edge":
+            # Return nominal standby object (never 404, never bleed live data)
+            return {
+                "station_id": station_id,
+                "timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
+                "temperature_c": {"value": None, **nominal["temperature_c"]},
+                "pressure_hpa": {"value": None, **nominal["pressure_hpa"]},
+                "humidity_pct": {"value": None, **nominal["humidity_pct"]},
+                "anomaly_score_pct": 0.0,
+                "is_anomaly": False,
+                "fault_type": None,
+                "severity": None,
+                "model_confidence_pct": None,
+                "rule_confidence_pct": None,
+                "risk_level": "low",
+                "sensor_health_pct": 100,
+                "sensor_health_status": "HEALTHY",
+                "sensor_parameters": parameter_status,
+                "suggested_values": {},
+                "source": "edge",
+                "is_syncing": True,
+            }
+    elif sim.mode == "replay":
+        entry = sim.latest.get(station_id)
+        if not entry or entry.get("source") != "replay":
+            return {
+                "station_id": station_id,
+                "timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
+                "temperature_c": {"value": None, **nominal["temperature_c"]},
+                "pressure_hpa": {"value": None, **nominal["pressure_hpa"]},
+                "humidity_pct": {"value": None, **nominal["humidity_pct"]},
+                "anomaly_score_pct": 0.0,
+                "is_anomaly": False,
+                "fault_type": None,
+                "severity": None,
+                "model_confidence_pct": None,
+                "rule_confidence_pct": None,
+                "risk_level": "low",
+                "sensor_health_pct": 100,
+                "sensor_health_status": "HEALTHY",
+                "sensor_parameters": parameter_status,
+                "suggested_values": {},
+                "source": "replay",
+                "is_syncing": True,
+            }
+    else:  # sim.mode == "live"
+        entry = sim.latest.get(station_id)
+        if entry is None or entry.get("source") != "live":
+            live_entry = sim._last_live_latest.get(station_id)
+            if live_entry and live_entry.get("source") == "live":
+                entry = live_entry
+            else:
+                entry = None
 
-    if entry is None:
-        if sim.mode == "live":
-            nominal = get_station_normal_ranges(station_id)
-            station_health = sim.manager.get_station_status(station_id)
-            parameter_status = sim.manager.buffers[station_id].health.param_status
+        if entry is None:
+            # Give live provider bootstrap / refresh up to 2.5s to finish
+            for _ in range(25):
+                await asyncio.sleep(0.1)
+                entry = sim.latest.get(station_id) or sim._last_live_latest.get(station_id)
+                if entry and entry.get("source") == "live":
+                    break
+
+        if entry is None:
             return {
                 "station_id": station_id,
                 "timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
@@ -631,14 +827,10 @@ async def get_current_reading(station_id: str):
                 "source": "live",
                 "is_syncing": True,
             }
-        raise HTTPException(status_code=404, detail=f"No reading yet for {station_id}")
 
     raw = entry["raw_reading"]
     verdict = entry["verdict"]
 
-    station_health = sim.manager.get_station_status(station_id)
-    parameter_status = sim.manager.buffers[station_id].health.param_status
-    nominal = get_station_normal_ranges(station_id)
     raw_severity = verdict.get("severity")
     score_pct = float(verdict.get("anomaly_score_pct", 0.0) or 0.0)
     
@@ -686,25 +878,46 @@ async def get_trends(station_id: str, hours: int = 6):
     if not 1 <= hours <= 24 * 30:
         raise HTTPException(status_code=400, detail="hours must be between 1 and 720")
 
-    # In replay mode, serve directly from high-speed local memory/SSD trend_history (0ms latency, zero DB saturation)
-    # In live mode, query TimescaleDB hypertable with 3.5s timeout and fallback to local CSV mirror / memory
+    # Three completely isolated pipelines with zero cross-mode data bleed:
+    # 1. REPLAY mode: strictly returns source="replay" points from simulator trend buffer
+    # 2. EDGE mode: strictly returns source="edge" points from edge hardware packet buffer
+    # 3. LIVE mode: strictly queries source="live" points from TimescaleDB / local CSV / live buffer
     if sim.mode == "replay":
         raw_points = list(sim.trend_history.get(station_id, []))
         if raw_points:
             try:
                 latest_t = pd.to_datetime(raw_points[-1]["timestamp"])
                 cutoff = latest_t - pd.Timedelta(hours=hours)
-                points = [p for p in raw_points if pd.to_datetime(p["timestamp"]) >= cutoff]
+                points = [
+                    p for p in raw_points
+                    if p.get("source") == "replay" and pd.to_datetime(p["timestamp"]) >= cutoff
+                ]
             except Exception:
-                points = raw_points
+                points = [p for p in raw_points if p.get("source") == "replay"]
         else:
             points = []
-    else:
+    elif sim.mode == "edge":
+        raw_points = list(sim.trend_history.get(station_id, []))
+        if raw_points:
+            try:
+                latest_t = pd.to_datetime(raw_points[-1]["timestamp"])
+                cutoff = latest_t - pd.Timedelta(hours=hours)
+                points = [
+                    p for p in raw_points
+                    if p.get("source") == "edge" and pd.to_datetime(p["timestamp"]) >= cutoff
+                ]
+            except Exception:
+                points = [p for p in raw_points if p.get("source") == "edge"]
+        else:
+            points = []
+    else:  # sim.mode == "live"
         try:
             points = await asyncio.wait_for(
-                asyncio.to_thread(sim.manager.get_station_history, station_id, hours=hours),
+                asyncio.to_thread(sim.manager.get_station_history, station_id, hours=hours, include_replay=False),
                 timeout=3.5,
             )
+            # Strictly guarantee only source == 'live' rows are returned
+            points = [p for p in points if p.get("source", "live") == "live"]
         except Exception as e:
             print(f"[/api/trends] TimescaleDB query timeout/error ({e!r}), falling back to local history.")
             err_str = str(e).lower()
