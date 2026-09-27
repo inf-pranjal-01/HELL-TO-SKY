@@ -517,18 +517,14 @@ async def ingest_edge_observation(payload: dict):
     })
 
     is_level2_anomaly = bool(verdict.get("is_anomaly", False))
-    is_edge_alert = isinstance(edge_inference, dict) and (
-        edge_inference.get("status") in ("ALERT", "CERTAIN_FAULT") or
-        edge_inference.get("edge_status") == "CERTAIN_FAULT"
-    )
 
-    if is_level2_anomaly or is_edge_alert:
+    if is_level2_anomaly:
         sim._anomaly_counter += 1
         anomaly_id = f"anom_{sim._anomaly_counter:05d}"
 
-        final_type = verdict.get("fault_type") if (is_level2_anomaly and verdict.get("fault_type")) else (edge_inference.get("anomaly_type") if is_edge_alert else "anomaly")
-        final_score = verdict.get("anomaly_score_pct") if (is_level2_anomaly and (verdict.get("anomaly_score_pct") or 0) > 20.0) else (edge_inference.get("confidence_pct", 88.0) if is_edge_alert else 85.0)
-        final_severity = verdict.get("severity") if (is_level2_anomaly and verdict.get("severity")) else ("critical" if float(final_score) >= 90 else "high")
+        final_type = verdict.get("fault_type") or "anomaly"
+        final_score = verdict.get("anomaly_score_pct") or 85.0
+        final_severity = verdict.get("severity") or ("critical" if float(final_score) >= 90 else "high")
 
         anomaly_item = {
             "anomaly_id": anomaly_id,
@@ -539,7 +535,7 @@ async def ingest_edge_observation(payload: dict):
             "type": final_type,
             "root_cause": verdict.get("root_cause") or f"Detected {final_type}",
             "model_confidence_pct": verdict.get("model_confidence_pct"),
-            "rule_confidence_pct": verdict.get("rule_confidence_pct") or (float(final_score) if is_edge_alert else None),
+            "rule_confidence_pct": verdict.get("rule_confidence_pct"),
             "shap_features": verdict.get("shap_features", []),
             "likely_faulty_sensors": verdict.get("likely_faulty_sensors", []),
             "affected_parameters": verdict.get("affected_parameters", []),
