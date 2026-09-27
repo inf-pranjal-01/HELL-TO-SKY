@@ -244,7 +244,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stream CSV telemetry directly to ESP32 over USB Serial with Dignified Bridge.")
     parser.add_argument("--port", type=str, default=None, help="COM port (e.g. COM5)")
     parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
-    parser.add_argument("--csv", type=str, default="data/AWS-CHN-024_labeled.csv", help="Path to labeled CSV dataset")
+    parser.add_argument("--csv", type=str, default="data_esp32/AWS-CHN-024.csv", help="Path to raw ESP32 CSV dataset")
     parser.add_argument("--interval", type=float, default=2.0, help="Pacing interval in seconds (default: 2.0)")
 
     args = parser.parse_args()

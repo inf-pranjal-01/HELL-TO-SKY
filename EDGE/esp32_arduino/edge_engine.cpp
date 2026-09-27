@@ -213,36 +213,16 @@ SkyGuardVerdict skyguard_detect_reading(
     }
 
     // =========================================================================
-    // STEP 3: PHYSICAL TIME FREEZE CHECK (Group A — Certifiable only with duration)
+    // =========================================================================
+    // STEP 3: PHYSICAL TIME FREEZE TRACKING (Edge marking disabled for hourly data)
     // =========================================================================
     if (state->has_raw_prev) {
         bool is_exactly_equal = (fabsf(temp_c - state->last_raw_t) < 0.001f &&
                                  fabsf(pressure_hpa - state->last_raw_p) < 0.001f &&
                                  fabsf(humidity_pct - state->last_raw_h) < 0.001f);
         if (is_exactly_equal) {
-            if (state->stuck_sample_count == 0) {
-                state->stuck_start_ts_s = current_ts_s;
-            }
             state->stuck_sample_count++;
-            uint32_t stuck_duration = current_ts_s - state->stuck_start_ts_s;
-
-            // Only flag CERTAIN_FAULT if stuck for >= 3600 physical seconds (1 hour of zero variance)
-            if (stuck_duration >= FREEZE_DURATION_THRESHOLD_S) {
-                v.decision = EDGE_DECISION_CERTAIN_FAULT;
-                v.is_anomaly = true;
-                v.status = STR_CERTAIN_FAULT;
-                v.edge_status = STR_CERTAIN_FAULT;
-                v.fault_type = STR_FAULT_FROZEN;
-                v.affected_param = "all_sensors";
-                v.severity = "high";
-                v.confidence_llr = 9.0f;
-                v.tier_fired = 1;
-                v.local_evidence = "Sensor stack frozen with zero variance over 3600 physical seconds.";
-                state->certain_fault_count++;
-                return v;
-            }
         } else {
-            // Variance detected — reset freeze tracker
             state->stuck_sample_count = 0;
             state->stuck_start_ts_s = 0;
         }
@@ -256,7 +236,7 @@ SkyGuardVerdict skyguard_detect_reading(
     state->has_raw_prev = true;
 
     // =========================================================================
-    // STEP 4: GROUP B — Edge-Deferred Conditions -> DEFER_TO_CENTRAL
+    // STEP 4: GROUP B — Edge-Deferred Conditions (Advisories ONLY -> is_anomaly = false)
     // =========================================================================
     
     // 4.1 Moderate Step Spike (DEFER to Central SkyGuard for peer/weather context)
@@ -266,13 +246,13 @@ SkyGuardVerdict skyguard_detect_reading(
 
     if (dt_t > DEFER_SPIKE_TEMP || dt_p > DEFER_SPIKE_PRES || dt_h > DEFER_SPIKE_HUM) {
         v.decision = EDGE_DECISION_DEFER_TO_CENTRAL;
-        v.is_anomaly = true;
+        v.is_anomaly = false;
         v.status = STR_DEFER_TO_CENTRAL;
         v.edge_status = STR_DEFER_TO_CENTRAL;
         v.fault_type = STR_FAULT_MODERATE_SPIKE;
         v.affected_param = (dt_t > DEFER_SPIKE_TEMP) ? "temperature_c" : ((dt_p > DEFER_SPIKE_PRES) ? "pressure_hpa" : "humidity_pct");
-        v.severity = "medium";
-        v.confidence_llr = 6.0f;
+        v.severity = "nominal";
+        v.confidence_llr = 1.0f;
         v.tier_fired = 2;
         v.local_evidence = "Moderate step change detected; deferred to Central SkyGuard for peer/regional arbitration.";
         v.model_advisory = "moderate_spike";
@@ -287,13 +267,13 @@ SkyGuardVerdict skyguard_detect_reading(
 
     if (t_dew > (temp_c + 0.5f) || (temp_c > 44.0f && humidity_pct > 60.0f) || (temp_c > 40.0f && vpd < 0.10f && humidity_pct > 85.0f)) {
         v.decision = EDGE_DECISION_DEFER_TO_CENTRAL;
-        v.is_anomaly = true;
+        v.is_anomaly = false;
         v.status = STR_DEFER_TO_CENTRAL;
         v.edge_status = STR_DEFER_TO_CENTRAL;
         v.fault_type = STR_FAULT_MULTIVARIATE;
         v.affected_param = "temperature_c,humidity_pct";
-        v.severity = "medium";
-        v.confidence_llr = 6.5f;
+        v.severity = "nominal";
+        v.confidence_llr = 1.0f;
         v.tier_fired = 3;
         v.local_evidence = "Thermodynamic vapor deficit inconsistency; deferred to Central SkyGuard for deep model scoring.";
         v.model_advisory = "vapor_deficit_inconsistency";
@@ -332,13 +312,13 @@ SkyGuardVerdict skyguard_detect_reading(
 
     if (avg_depth < 3.2f) { // TinyML Isolation Forest Advisory
         v.decision = EDGE_DECISION_DEFER_TO_CENTRAL;
-        v.is_anomaly = true;
+        v.is_anomaly = false;
         v.status = STR_DEFER_TO_CENTRAL;
         v.edge_status = STR_DEFER_TO_CENTRAL;
         v.fault_type = STR_FAULT_TINYML_ADVISORY;
         v.affected_param = "multivariate";
-        v.severity = "low";
-        v.confidence_llr = 5.5f;
+        v.severity = "nominal";
+        v.confidence_llr = 1.0f;
         v.tier_fired = 3;
         v.local_evidence = "TinyML Isolation Forest flagged low path depth; shadow advisory deferred to Central SkyGuard.";
         v.model_advisory = "iforest_outlier";

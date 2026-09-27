@@ -439,7 +439,7 @@ class StateManager:
             neighbor_buffers[nid] = nbuf_df
 
         verdict = DecisionEngine.decide(
-            raw_reading,
+            current_row,
             history_df_with_current,
             neighbor_buffers,
             self.artifact,

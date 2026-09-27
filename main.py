@@ -421,6 +421,10 @@ async def ingest_edge_observation(payload: dict):
     if station_id not in sim.manager.buffers:
         raise HTTPException(status_code=404, detail=f"Station '{station_id}' is not registered.")
 
+    # Automatically enter edge mode if hardware packets start arriving
+    if sim.mode != "edge":
+        sim.start_edge_mode(target_station_id=station_id)
+
     # Idempotency check
     if event_id in _seen_event_ids:
         return {"accepted": True, "event_id": event_id, "status": "duplicate_acknowledged"}
