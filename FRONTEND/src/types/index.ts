@@ -134,12 +134,22 @@ export interface TrendsResponse {
   anomaly_windows?: AnomalyWindow[];
 }
 
+export interface ProviderStatus {
+  status: 'HEALTHY' | 'DEGRADED' | 'FAILING';
+  consecutive_failures: number;
+  failing_stations?: string[];
+  diagnosed_cause?: string | null;
+  last_error?: string | null;
+  timestamp?: string | null;
+}
+
 /** Backend control-plane state. The frontend renders it; it never infers mode. */
 export interface SystemStreamStatus {
   mode: 'live' | 'replay';
   replay_step_seconds: number | null;
   live_poll_interval_seconds: number;
   is_pre_warming?: boolean;
+  provider_status?: ProviderStatus;
 }
 
 /**

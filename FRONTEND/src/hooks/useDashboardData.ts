@@ -7,6 +7,7 @@ import {
   TelemetryHistoryRecord,
   SensorHealth,
   SystemStreamStatus,
+  ProviderStatus,
 } from '../types';
 import { currentReadingService } from '../services/currentReadingService';
 import { trendsService } from '../services/trendsService';
@@ -46,6 +47,7 @@ export interface DashboardDataState {
   freshness: FreshnessState;
   pollStatusText: string;
   streamMode: 'live' | 'replay';
+  providerStatus: ProviderStatus | null;
 
   // Live WebSocket Ingestion & Latency Readout
   wsLatencyMs: number | null;
@@ -72,11 +74,20 @@ export interface UseDashboardDataOptions {
   trendHours?: number;
 }
 
-/** Merge API and push updates by their observation timestamp, never by arrival time. */
-function mergeTrendPoints(base: TrendsResponse['points'], additions: TrendsResponse['points'], hours: number) {
+/** Merge API and push updates by observation timestamp with strict mode boundary isolation. */
+function mergeTrendPoints(
+  base: TrendsResponse['points'],
+  additions: TrendsResponse['points'],
+  hours: number,
+  activeMode?: 'live' | 'replay'
+) {
   const byTimestamp = new Map<string, TrendsResponse['points'][number]>();
-  for (const point of base) byTimestamp.set(point.timestamp, point);
+  for (const point of base) {
+    if (activeMode && point.source && point.source !== activeMode) continue;
+    byTimestamp.set(point.timestamp, point);
+  }
   for (const point of additions) {
+    if (activeMode && point.source && point.source !== activeMode) continue;
     const existing = byTimestamp.get(point.timestamp);
     byTimestamp.set(point.timestamp, existing ? { ...existing, ...point } : point);
   }
@@ -199,7 +210,9 @@ export function useDashboardData(
             const data = JSON.parse(event.data);
 
             if (data.type === 'TELEMETRY_TICK') {
-              if (data.station_id === activeStationIdRef.current) {
+              const activeMode = priorStreamModeRef.current;
+              const tickMode = data.mode || 'live';
+              if (data.station_id === activeStationIdRef.current && tickMode === activeMode) {
                 // End-to-end turnaround latency readout (real measured delta)
                 if (data.ingest_time_ms) {
                   const measuredLatency = Math.max(1, Date.now() - data.ingest_time_ms);
@@ -249,7 +262,7 @@ export function useDashboardData(
                   setIsLoadingReading(false);
                   setLastUpdated(new Date());
 
-                  // Seamlessly initialize and append to active trend chart buffer
+                  // Seamlessly initialize and append to active trend chart buffer strictly matching mode
                   setTrends((previous) => {
                     const point = {
                       timestamp: data.timestamp,
@@ -284,7 +297,7 @@ export function useDashboardData(
                       ...previous,
                       station_id: data.station_id,
                       hours: visibleHours,
-                      points: mergeTrendPoints(previous.points || [], [point], visibleHours),
+                      points: mergeTrendPoints(previous.points || [], [point], visibleHours, activeMode),
                     };
                     trendRevisionRef.current += 1;
                     trendsRef.current = nextTrends;
@@ -381,25 +394,37 @@ export function useDashboardData(
                 mode: data.mode,
                 replay_step_seconds: data.mode === 'replay' ? 2 : null,
               }));
+              priorStreamModeRef.current = data.mode;
 
-              if (data.mode === 'live') {
-                // Immediately purge replay state from UI to prevent leakage when transitioning automatically
-                trendsRef.current = null;
-                currentReadingRef.current = null;
-                latestAnomalyRef.current = null;
-                sensorHealthRef.current = null;
-                setCurrentReading(null);
-                setTrends(null);
-                setLatestAnomaly(null);
-                setRecentAnomalies([]);
-                setSensorHealth(null);
-                setTelemetryHistory([]);
-                fetchReadingRef.current();
-                fetchHealthRef.current();
-                fetchTrendsRef.current(trendHoursRef.current);
-                fetchAnomaliesRef.current();
-              }
+              // Immediately purge all state from UI to guarantee zero bleed-through across modes
+              trendsRef.current = null;
+              currentReadingRef.current = null;
+              latestAnomalyRef.current = null;
+              sensorHealthRef.current = null;
+              setCurrentReading(null);
+              setTrends(null);
+              setLatestAnomaly(null);
+              setRecentAnomalies([]);
+              setSensorHealth(null);
+              setTelemetryHistory([]);
+              setLastUpdated(null);
+              setIsLoadingReading(true);
+              setIsLoadingTrends(true);
+              setIsLoadingAnomalies(true);
+              setIsLoadingHealth(true);
+              fetchReadingRef.current();
+              fetchHealthRef.current();
+              fetchTrendsRef.current(trendHoursRef.current);
+              fetchAnomaliesRef.current();
               window.dispatchEvent(new CustomEvent('sg-refresh-stations'));
+
+            } else if (data.type === 'PROVIDER_STATUS') {
+              if (data.provider_status) {
+                setStreamStatus((prev) => ({
+                  ...prev,
+                  provider_status: data.provider_status,
+                }));
+              }
 
             } else if (data.type === 'HISTORY_PURGED') {
               // DB was cleared (e.g. user clicked "Reset DB").
@@ -606,7 +631,7 @@ export function useDashboardData(
       // in flight. Merge it by recorded timestamp instead of letting an older
       // HTTP response make the graph jump backwards.
       const nextTrends = latestLocal?.station_id === targetStationId && trendRevisionRef.current !== requestRevision
-        ? { ...data, points: mergeTrendPoints(data.points, latestLocal.points, hours) }
+        ? { ...data, points: mergeTrendPoints(data.points, latestLocal.points, hours, priorStreamModeRef.current) }
         : data;
       trendsRef.current = nextTrends;
       setTrends(nextTrends);
@@ -788,6 +813,10 @@ export function useDashboardData(
     priorStreamModeRef.current = streamStatus.mode;
     if (!stationId || previousMode === streamStatus.mode) return;
 
+    trendsRef.current = null;
+    currentReadingRef.current = null;
+    latestAnomalyRef.current = null;
+    sensorHealthRef.current = null;
     setTrends(null);
     setCurrentReading(null);
     setSensorHealth(null);
@@ -914,6 +943,7 @@ export function useDashboardData(
     freshness,
     pollStatusText,
     streamMode: streamStatus.mode,
+    providerStatus: streamStatus.provider_status || null,
     wsLatencyMs,
     isWsConnected,
     isPaused,

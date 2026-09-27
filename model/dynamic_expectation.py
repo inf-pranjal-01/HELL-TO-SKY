@@ -16,8 +16,6 @@ import numpy as np
 import pandas as pd
 from typing import Dict, Optional, Tuple
 
-from model.seasonal_baseline import get_expected_roc, _ensure_loaded, _cache, _PARAMS
-
 # Station coordinates lookup for solar-time calculation
 STATION_COORDS = {
     # Delhi
@@ -65,50 +63,40 @@ def calculate_solar_hour(timestamp: pd.Timestamp, station_id: str) -> float:
     return solar_time
 
 
-def get_diurnal_baseline_level(station_id: str, param_prefix: str, solar_hour: float, history_df: pd.DataFrame) -> float:
+def compute_physical_solar_roc(param: str, solar_hour: float, lat: float = 20.0) -> float:
     """
-    Evaluates diurnal expectation from recent trusted history or historical cache.
-    Interpolates smoothly across fractional solar hours.
+    Computes analytical physics-based diurnal rate of change (ROC per hour)
+    from astronomical solar radiation flux derivative:
+    - Temperature: morning heating +1.8 to +2.5 C/h, afternoon cooling -1.5 C/h, night -0.3 C/h
+    - Barometric Pressure: 12-hour atmospheric solar tide harmonic (-0.45 * sin(4*pi*(h-3.5)/24))
+    - Humidity: psychrometric inverse of temperature (-2.8 * temp_roc)
+    Zero external files, zero CSV dependencies.
     """
-    h_floor = int(math.floor(solar_hour)) % 24
-    h_ceil = (h_floor + 1) % 24
-    weight = solar_hour - math.floor(solar_hour)
+    h = solar_hour % 24.0
     
-    # Check if we have recent trusted history (e.g. 7 days) to compute local hourly mean
-    col = {"temp": "temperature_c", "pressure": "pressure_hpa", "humidity": "humidity_pct"}.get(param_prefix, param_prefix)
-    if not history_df.empty and col in history_df.columns:
-        vals = history_df[col].values
-        # Fast path if timestamp is already datetime-like or can be converted
-        ts = history_df["timestamp"].values
-        if len(vals) >= 24:
-            valid_mask = pd.notna(vals) & pd.notna(ts)
-            if np.count_nonzero(valid_mask) >= 24:
-                valid_vals = vals[valid_mask].astype(float)
-                # Extract hours directly if datetime64 or pd.Timestamp
-                ts_series = pd.to_datetime(ts[valid_mask], utc=True)
-                hours = ts_series.hour.values if hasattr(ts_series, "hour") else ts_series.dt.hour.values
-                
-                mask_floor = (hours == h_floor)
-                mask_ceil = (hours == h_ceil)
-                
-                has_floor = np.any(mask_floor)
-                has_ceil = np.any(mask_ceil)
-                
-                if has_floor and has_ceil:
-                    val_floor = np.mean(valid_vals[mask_floor])
-                    val_ceil = np.mean(valid_vals[mask_ceil])
-                    return float((1.0 - weight) * val_floor + weight * val_ceil)
-                elif has_floor:
-                    return float(np.mean(valid_vals[mask_floor]))
+    if param in ("temperature_c", "temp"):
+        if 6.0 <= h < 14.0:
+            # Morning insolation heating phase (peaks around 09:00 - 10:00 solar hour)
+            angle = math.pi * (h - 6.0) / 8.0
+            return float(2.4 * math.sin(angle))
+        elif 14.0 <= h < 20.0:
+            # Afternoon and evening cooling phase (peaks around 17:00 solar hour)
+            angle = math.pi * (h - 14.0) / 6.0
+            return float(-1.8 * math.sin(angle))
+        else:
+            # Nighttime radiative cooling (~ -0.3 C/h)
+            return -0.3
+            
+    elif param in ("pressure_hpa", "pressure"):
+        # Semi-diurnal atmospheric thermal tide (12-hour period)
+        return float(-0.45 * math.sin(4.0 * math.pi * (h - 3.5) / 24.0))
         
-        valid_vals = vals[pd.notna(vals)]
-        if len(valid_vals) > 0:
-            return float(valid_vals[-1])
-
-    # Fallback to general historical average from seasonal cache or default
-    _ensure_loaded(station_id)
-    default_vals = {"temp": 25.0, "pressure": 1013.25, "humidity": 60.0}
-    return default_vals.get(param_prefix, 0.0)
+    elif param in ("humidity_pct", "humidity"):
+        # Psychrometric inverse of temperature curve
+        temp_roc = compute_physical_solar_roc("temperature_c", solar_hour, lat)
+        return float(np.clip(-2.8 * temp_roc, -8.0, 8.0))
+        
+    return 0.0
 
 
 def compute_continuous_trend_state(
@@ -129,7 +117,6 @@ def compute_continuous_trend_state(
     
     dt_hours = max(0.0, (current_time - prior_time).total_seconds() / 3600.0)
     if dt_hours > 24.0:
-        # Long gap: trend memory resets to 0
         return 0.0
     
     # Adaptive bandwidth scaling: tau contracts when peers agree
@@ -145,22 +132,43 @@ def compute_dynamic_expectation(
     current_time: pd.Timestamp,
     history_df: pd.DataFrame,
     trend_state: float = 0.0,
-    peer_innovation_delta: float = 0.0
+    peer_innovation_delta: float = 0.0,
+    neighbor_median: Optional[float] = None,
 ) -> Tuple[float, float]:
     r"""
-    Computes the 1-step-ahead dynamic expectation \hat{x}_{t|t-1} and diurnal derivative.
+    Pure online causal 1-step dynamic expectation without any offline CSV files:
+    1. If prior clean reading exists in history_df (within 6h):
+       extrapolate momentum: \hat{x}_{t|t-1} = x_{t-dt} + (ROC_solar * dt) + peer_delta
+    2. If history is cold-starting:
+       - If peer median is available: \hat{x}_0 = neighbor_median
+       - If isolated: initialize from history mean or physical default midpoint
+    3. Diurnal ROC is derived directly from solar insolation physics.
     Returns: (\hat{x}_{t|t-1}, expected_derivative_per_hour)
     """
-    prefix_map = {"temperature_c": "temp", "pressure_hpa": "pressure", "humidity_pct": "humidity"}
-    prefix = prefix_map.get(param, param)
-    
+    lat, lon = STATION_COORDS.get(station_id, (20.0, DEFAULT_LON))
     solar_h = calculate_solar_hour(current_time, station_id)
-    base_level = get_diurnal_baseline_level(station_id, prefix, solar_h, history_df)
+    expected_roc = compute_physical_solar_roc(param, solar_h, lat)
     
-    # Expected diurnal derivative at current solar hour
-    expected_roc = get_expected_roc(station_id, prefix, int(solar_h) % 24)
-    
-    # Multi-scale expectation = Diurnal Base + Local Trend + Peer Context
-    expected_val = base_level + trend_state + peer_innovation_delta
+    # 1-Step causal extrapolation from trusted runtime history buffer
+    prior_val = None
+    dt_hours = 1.0
+    if not history_df.empty and param in history_df.columns:
+        valid_rows = history_df[history_df[param].notna()]
+        if not valid_rows.empty:
+            prior_val = float(valid_rows[param].iloc[-1])
+            if "timestamp" in valid_rows.columns:
+                p_ts = pd.to_datetime(valid_rows["timestamp"].iloc[-1], utc=True)
+                dt_hours = max(0.1, min(24.0, (current_time - p_ts).total_seconds() / 3600.0))
+
+    if prior_val is not None and dt_hours <= 6.0:
+        expected_val = prior_val + (expected_roc * dt_hours) + peer_innovation_delta
+    elif neighbor_median is not None and not pd.isna(neighbor_median):
+        expected_val = neighbor_median + (expected_roc * dt_hours)
+    elif not history_df.empty and param in history_df.columns and len(history_df[param].dropna()) > 0:
+        expected_val = float(history_df[param].dropna().mean()) + (expected_roc * dt_hours)
+    else:
+        # Cold start physical default midpoint
+        defaults = {"temperature_c": 25.0, "pressure_hpa": 1000.0, "humidity_pct": 50.0}
+        expected_val = defaults.get(param, 25.0)
     
     return float(expected_val), float(expected_roc)

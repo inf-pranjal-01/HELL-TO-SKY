@@ -8,6 +8,7 @@ import {
   Radio,
   Sparkles,
   Info,
+  AlertTriangle,
 } from 'lucide-react';
 import { useStation } from '../context/StationContext';
 import { useDashboardData } from '../hooks/useDashboardData';
@@ -52,6 +53,7 @@ export const DashboardPage: React.FC = () => {
     staleStatusText,
     pollStatusText,
     streamMode,
+    providerStatus,
     wsLatencyMs,
     isWsConnected,
     refreshAll,
@@ -318,6 +320,21 @@ export const DashboardPage: React.FC = () => {
         <div className="sg-sih-toast" role="status" aria-live="polite">
           <Info size={16} className="text-accent" aria-hidden="true" />
           <span>{injectionNotice}</span>
+        </div>
+      )}
+
+      {/* Live Provider Health Warning Banner (Open-Meteo failure diagnosis) */}
+      {streamMode === 'live' && providerStatus && providerStatus.status !== 'HEALTHY' && (
+        <div className="sg-provider-alert-banner" role="alert">
+          <AlertTriangle size={18} className="sg-provider-alert-icon" aria-hidden="true" />
+          <div className="sg-provider-alert-content">
+            <span className="sg-provider-alert-title">
+              Open-Meteo Live Feed Alert ({providerStatus.status})
+            </span>
+            <span className="sg-provider-alert-text">
+              {' '}&bull; {providerStatus.consecutive_failures} consecutive poll failures. Diagnosed Cause: {providerStatus.diagnosed_cause || 'Provider network timeout'}. Telemetry stream is gracefully skipping missing ticks and holding last verified physical state.
+            </span>
+          </div>
         </div>
       )}
 

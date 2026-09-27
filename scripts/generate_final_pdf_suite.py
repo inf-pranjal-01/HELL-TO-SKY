@@ -153,6 +153,13 @@ This dossier establishes the primary research, empirical standards, and verifiab
 
 This document traces SkyGuard's methodological architecture—integrating robust continuous physical-time extraction, thermodynamic consistency bounds, sequential change detection (SPRT/CUSUM), spatial consensus vetoes, and tree-based ensemble isolation—directly back to peer-reviewed literature and World Meteorological Organization (WMO) standards. Furthermore, it establishes transparent, mathematically traceable workload models, strictly avoiding unsubstantiated financial claims while providing direct evidence mappings to the official SIH 2026 6-slide presentation structure.
 
+#### Top 5 System Unique Selling Propositions (USPs)
+1. **Continuous Causal Streaming & Cold-Start Self-Calibration:** Operates strictly in continuous causal streaming without requiring months of historical baseline files or offline pre-training. Tier 0 physical range bounds and Tier 5 spatial consensus operate immediately on initialization, while rolling baseline statistics self-calibrate within the initial 6–12 hours of telemetry.
+2. **Sub-Millisecond High-Efficiency Algorithmic Inference:** Processes telemetry packets in **0.210 ms (p95)** on CPU and **< 19 µs** on ESP32 TinyML fixed-point ($Q8.8$), enabling real-time streaming ingestion and edge deployment without compute bottlenecks.
+3. **Asymmetric Physics-First 6-Tier Hierarchy & Spatial Peer Consensus Veto:** Enforces physical invariants ($VPD$, Tetens psychrometrics, 3D Mahalanobis $D^2$) prior to statistical scoring, and leverages spatial peer consensus ($N=3$ within $50\text{ km}$) to prevent false alarms during true convective weather fronts.
+4. **Anti-Poisoning Health Gating & Baseline Quarantine:** Protects adaptive rolling statistics from corruption during sensor faults. Any packet flagged as anomalous is strictly quarantined from `StationBuffer`, guaranteeing that persistent sensor degradation or stuck values never pollute baseline estimates.
+5. **Elevation & Climatology Scale Invariance via Solar Geometry:** Derives diurnal expectations from physical solar hour geometry ($h_{\text{solar}}$) and continuous temporal momentum ($\Delta t = t_n - t_{n-1}$), eliminating baseline failures on elevated terrain (e.g. Bundu, Ranchi at $978\text{ hPa}$) caused by static sea-level assumptions.
+
 ---
 
 ### 2. Automatic Weather Station (AWS) Observation Ecosystem
@@ -605,15 +612,15 @@ The table below documents the locked performance scorecard across 7 independent 
 ### 5. Algorithmic Latency & Throughput Profile
 Evaluated on single-threaded standard x86 CPU architecture:
 
-| Processing Benchmark Metric | Measured Execution Time | Operational Target | Throughput Relative to Target |
+| Processing Benchmark Stage | Measured Latency | Sustained Core Throughput | Pipeline Operation Capability |
 | :--- | :--- | :--- | :--- |
-| **Single-Reading Latency (p50)** | **0.172 ms** | $< 2,000.0\\text{ ms}$ | **$11,600\\times$ faster than real-time budget** |
-| **Single-Reading Latency (p95)** | **0.210 ms** | $< 2,000.0\\text{ ms}$ | **$9,500\\times$ faster than real-time budget** |
-| **Single-Reading Latency (p99)** | **0.268 ms** | $< 2,000.0\\text{ ms}$ | **$7,460\\times$ faster than real-time budget** |
-| **Full Cluster Batch (4 Stations)**| **0.840 ms** | $< 2,000.0\\text{ ms}$ | **$2,380\\times$ faster than real-time budget** |
-| **Full Network Batch (28 Stations)**| **5.880 ms** | $< 2,000.0\\text{ ms}$ | **$340\\times$ faster than real-time budget** |
+| **Single-Reading Latency (p50)** | **0.172 ms** | **5,813 readings/sec** | Immediate streaming ingestion without buffering |
+| **Single-Reading Latency (p95)** | **0.210 ms** | **4,761 readings/sec** | Sub-millisecond 95th percentile execution guarantee |
+| **Single-Reading Latency (p99)** | **0.268 ms** | **3,731 readings/sec** | Bound tail latency under high feature extraction load |
+| **Full Cluster Batch (4 Stations)**| **0.840 ms** | **1,190 batches/sec** | Synchronous cluster-level spatial peer arbitration |
+| **Full Network Batch (28 Stations)**| **5.880 ms** | **170 network sweeps/sec** | Real-time national AWS network quality screening |
 
-*Note: Algorithmic inference latency measures feature computation and decision arbitration. It excludes external network socket transport and browser rendering overhead.*
+*Note: Algorithmic inference latency measures feature computation, thermodynamic physics validation, and decision arbitration. It excludes external network socket transport and browser rendering overhead.*
 
 ---
 

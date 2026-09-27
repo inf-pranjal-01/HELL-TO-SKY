@@ -35,8 +35,8 @@ PARAM_PREFIXES = {
     "humidity_pct": "humidity"
 }
 
-# Wald Decision Thresholds
-WALD_UPPER_ALERT, WALD_LOWER_NORMAL = SequentialSPRT.get_wald_boundaries(alpha=0.002, beta=0.05)
+# Wald Decision Thresholds (alpha=0.0005 for 0.05% false alarm bound, beta=0.05)
+WALD_UPPER_ALERT, WALD_LOWER_NORMAL = SequentialSPRT.get_wald_boundaries(alpha=0.0005, beta=0.05)
 
 
 class SensorHealthTracker:
@@ -134,7 +134,9 @@ def evaluate_spike_evidence(
     if jump_mag < 2.5 * sensor_floor:
         return 0.0, None, {"jump_mag": jump_mag, "z_jump": 0.0, "jump_llr": 0.0, "is_spike": False}
 
-    sigma_jump = math.sqrt(2.0 * (sensor_floor ** 2) + (peer_dispersion ** 2) + 0.25 * max(0.05, dt_hours))
+    from model.uncertainty_budget import GAP_GROWTH_RATES
+    kappa = GAP_GROWTH_RATES.get(param, 0.25)
+    sigma_jump = math.sqrt(2.0 * (sensor_floor ** 2) + (peer_dispersion ** 2) + kappa * max(0.05, dt_hours))
     z_jump = jump_mag / max(1e-4, sigma_jump)
 
     # Jump LLR
@@ -338,25 +340,29 @@ def score_reading(
     innovations = {}
     uncertainties = {}
     expectations = {}
+    expected_rocs = {}
     z_scores = {}
     
     for param in PARAMS:
         val = float(raw_reading[param])
         prefix = PARAM_PREFIXES.get(param, param)
         
+        # Peer spatial consensus for this parameter
+        peer_med, peer_disp, n_peers = PeerSpatialEngine.compute_robust_peer_consensus(
+            station_id, param, current_time, neighbor_buffers or {}
+        )
+        
+        # Dynamic expectation & solar ROC with spatial cold-start support
+        exp_val, exp_roc = compute_dynamic_expectation(
+            station_id, param, current_time, history_df, neighbor_median=peer_med
+        )
+        expected_rocs[param] = exp_roc
+        
         if precomputed_features is not None and f"{prefix}_rolling_mean" in precomputed_features and not pd.isna(precomputed_features[f"{prefix}_rolling_mean"]):
             exp_val = float(precomputed_features[f"{prefix}_rolling_mean"])
             sigma_tot = max(0.4, float(precomputed_features.get(f"{prefix}_robust_scale", 1.0)))
             residual = val - exp_val
         else:
-            # Peer spatial consensus for this parameter
-            peer_med, peer_disp, n_peers = PeerSpatialEngine.compute_robust_peer_consensus(
-                station_id, param, current_time, neighbor_buffers or {}
-            )
-            
-            # Dynamic expectation
-            exp_val, exp_roc = compute_dynamic_expectation(station_id, param, current_time, history_df)
-            
             # Composite uncertainty
             sigma_tot, u_breakdown = UncertaintyBudget.compute_composite_predictive_uncertainty(
                 param, solar_hour, dt_hours, history_df, peer_dispersion=peer_disp or 0.0
@@ -385,8 +391,10 @@ def score_reading(
                     prior_val = float(pv)
                     break
         
-        # 1. Spike Jump Check
-        s_llr, s_reason, s_diag = evaluate_spike_evidence(param, val, exp_val, prior_val, sigma_tot, dt_hours)
+        # 1. Spike Jump Check with diurnal rate-of-change compensation
+        s_llr, s_reason, s_diag = evaluate_spike_evidence(
+            param, val, exp_val, prior_val, sigma_tot, dt_hours, expected_roc=expected_rocs.get(param, 0.0)
+        )
         if s_diag["is_spike"]:
             tier1_evidence.append({
                 "tier": 1,
@@ -466,14 +474,14 @@ def score_reading(
             if (residual * peer_res) < 0 and abs(residual) > 2.0 * sigma_tot:
                 drift_llr *= 1.4  # Boost evidence on directional divergence
                 
-        if drift_llr >= WALD_UPPER_ALERT:
+        if drift_llr >= WALD_UPPER_ALERT and abs(z_scores[param]) >= 2.2:
             tier2_evidence.append({
                 "tier": 2,
                 "type": "drift",
                 "parameter": param,
                 "llr": drift_llr,
                 "confidence": min(95.0, 80.0 + drift_llr),
-                "reason": f"Pre-whitened SPRT accumulator (LLR={drift_llr:.2f}) cleared Wald threshold",
+                "reason": f"Pre-whitened SPRT accumulator (LLR={drift_llr:.2f}, z={z_scores[param]:.2f}) cleared Wald threshold",
                 "observed_value": float(raw_reading[param])
             })
             
@@ -504,7 +512,8 @@ def score_reading(
         z_scores["temperature_c"], z_scores["pressure_hpa"], z_scores["humidity_pct"]
     )
     
-    if cc_diag["is_multivariate_outlier"]:
+    is_multivariate = cc_diag["is_multivariate_outlier"] and (not history_df.empty and len(history_df) >= 2 or d_sq > 60.0)
+    if is_multivariate:
         implicated = ["temperature_c", "humidity_pct"]
         return {
             "is_anomaly": True,

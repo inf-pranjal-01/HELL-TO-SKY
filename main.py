@@ -202,12 +202,19 @@ async def websocket_live_endpoint(websocket: WebSocket):
 
 @app.get("/api/system-status")
 async def get_system_status():
-    """Small control-plane endpoint: frontend cadence follows backend mode."""
+    """Small control-plane endpoint: frontend cadence follows backend mode and provider health."""
     sim = app.state.sim
     return {
         "mode": sim.mode,
         "replay_step_seconds": 2 if sim.mode == "replay" else None,
         "live_poll_interval_seconds": 30 * 60,
+        "provider_status": getattr(sim, "provider_status", {
+            "status": "HEALTHY",
+            "consecutive_failures": 0,
+            "failing_stations": [],
+            "diagnosed_cause": None,
+            "last_error": None,
+        }),
     }
 
 
@@ -683,17 +690,6 @@ async def get_trends(station_id: str, hours: int = 6):
 
         if not points:
             points = [p for p in list(sim.trend_history.get(station_id, [])) if p.get("source", "live") == "live"]
-
-        if not points and sim.mode == "live":
-            path_labeled = DATA_DIR / f"{station_id}_labeled.csv"
-            if path_labeled.exists():
-                try:
-                    df_base = pd.read_csv(path_labeled, parse_dates=["timestamp"]).sort_values("timestamp")
-                    if not df_base.empty:
-                        tail_n = min(hours, len(df_base))
-                        points = df_base.tail(tail_n).to_dict(orient="records")
-                except Exception:
-                    pass
 
     # Strictly guarantee monotonic timestamp ordering
     try:

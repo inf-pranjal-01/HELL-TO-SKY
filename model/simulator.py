@@ -131,12 +131,12 @@ ROOT_CAUSE_BY_FAULT_TYPE = {
 
 LIVE_FETCH_SEMAPHORE = asyncio.Semaphore(10)
 
-async def _fetch_live_reading(client: httpx.AsyncClient, lat: float, lon: float) -> dict | None:
+async def _fetch_live_reading(client: httpx.AsyncClient, lat: float, lon: float) -> tuple[dict | None, str | None]:
     """
-    Pulls CURRENT conditions for one station's coordinates. Returns
-    None on any failure so a transient network hiccup degrades to
-    "reuse last cached value" (handled by the caller) rather than
-    crashing the tick loop.
+    Pulls CURRENT conditions for one station's coordinates.
+    Returns (reading_dict, None) on success.
+    Returns (None, error_diagnosis_string) on failure so callers can diagnose
+    whether API is rate-limiting, timing out, or encountering network issues.
     """
     try:
         async with LIVE_FETCH_SEMAPHORE:
@@ -151,16 +151,28 @@ async def _fetch_live_reading(client: httpx.AsyncClient, lat: float, lon: float)
                 timeout=10.0,
             )
             resp.raise_for_status()
-            data = resp.json()["current"]
+            data = resp.json().get("current", {})
+            if "temperature_2m" not in data or "surface_pressure" not in data:
+                return None, "Open-Meteo response payload missing required atmospheric channels"
             return {
                 "temperature_c": float(data["temperature_2m"]),
                 "pressure_hpa": float(data["surface_pressure"]),
                 "humidity_pct": float(data["relative_humidity_2m"]),
                 "_observed_at": data.get("time"),
-            }
-    except Exception:
-        # Degrade gracefully to local cached seed data
-        return None
+            }, None
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        if status_code == 429:
+            return None, "Open-Meteo Rate Limit Exceeded (HTTP 429: Rate Limit Reached)"
+        elif 500 <= status_code < 600:
+            return None, f"Open-Meteo Server Outage (HTTP {status_code})"
+        return None, f"Open-Meteo HTTP Error ({status_code}): {e.response.text[:100]}"
+    except httpx.TimeoutException:
+        return None, "Open-Meteo Gateway Timeout (>10.0s): API did not respond"
+    except (httpx.ConnectError, httpx.NetworkError) as e:
+        return None, f"Network Connection Failure: Unable to reach Open-Meteo ({type(e).__name__})"
+    except Exception as e:
+        return None, f"Provider Exception: {str(e)[:120]}"
 
 
 
@@ -201,6 +213,18 @@ class SimulatorState:
         self.recent_anomalies: deque = deque(maxlen=RECENT_ANOMALIES_MAXLEN)
         self._anomaly_counter = 0
 
+        # Provider health & consecutive failure tracker
+        self.provider_consecutive_failures: dict[str, int] = {sid: 0 for sid in metadata["station_id"]}
+        self.provider_last_error: dict[str, str | None] = {sid: None for sid in metadata["station_id"]}
+        self.provider_status: dict = {
+            "status": "HEALTHY",
+            "consecutive_failures": 0,
+            "failing_stations": [],
+            "diagnosed_cause": None,
+            "last_error": None,
+            "timestamp": None,
+        }
+
     async def _broadcast_event(self, payload: dict):
         """Asynchronously dispatch real-time events to connected WebSocket clients."""
         if self.broadcast_callback:
@@ -227,24 +251,8 @@ class SimulatorState:
         every *_labeled.csv fresh (so repeated demo runs always replay
         from the start) and switches mode.
 
-        FIXED (this patch): calls self.manager.start_replay() on the
-        EXISTING manager instead of constructing a new StateManager.
-        See module docstring PATCH note -- rebuilding silently skipped
-        state.py's own history-purge logic since a fresh HistoryStore()
-        still points at the same on-disk files.
-
-        Returns a queued anomaly_id for the contract response -- the
-        real detections happen asynchronously as tick() runs, this id
-        is just a placeholder acknowledging the request per the
-        existing response shape ("Anomaly injected and detected in next
-        reading cycle.").
+        FIXED: calls self.manager.start_replay() on the EXISTING manager.
         """
-        # A new replay must be a new *visual and diagnostic* session.  The
-        # previous implementation reset cursor/buffers but retained older
-        # source="replay" CSV rows.  get_recent() then served a window whose
-        # newest timestamp came from a former run, while the new run restarted
-        # at 2025-01-01 — exactly the piled-up chart seen in the dashboard.
-        # Live rows are deliberately untouched.
         self.manager.history.clear_all(source="replay")
         if self.mode == "live":
             self._last_live_latest = dict(self.latest)
@@ -260,14 +268,9 @@ class SimulatorState:
         self._replay_len = min(len(df) for df in self._replay_frames.values())
         self._replay_cursor_idx = 0
 
-        # Real fix: switches mode + resets every station's short-window
-        # detection buffer (§A) on the SAME manager/HistoryStore, so a
-        # prior live session's state can't leak into this replay run.
         self.manager.start_replay()
 
-        # Simulator-local caches (trend graph buffer, last-ingested dedup,
-        # anomaly feed) are this file's own concern, not state.py's --
-        # still reset directly here.
+        # Simulator-local caches are cleared entirely
         self._last_ingested = {}
         self._last_ingested_timestamp = {}
         self.latest = {}
@@ -287,6 +290,9 @@ class SimulatorState:
             }))
         except RuntimeError:
             pass
+
+        return f"anom_{self._anomaly_counter:05d}"
+
     def inject_fault_dynamic(self, station_id: str, fault_type: str | None = None) -> str:
         """
         Dynamically positions or injects a fault into active replay for the targeted station.
@@ -322,8 +328,6 @@ class SimulatorState:
         }
         self.recent_anomalies.clear()
 
-        # Keep the already-fetched Open-Meteo cache: it is the truthful latest
-        # live reading and avoids a blank dashboard on the mode transition.
         self._live_last_fetch = None
         self._live_refresh_requested = True
 
@@ -358,7 +362,6 @@ class SimulatorState:
 
     # ---------------- per-tick data sourcing ----------------
 
-
     async def _maybe_refresh_live_cache(self, priority_station_id: str | None = None):
         now = datetime.now(timezone.utc)
         if (
@@ -382,14 +385,22 @@ class SimulatorState:
                 (row["station_id"], _fetch_live_reading(client, float(row["lat"]), float(row["lon"])))
                 for row in metadata_records
             ]
-            readings = await asyncio.gather(
+            fetch_results = await asyncio.gather(
                 *(request for _, request in station_requests),
                 return_exceptions=True,
             )
-        for (sid, _), reading in zip(station_requests, readings):
-            if isinstance(reading, Exception):
-                print(f"[simulator] live fetch failed for {sid}: {reading!r}")
-                continue
+
+        failing_stations = []
+        primary_diagnosed_cause = None
+
+        for (sid, _), res in zip(station_requests, fetch_results):
+            if isinstance(res, Exception):
+                reading, err_diag = None, f"Unexpected fetch exception: {str(res)[:100]}"
+            elif isinstance(res, tuple):
+                reading, err_diag = res
+            else:
+                reading, err_diag = res, None
+
             if reading is not None:
                 observed_at = reading.pop("_observed_at", None)
                 if observed_at:
@@ -398,7 +409,52 @@ class SimulatorState:
                         observed = observed.tz_localize("UTC")
                     self._live_observed_at[sid] = observed.to_pydatetime()
                 self._live_cache[sid] = reading
-            # else: keep whatever was cached before -- degrade gracefully
+                # Reset failure tracking on success
+                self.provider_consecutive_failures[sid] = 0
+                self.provider_last_error[sid] = None
+            else:
+                # Provider fetch failed for this station
+                self.provider_consecutive_failures[sid] = self.provider_consecutive_failures.get(sid, 0) + 1
+                self.provider_last_error[sid] = err_diag
+                if self.provider_consecutive_failures[sid] >= 2:
+                    failing_stations.append(sid)
+                    if not primary_diagnosed_cause and err_diag:
+                        primary_diagnosed_cause = err_diag
+                # Single tick failure: we gracefully skip the point and reuse cached readings
+                # rather than synthesizing fake 0.0 or trigger false sensor dropouts.
+
+        # Evaluate aggregate provider health
+        prev_provider_status = self.provider_status.get("status", "HEALTHY")
+        max_consecutive = max(self.provider_consecutive_failures.values()) if self.provider_consecutive_failures else 0
+
+        if len(failing_stations) > 0:
+            new_status = "FAILING" if len(failing_stations) >= max(1, len(metadata_records) // 2) else "DEGRADED"
+            self.provider_status = {
+                "status": new_status,
+                "consecutive_failures": max_consecutive,
+                "failing_stations": failing_stations,
+                "diagnosed_cause": primary_diagnosed_cause or "Consecutive Open-Meteo API data retrieval failures",
+                "last_error": primary_diagnosed_cause,
+                "timestamp": now.isoformat(),
+            }
+            await self._broadcast_event({
+                "type": "PROVIDER_STATUS",
+                "provider_status": self.provider_status,
+            })
+        else:
+            if prev_provider_status != "HEALTHY":
+                self.provider_status = {
+                    "status": "HEALTHY",
+                    "consecutive_failures": 0,
+                    "failing_stations": [],
+                    "diagnosed_cause": None,
+                    "last_error": None,
+                    "timestamp": now.isoformat(),
+                }
+                await self._broadcast_event({
+                    "type": "PROVIDER_STATUS",
+                    "provider_status": self.provider_status,
+                })
 
     def _next_live_row(self, station_id: str) -> dict | None:
         return self._live_cache.get(station_id)
@@ -421,10 +477,6 @@ class SimulatorState:
         advances at two seconds per hour; graph placement and detector
         rolling windows must follow measurement time, never wall-clock
         animation speed. Live uses the current UTC measurement time.
-
-        Reads self.mode (the manager.mode proxy) throughout -- see the
-        property above; this is unchanged behavior, just now backed by
-        the single real source of truth instead of a second tracked field.
         """
         now = datetime.now(timezone.utc)
         current_mode = self.mode
@@ -532,115 +584,117 @@ class SimulatorState:
                 source=current_mode,
             )
 
-            # Broadcast live push over WebSocket with precise turnaround timestamp
+            # Broadcast live push over WebSocket for every station with updated telemetry
             ingest_time_ms = int(time.time() * 1000)
-            await self._broadcast_event({
-                "type": "TELEMETRY_TICK",
-                "station_id": station_id,
-                "timestamp": reading_timestamp.isoformat() if hasattr(reading_timestamp, "isoformat") else str(reading_timestamp),
-                "reading": {
-                    "temperature_c": raw_reading.get("temperature_c"),
-                    "pressure_hpa": raw_reading.get("pressure_hpa"),
-                    "humidity_pct": raw_reading.get("humidity_pct"),
-                },
-                "verdict": {
-                    "is_anomaly": bool(verdict.get("is_anomaly", False)),
-                    "anomaly_score_pct": verdict.get("anomaly_score_pct"),
-                    "model_confidence_pct": verdict.get("model_confidence_pct"),
-                    "rule_confidence_pct": verdict.get("rule_confidence_pct"),
-                    "fault_type": verdict.get("fault_type"),
-                    "severity": verdict.get("severity"),
-                    "health_status": verdict.get("health_status"),
-                    "suggested_values": verdict.get("suggested_values"),
-                    "decision_basis": verdict.get("decision_basis"),
-                    "likely_faulty_sensors": verdict.get("likely_faulty_sensors", []),
-                },
-                "mode": current_mode,
-                "ingest_time_ms": ingest_time_ms,
-            })
-
-            # A spike is confirmed by the following reading. Publish an
-            # event at the original timestamp even though the current
-            # confirming reading remains normal.
-            for spike in verdict.get("confirmed_spikes", []):
-                self._anomaly_counter += 1
-                spike_item = {
-                    "anomaly_id": f"anom_{self._anomaly_counter:05d}",
-                    "timestamp": spike["timestamp"],
-                    "station_id": station_id,
-                    "anomaly_score_pct": RULE_BASE_CONFIDENCE["spike"],
-                    "model_confidence_pct": None,
-                    "rule_confidence_pct": RULE_BASE_CONFIDENCE["spike"],
-                    "suggested_values": {spike["parameter"]: spike["suggested_value"]},
-                    "observed_values": {spike["parameter"]: spike["observed_value"]},
-                    "affected_parameters": [spike["parameter"]],
-                    "shap_features": [],
-                    "explanation_method": None,
-                    "likely_faulty_sensors": [spike["parameter"]],
-                    "severity": "medium",
-                    "type": "spike",
-                    "root_cause": ROOT_CAUSE_BY_FAULT_TYPE["spike"],
-                    "regime": verdict.get("regime"),
-                    "network_corroboration": verdict.get("network_corroboration"),
-                    "model_status": verdict.get("model_status"),
-                }
-                self.recent_anomalies.appendleft(spike_item)
+            for item in batch_to_persist:
+                st_id, r_ts, r_raw, r_verdict = item
+                ts_str = r_ts.isoformat() if hasattr(r_ts, "isoformat") else str(r_ts)
                 await self._broadcast_event({
-                    "type": "ANOMALY_EVENT",
-                    "station_id": station_id,
-                    "anomaly": spike_item,
+                    "type": "TELEMETRY_TICK",
+                    "station_id": st_id,
+                    "timestamp": ts_str,
+                    "reading": {
+                        "temperature_c": r_raw.get("temperature_c"),
+                        "pressure_hpa": r_raw.get("pressure_hpa"),
+                        "humidity_pct": r_raw.get("humidity_pct"),
+                    },
+                    "verdict": {
+                        "is_anomaly": bool(r_verdict.get("is_anomaly", False)),
+                        "anomaly_score_pct": r_verdict.get("anomaly_score_pct"),
+                        "model_confidence_pct": r_verdict.get("model_confidence_pct"),
+                        "rule_confidence_pct": r_verdict.get("rule_confidence_pct"),
+                        "fault_type": r_verdict.get("fault_type"),
+                        "severity": r_verdict.get("severity"),
+                        "health_status": r_verdict.get("health_status"),
+                        "suggested_values": r_verdict.get("suggested_values"),
+                        "decision_basis": r_verdict.get("decision_basis"),
+                        "likely_faulty_sensors": r_verdict.get("likely_faulty_sensors", []),
+                    },
+                    "mode": current_mode,
                     "ingest_time_ms": ingest_time_ms,
                 })
 
-            # Only create a new anomaly event when a new reading
-            # was actually processed.
-            if should_ingest and verdict["is_anomaly"]:
-                affected_parameters = list(dict.fromkeys(
-                    verdict.get("likely_faulty_sensors", [])
-                    or [
-                        rule.get("parameter") if isinstance(rule, dict) else rule[1]
-                        for rule in verdict.get("rules_fired", [])
-                    ]
-                    or list((verdict.get("suggested_values") or {}).keys())
-                ))
-                observed_values = {
-                    param: raw_reading.get(param)
-                    for param in affected_parameters
-                    if param in raw_reading
-                }
-                self._anomaly_counter += 1
-                anomaly_item = {
-                    "anomaly_id": f"anom_{self._anomaly_counter:05d}",
-                    "timestamp": reading_timestamp,
-                    "station_id": station_id,
-                    "anomaly_score_pct": verdict["anomaly_score_pct"],
-                    "model_confidence_pct": verdict.get("model_confidence_pct"),
-                    "rule_confidence_pct": verdict.get("rule_confidence_pct"),
-                    "suggested_values": verdict.get("suggested_values"),
-                    "observed_values": observed_values,
-                    "affected_parameters": affected_parameters,
-                    "shap_features": verdict.get("shap_features", []),
-                    "explanation_method": verdict.get("explanation_method"),
-                    "suggested_metadata": verdict.get("suggested_metadata", {}),
-                    "likely_faulty_sensors": verdict.get("likely_faulty_sensors", []),
-                    "severity": verdict["severity"],
-                    "rules_fired": verdict.get("rules_fired", []),
-                    "type": verdict["fault_type"] or "statistical_anomaly",
-                    "root_cause": ROOT_CAUSE_BY_FAULT_TYPE.get(
-                        verdict["fault_type"],
-                        "Unusual reading pattern flagged by model"
-                    ),
-                    "regime": verdict.get("regime"),
-                    "network_corroboration": verdict.get("network_corroboration"),
-                    "model_status": verdict.get("model_status"),
-                }
-                self.recent_anomalies.appendleft(anomaly_item)
-                await self._broadcast_event({
-                    "type": "ANOMALY_EVENT",
-                    "station_id": station_id,
-                    "anomaly": anomaly_item,
-                    "ingest_time_ms": ingest_time_ms,
-                })
+                # A spike is confirmed by the following reading. Publish an
+                # event at the original timestamp even though the current
+                # confirming reading remains normal.
+                for spike in r_verdict.get("confirmed_spikes", []):
+                    self._anomaly_counter += 1
+                    spike_item = {
+                        "anomaly_id": f"anom_{self._anomaly_counter:05d}",
+                        "timestamp": spike["timestamp"],
+                        "station_id": st_id,
+                        "anomaly_score_pct": RULE_BASE_CONFIDENCE["spike"],
+                        "model_confidence_pct": None,
+                        "rule_confidence_pct": RULE_BASE_CONFIDENCE["spike"],
+                        "suggested_values": {spike["parameter"]: spike["suggested_value"]},
+                        "observed_values": {spike["parameter"]: spike["observed_value"]},
+                        "affected_parameters": [spike["parameter"]],
+                        "shap_features": [],
+                        "explanation_method": None,
+                        "likely_faulty_sensors": [spike["parameter"]],
+                        "severity": "medium",
+                        "type": "spike",
+                        "root_cause": ROOT_CAUSE_BY_FAULT_TYPE["spike"],
+                        "regime": r_verdict.get("regime"),
+                        "network_corroboration": r_verdict.get("network_corroboration"),
+                        "model_status": r_verdict.get("model_status"),
+                    }
+                    self.recent_anomalies.appendleft(spike_item)
+                    await self._broadcast_event({
+                        "type": "ANOMALY_EVENT",
+                        "station_id": st_id,
+                        "anomaly": spike_item,
+                        "ingest_time_ms": ingest_time_ms,
+                    })
+
+                # Broadcast anomaly event if this reading was scored anomalous
+                if r_verdict.get("is_anomaly"):
+                    affected_parameters = list(dict.fromkeys(
+                        r_verdict.get("likely_faulty_sensors", [])
+                        or [
+                            rule.get("parameter") if isinstance(rule, dict) else rule[1]
+                            for rule in r_verdict.get("rules_fired", [])
+                        ]
+                        or list((r_verdict.get("suggested_values") or {}).keys())
+                    ))
+                    observed_values = {
+                        param: r_raw.get(param)
+                        for param in affected_parameters
+                        if param in r_raw
+                    }
+                    self._anomaly_counter += 1
+                    anomaly_item = {
+                        "anomaly_id": f"anom_{self._anomaly_counter:05d}",
+                        "timestamp": r_ts,
+                        "station_id": st_id,
+                        "anomaly_score_pct": r_verdict.get("anomaly_score_pct", 0.0),
+                        "model_confidence_pct": r_verdict.get("model_confidence_pct"),
+                        "rule_confidence_pct": r_verdict.get("rule_confidence_pct"),
+                        "suggested_values": r_verdict.get("suggested_values"),
+                        "observed_values": observed_values,
+                        "affected_parameters": affected_parameters,
+                        "shap_features": r_verdict.get("shap_features", []),
+                        "explanation_method": r_verdict.get("explanation_method"),
+                        "suggested_metadata": r_verdict.get("suggested_metadata", {}),
+                        "likely_faulty_sensors": r_verdict.get("likely_faulty_sensors", []),
+                        "severity": r_verdict.get("severity"),
+                        "rules_fired": r_verdict.get("rules_fired", []),
+                        "type": r_verdict.get("fault_type") or "statistical_anomaly",
+                        "root_cause": ROOT_CAUSE_BY_FAULT_TYPE.get(
+                            r_verdict.get("fault_type"),
+                            "Unusual reading pattern flagged by model"
+                        ),
+                        "regime": r_verdict.get("regime"),
+                        "network_corroboration": r_verdict.get("network_corroboration"),
+                        "model_status": r_verdict.get("model_status"),
+                    }
+                    self.recent_anomalies.appendleft(anomaly_item)
+                    await self._broadcast_event({
+                        "type": "ANOMALY_EVENT",
+                        "station_id": st_id,
+                        "anomaly": anomaly_item,
+                        "ingest_time_ms": ingest_time_ms,
+                    })
 
         if current_mode == "replay":
             self._replay_cursor_idx += 1
