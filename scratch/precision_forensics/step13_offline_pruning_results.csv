@@ -1,0 +1,2 @@
+new_fps_evaluated,new_fps_pruned,new_fps_pruned_pct,mean_fps_removed_per_seed,total_base_tps,base_tps_lost,base_tps_lost_pct,total_s12_tps,s12_tps_lost,s12_tps_lost_pct
+1494,0,0.0,0.0,88977,0,0.0,91159,0,0.0

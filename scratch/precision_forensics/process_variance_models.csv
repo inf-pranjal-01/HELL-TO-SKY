@@ -1,0 +1,4 @@
+parameter,sensor_floor_sigma,sensor_pair_noise_var,total_observed_1h_delta_var,total_observed_1h_delta_sigma,natural_process_sigma_1h,ratio_process_to_sensor_sigma,recommended_sigma_jump_1h
+temperature_c,0.1,0.02,1.9002,1.3785,1.3712,13.71,1.3785
+pressure_hpa,0.5,0.5,0.4641,0.6812,0.1,0.2,0.7141
+humidity_pct,1.0,2.0,31.8334,5.6421,5.462,5.46,5.6421

@@ -1,0 +1,6 @@
+table_name,scope,rows_before,rows_after,status
+sensor_readings,TimescaleDB Hypertable,2160,0,TRUNCATED_CLEAN
+station_health_events,TimescaleDB Hypertable,45,0,TRUNCATED_CLEAN
+trend_history (in-memory),RAM Ring Buffer (28 stations),1400,0,WIPED_CLEAN
+recent_anomalies (in-memory),RAM Deque,28,0,WIPED_CLEAN
+local_csv_mirror,SSD / data/history/,2160,0,PURGED_CLEAN

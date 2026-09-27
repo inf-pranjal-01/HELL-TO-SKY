@@ -1,0 +1,8 @@
+scenario,input_events,expected_indicator_state,actual_behavior,result
+Initial App Mount / Hydration,50 historical anomalies loaded from /api/anomalies/recent,HIDDEN (hasNewAlert=false),Known IDs seeded into knownAnomalyIdsRef before hydration flag set,PASS
+Browser Refresh / Route Navigation,"Page reloaded, existing anomaly IDs re-fetched",HIDDEN (hasNewAlert=false),Deduplicated via knownAnomalyIdsRef Set lookup,PASS
+WebSocket Connection Drops & Reconnects,Socket closed and reopened after 3s; burst messages arrive,HIDDEN (hasNewAlert=false),Existing event keys ignored,PASS
+Genuinely NEW Anomaly Event Arrives via WebSocket,ANOMALY_EVENT with fresh anomaly_id='anom_09999',"VISIBLE + PULSING (hasNewAlert=true, count=1)",Dot rendered with CSS pulse animation (.sg-sidebar__alert-dot),PASS
+Duplicate Delivery of Same Event (3 identical frames),ANOMALY_EVENT 'anom_09999' broadcast 3 times,"ONE NOTIFICATION (count=1, no state explosion)",Subsequent deliveries filtered by knownAnomalyIdsRef.has(),PASS
+Operator Navigates to /alerts,Location changes to pathname='/alerts',"HIDDEN (hasNewAlert=false, count=0)",clearNewAlerts() resets notification flag without mutating anomalies,PASS
+Operator clicks Reset DB,HISTORY_PURGED event broadcast,"HIDDEN (hasNewAlert=false, knownAnomalyIds cleared)",knownAnomalyIdsRef cleared; zero fake alerts during rehydration,PASS

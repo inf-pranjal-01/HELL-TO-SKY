@@ -1,0 +1,6 @@
+Event_ID,Station_ID,Physical_Timestamp,Detector_Fault_Type,Detector_Score,Affected_Channels,TimescaleDB_Record_ID,API_Payload_ID,Frontend_Chart_Marker,Alert_Card_ID,SHAP_Vector_ID,Canonical_Identity_Verified
+EVT-20260926-001,AWS-CHN-024,2026-09-26T12:00:00Z,spike,0.92,"[""temperature""]",REC-90812,API-90812,CHART-CHN-001,ALT-90812,SHAP-90812,TRUE
+EVT-20260926-002,AWS-DEL-001,2026-09-26T12:15:00Z,frozen_value,0.88,"[""temperature"",""relative_humidity"",""surface_pressure""]",REC-90813,API-90813,CHART-DEL-001,ALT-90813,SHAP-90813,TRUE
+EVT-20260926-003,AWS-MUM-012,2026-09-26T12:30:00Z,sensor_dropout,0.95,"[""temperature"",""relative_humidity"",""surface_pressure"",""wind_speed""]",REC-90814,API-90814,CHART-MUM-001,ALT-90814,SHAP-90814,TRUE
+EVT-20260926-004,AWS-BLR-007,2026-09-26T12:45:00Z,drift,0.76,"[""surface_pressure""]",REC-90815,API-90815,CHART-BLR-001,ALT-90815,SHAP-90815,TRUE
+EVT-20260926-005,AWS-KOL-019,2026-09-26T13:00:00Z,noise,0.72,"[""wind_speed""]",REC-90816,API-90816,CHART-KOL-001,ALT-90816,SHAP-90816,TRUE

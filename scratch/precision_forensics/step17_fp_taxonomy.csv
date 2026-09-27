@@ -1,0 +1,10 @@
+category,count,percentage,mean_per_seed
+D. Cross-channel coherent weather movement,21018,62.33835567682999,3002.5714285714284
+F. Local microclimate transient,8940,26.515600901649066,1277.142857142857
+E. Peer-consistent atmospheric movement,2130,6.317475382607664,304.2857142857143
+B. Atmospheric rapid humidity/precipitation surge,893,2.6485941392810535,127.57142857142857
+A. Diurnal solar transition,464,1.3762012101079606,66.28571428571429
+C. Regional / common-mode pressure front,140,0.41523312373947086,20.0
+L. Multivariate rule artifact,101,0.2995610392691897,14.428571428571429
+J. CUSUM accumulation artifact,24,0.07118282121248072,3.4285714285714284
+K. Frozen detector artifact,6,0.01779570530312018,0.8571428571428571

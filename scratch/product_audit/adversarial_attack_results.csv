@@ -1,0 +1,6 @@
+attack_name,category,severity,symptom,root_cause,status,details
+Live/Replay Isolation,STATE_ISOLATION,P0,Live/Replay lifecycle isolated successfully with clean return to live,None,VERIFIED_CLEAN,"{'pre_mode': 'live', 'during_mode': 'replay', 'post_mode': 'live'}"
+Concurrent State Safety,CONCURRENCY_RACE,P1,100/100 concurrent multi-station requests returned perfect station-matched responses,None,VERIFIED_CLEAN,"{'total_calls': 100, 'elapsed_s': 0.25}"
+Semantic Contradiction Engine,SEMANTIC_INTEGRITY,P1,"0 semantic contradictions across all 28 stations. Risk, health, and anomaly scores perfectly aligned.",None,VERIFIED_CLEAN,{'stations_checked': 28}
+WebSocket Fuzzing & Reconnect,TRANSPORT_RESILIENCE,P2,WebSocket handled rapid reconnection cycles and malformed payloads without crashing backend,None,VERIFIED_CLEAN,"{'reconnect_success': 20, 'server_alive': True}"
+Error Boundaries & Input Validation,INPUT_VALIDATION,P2,"All invalid parameters, out-of-range bounds, and non-existent IDs returned proper HTTP 4xx errors without 500 crashes",None,VERIFIED_CLEAN,"{'st404': 404, 'st400': 400, 'st_rep': 404, 'st_clear': 200}"

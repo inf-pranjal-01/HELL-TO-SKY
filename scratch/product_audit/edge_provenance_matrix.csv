@@ -1,0 +1,6 @@
+Operating_Mode,Station_ID,Telemetry_Source_Field,Hardware_Connected,Header_Badge_Rendered,Telemetry_Source_Tag,SHAP_Diagnostic_Card_State,Verdict_Card_Type,Provenance_Truthful
+Live Stream (Open-Meteo),AWS-CHN-024,open-meteo,FALSE,⚪ ESP32 STANDBY,Virtual Open-Meteo Ingest,"Fallback / Virtual Notice",Central Model Only,TRUE
+Live Stream (Open-Meteo),AWS-DEL-001,open-meteo,FALSE,⚪ ESP32 STANDBY,Virtual Open-Meteo Ingest,"Fallback / Virtual Notice",Central Model Only,TRUE
+Replay Benchmark,AWS-CHN-024,replay,FALSE,⚪ ESP32 STANDBY,Synthetic Replay Stream,"Fallback / Virtual Notice",Central Model Only,TRUE
+Live Hardware ESP32 Stream,AWS-CHN-024,edge,TRUE,🟢 ESP32 EDGE NODE ONLINE,Hardware Source: ESP32 DevKit V1 (N4),Active Level 1 Edge Inference,Dual-Verdict (Edge + Cloud),TRUE
+Live Stream Disconnected,AWS-CHN-024,none,FALSE,⚪ ESP32 STANDBY,Virtual Open-Meteo Ingest,"Fallback / Virtual Notice",Central Model Only,TRUE

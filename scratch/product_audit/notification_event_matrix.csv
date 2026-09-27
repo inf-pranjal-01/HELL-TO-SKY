@@ -1,0 +1,6 @@
+Event_Type,Initial_Unread_Count,Trigger_Action,Badge_Animation_Fired,Toast_Sound_Triggered,Acknowledgment_Action,Badge_Animation_Cleared
+Cold Page Load,5,Initial GET /api/v1/anomalies,FALSE,FALSE,N/A,TRUE
+New Live Anomaly Arrival,5,WebSocket ANOMALY_DETECTED event,TRUE,TRUE,Click Anomaly Alerts Nav / Card,TRUE
+Reset DB Rehydration,0 -> 82,Reset DB triggered & workers populate,FALSE,FALSE,N/A,TRUE
+Operator Mutes Station,5,Toggle Mute for AWS-CHN-024,FALSE,FALSE,N/A,TRUE
+Mode Switch Live to Replay,12,Toggle streamMode to Replay,FALSE,FALSE,N/A,TRUE

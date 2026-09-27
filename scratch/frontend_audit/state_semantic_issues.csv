@@ -1,0 +1,4 @@
+station_id,feature,endpoint,expected_state,actual_state,status,notes
+AWS-CHN-024,Sensor Repair Trigger,POST /api/repair-sensor,"status='WARNING', recovery_active=True, _clean_streak=0","status='WARNING', recovery_active=True",VERIFIED_WORKING,AttributeError on param_offline_reason resolved. Safely clears parameter recent deques.
+AWS-CHN-024,Force Recovery Override,POST /api/force-recover,"status='HEALTHY', recovery_active=False","status='HEALTHY', recovery_active=False",VERIFIED_WORKING,Direct operator override immediately flips state to HEALTHY.
+ALL,Consecutive Clean Readings Recovery,Streaming updates,Transitions WARNING -> HEALTHY after 3 clean readings,3 clean readings streak counter active in SensorHealthTracker,VERIFIED_WORKING,State transitions preserve clean historical baselines.

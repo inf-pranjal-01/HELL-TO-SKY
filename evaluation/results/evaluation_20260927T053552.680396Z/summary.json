@@ -1,0 +1,188 @@
+{
+  "mode": "oracle",
+  "input_files": [
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-BHO-030_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-BHO-101_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-BHO-102_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-BHO-103_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-CHN-024_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-CHN-101_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-CHN-102_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-CHN-103_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-DEL-011_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-DEL-101_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-DEL-102_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-DEL-103_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-KOL-015_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-KOL-101_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-KOL-102_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-KOL-103_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-MUM-007_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-MUM-101_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-MUM-102_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-MUM-103_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-RAN-067_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-RAN-101_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-RAN-102_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-RAN-103_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-VAR-052_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-VAR-101_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-VAR-102_labeled.csv",
+    "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\data\\AWS-VAR-103_labeled.csv"
+  ],
+  "row_count": 60480,
+  "station_count": 28,
+  "event_ledger": null,
+  "artifact_path": "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\model_artifacts\\isolation_forest.pkl",
+  "detector_config": {
+    "MODEL_WEIGHT": 0.6,
+    "RULE_WEIGHT": 0.4,
+    "FUSION_ANOMALY_THRESHOLD": 50.0,
+    "MODEL_ALONE_OVERRIDE_THRESHOLD": 95.0,
+    "RULE_CONFIDENCE_BYPASS": 90.0,
+    "FROZEN_CONSECUTIVE_REQUIRED": 5,
+    "FROZEN_CONSECUTIVE_REQUIRED_PRESSURE": 4,
+    "FROZEN_MIN_MODEL_CORROBORATION": 0.0,
+    "FROZEN_PEER_ACTIVITY_RANGE_4H_THRESHOLD": {
+      "temperature_c": 1.0,
+      "pressure_hpa": 1.0,
+      "humidity_pct": 8.0
+    },
+    "CUSUM_THRESHOLD": 6.0,
+    "CUSUM_DIRECTION_STREAK_REQUIRED": 2,
+    "CUSUM_DRIFT_ALLOWANCE": {
+      "temperature_c": 0.05,
+      "pressure_hpa": 0.02,
+      "humidity_pct": 0.05
+    },
+    "DRIFT_MIN_MODEL_CORROBORATION": 0.0
+  },
+  "oracle_cluster_workers": 7,
+  "outputs": {
+    "oracle": {
+      "rows": 60480,
+      "row_level": {
+        "tp": 1881,
+        "fp": 4607,
+        "fn": 2028,
+        "precision": 0.2899198520345253,
+        "recall": 0.48119723714504986,
+        "f1": 0.36183514475329426
+      },
+      "by_fault_type": {
+        "drift": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 2329,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "dropout": {
+          "tp": 69,
+          "fp": 1,
+          "fn": 0,
+          "precision": 0.9857142857142858,
+          "recall": 1.0
+        },
+        "frozen_value": {
+          "tp": 134,
+          "fp": 4303,
+          "fn": 335,
+          "precision": 0.030200585981519045,
+          "recall": 0.2857142857142857
+        },
+        "multivariate_inconsistency": {
+          "tp": 120,
+          "fp": 1618,
+          "fn": 160,
+          "precision": 0.06904487917146145,
+          "recall": 0.42857142857142855
+        },
+        "physical_bounds": {
+          "tp": 0,
+          "fp": 43,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "sensor_fail_low": {
+          "tp": 198,
+          "fp": 2,
+          "fn": 82,
+          "precision": 0.99,
+          "recall": 0.7071428571428572
+        },
+        "spike": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 58,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "unstructured_anomaly": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 424,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      },
+      "episodic": null,
+      "prediction_diagnostics": {
+        "false_alarms": {
+          "count": 4607,
+          "by_predicted_type": {
+            "frozen_value": 4004,
+            "multivariate_inconsistency": 603
+          },
+          "by_decision_basis": {
+            "TIER_1_SPECIALIST_FROZEN_VALUE": 4004,
+            "TIER_3_MAHALANOBIS_CROSS_CHANNEL": 602,
+            "TIER_4_MODEL_DOMINANT_MULTIVARIATE": 1
+          },
+          "by_network_state": {
+            "None": 4607
+          },
+          "by_type_network_basis": [
+            {
+              "fault_type": "frozen_value",
+              "network_state": "nan",
+              "decision_basis": "TIER_1_SPECIALIST_FROZEN_VALUE",
+              "count": 4004
+            },
+            {
+              "fault_type": "multivariate_inconsistency",
+              "network_state": "nan",
+              "decision_basis": "TIER_3_MAHALANOBIS_CROSS_CHANNEL",
+              "count": 602
+            },
+            {
+              "fault_type": "multivariate_inconsistency",
+              "network_state": "nan",
+              "decision_basis": "TIER_4_MODEL_DOMINANT_MULTIVARIATE",
+              "count": 1
+            }
+          ]
+        },
+        "missed_rows": {
+          "count": 2028,
+          "by_true_type": {
+            "drift": 1583,
+            "frozen_value": 327,
+            "multivariate_inconsistency": 68,
+            "unstructured_anomaly": 46,
+            "spike": 2,
+            "sensor_fail_low": 2
+          }
+        },
+        "episodic_confirmation": {}
+      },
+      "episodic_note": "unavailable: no event ledger was supplied",
+      "elapsed_seconds": 1722.202,
+      "rows_per_second": 35.12,
+      "evaluation_path": "vectorized_label_masked_diagnostic",
+      "cluster_workers": 7,
+      "predictions_path": "C:\\Users\\PRANJAL TIWARI\\Desktop\\HELL TO SKY\\evaluation\\results\\evaluation_20260927T053552.680396Z\\oracle_predictions.csv"
+    }
+  }
+}

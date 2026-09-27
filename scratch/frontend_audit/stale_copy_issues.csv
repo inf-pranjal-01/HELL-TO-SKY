@@ -1,0 +1,4 @@
+file,component,stale_text_pattern,issue_type,severity,recommendation,remediated
+frontend/src/components/layout/Header.tsx,Header,TimescaleDB Connected / Offline Mode,Vendor/Implementation Detail in Operator UI,P3,Display 'Data Engine: Active (Dual Storage/CSV Fallback)' rather than low-level DB driver internals,True
+frontend/src/components/dashboard/LatestAnomalyCard.tsx,LatestAnomalyCard,AI Model Confidence: 100%,Misleading Uncalibrated Confidence Label,P3,Display 'Anomaly Severity / Confidence Score' aligned with statistical bounds,True
+frontend/src/components/alerts/AnomalyDetailModal.tsx,AnomalyDetailModal,Isolation Forest Outlier Score,Model Name Mismatch (SPRT / Covariance Rules active),P3,Use generic 'Statistical Residual Deviation' or specific 'SPRT Innovation',True

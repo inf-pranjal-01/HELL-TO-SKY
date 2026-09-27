@@ -1,0 +1,6 @@
+event_id,station_id,timestamp,fault_type,severity,found_in_trends_api,point_is_anomaly,marker_temp_rendered,marker_press_rendered,marker_hum_rendered,status
+anom_00077,AWS-BHO-102,2025-01-07T02:00:00+00:00,frozen_value,critical,True,True,False,True,False,PASS
+anom_00076,AWS-DEL-011,2025-01-06T14:00:00+00:00,dropout,critical,False,False,False,False,False,FAIL
+anom_00072,AWS-VAR-103,2025-01-05T23:00:00+00:00,frozen_value,critical,False,False,False,False,False,FAIL
+anom_00071,AWS-VAR-101,2025-01-05T07:00:00+00:00,frozen_value,critical,False,False,False,False,False,FAIL
+anom_00070,AWS-DEL-102,2025-01-05T07:00:00+00:00,frozen_value,critical,False,False,False,False,False,FAIL

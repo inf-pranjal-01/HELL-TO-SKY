@@ -1,0 +1,19 @@
+Component,Historical Step 19,Step 22 Reference,Identical
+Dataset file,data/all_stations.csv,data/all_stations.csv,YES
+Dataset SHA256,1c113f12ee663d40e6e3c1bb04110c993489b45c9d03afc3b89952b08f675188,1c113f12ee663d40e6e3c1bb04110c993489b45c9d03afc3b89952b08f675188,YES
+Injector code,data/anomaly_injector.py,data/anomaly_injector.py,YES
+Injector SHA256,12f72ee2d5a041f8f8d9c641f42f87e69c067872af5c242eeeec911a04f1e8cc,12f72ee2d5a041f8f8d9c641f42f87e69c067872af5c242eeeec911a04f1e8cc,YES
+Test split cutoff,70% temporal index cutoff,70% temporal index cutoff,YES
+Seed list,"[42, 101, 202, 2024, 8888, 20260924, 45456231412727229999]","[42, 101, 202, 2024, 8888, 20260924, 45456231412727229999]",YES
+Station ordering,eval_df.sort_values('timestamp'),eval_df.sort_values('timestamp'),YES
+Timestamp sorting,UTC sorted ascending,UTC sorted ascending,YES
+State initialization,"Fresh per seed, empty CUSUM/Buffer","Fresh per seed, empty CUSUM/Buffer",YES
+Buffer anomaly exclusion,YES (StationBuffer excludes is_anomaly=True),NO (DualStationBuffer appended anomalies to raw history),NO (DIVERGENCE ROOT CAUSE)
+Prior value reference pv,Last clean baseline observation,Immediate t-1 observation (including faults),NO (DIVERGENCE ROOT CAUSE)
+Tier 0 (Hard Rails),detect._check_hardware_rail + bounds,detect._check_hardware_rail + bounds,YES
+Tier 1 (Spike & Frozen),"Jump LLR >= 5.86, Frozen check","Jump LLR >= 5.86, Frozen check",YES
+Tier 2 (ROC CUSUM),"k=0.50, eta=5.86, decay=exp(-dt/24)","k=0.50, eta=5.86, decay=exp(-dt/24)",YES
+Tier 3 (Instant Cov),"Sigma_Delta * dt, D^2 > 16.27","Sigma_Delta * dt, D^2 > 16.27",YES
+Dynamic expectation,compute_dynamic_expectation,compute_dynamic_expectation,YES
+Scoring logic,TP/FP/FN on bool(is_anomaly) == gt,TP/FP/FN on bool(is_anomaly) == gt,YES
+Ground truth,df['is_anomaly'] injected label,df['is_anomaly'] injected label,YES

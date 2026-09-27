@@ -43,11 +43,19 @@ export function suggestedFromRecord(
   return list;
 }
 
-export function suggestedFromTrendPoint(point: TrendPoint): SuggestedReading[] {
+export function suggestedFromTrendPoint(point: TrendPoint, filterMetric?: string): SuggestedReading[] {
   const list: SuggestedReading[] = [];
-  pushReading(list, 'temperature_c', point.suggested_temperature_c);
-  pushReading(list, 'pressure_hpa', point.suggested_pressure_hpa);
-  pushReading(list, 'humidity_pct', point.suggested_humidity_pct);
+  const fm = filterMetric ? filterMetric.toLowerCase() : null;
+  
+  if (!fm || fm.includes('temp')) {
+    pushReading(list, 'temperature_c', point.suggested_temperature_c);
+  }
+  if (!fm || fm.includes('press')) {
+    pushReading(list, 'pressure_hpa', point.suggested_pressure_hpa);
+  }
+  if (!fm || fm.includes('humid')) {
+    pushReading(list, 'humidity_pct', point.suggested_humidity_pct);
+  }
   return list;
 }
 

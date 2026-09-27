@@ -1,0 +1,4 @@
+case_id,name,reproduction,expected,status
+TC-01,Non-monotonic trend points,Query /api/trends with un-ordered CSV,Strictly ascending timestamps,VERIFIED_FIXED
+TC-02,100% Anomaly + LOW RISK,Inject Tier-0 rail fault (-40C),CRITICAL RISK badge,VERIFIED_FIXED
+TC-03,Live/Replay bleed,Start replay on AWS-CHN-024 while monitoring AWS-DEL-011,Peer station remains in live stream,VERIFIED_FIXED

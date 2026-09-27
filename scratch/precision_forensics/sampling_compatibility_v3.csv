@@ -1,0 +1,5 @@
+module_and_formula,dt_dependency,sub_hour_safety,status
+Tier 1 Spike Innovation (r_t = Delta y - (w_d * dot_mu * dt + w_p * Delta y_peer)),Explicit linear scaling of diurnal rate dot_mu * dt,"SAFE: as dt -> 0, diurnal delta scales to 0, peer delta scales to 0",COMPATIBLE
+Dynamic Uncertainty (sigma_0^2 = 2*sigma_sensor^2 + sigma_proc^2 * dt + sigma_pred^2),Explicit Wiener/process diffusion scaling sigma_proc^2 * dt,"SAFE: as dt -> 0, sigma_0 cleanly converges to sqrt(2)*sigma_sensor",COMPATIBLE
+Wald SPRT Evidence Accumulation (LLR = 0.5 * z_t^2 - ln(sigma_0 / sigma_sensor)),Implicit through z_t = r_t / sigma_0(dt),SAFE: sub-hour noise fluctuations naturally integrate without overflow,COMPATIBLE
+Peer Freshness Buffer (max_staleness = 1.5 * dt),Scales dynamically with dt_hours instead of hardcoded 1.0h,SAFE: minute-level updates maintain rolling sync,COMPATIBLE

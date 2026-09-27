@@ -152,23 +152,47 @@ def compute_dynamic_expectation(
     # 1-Step causal extrapolation from trusted runtime history buffer
     prior_val = None
     dt_hours = 1.0
+    p_bounds = {
+        "temperature_c": (-50.0, 60.0),
+        "pressure_hpa": (850.0, 1085.0),
+        "humidity_pct": (0.0, 100.0),
+    }
+    b_min, b_max = p_bounds.get(param, (-100.0, 200.0))
+
     if not history_df.empty and param in history_df.columns:
         valid_rows = history_df[history_df[param].notna()]
         if not valid_rows.empty:
-            prior_val = float(valid_rows[param].iloc[-1])
-            if "timestamp" in valid_rows.columns:
-                p_ts = pd.to_datetime(valid_rows["timestamp"].iloc[-1], utc=True)
-                dt_hours = max(0.1, min(24.0, (current_time - p_ts).total_seconds() / 3600.0))
+            # Filter strictly for uncorrupted physical readings to prevent anomaly feedback loops
+            clean_rows = valid_rows[(valid_rows[param] >= b_min) & (valid_rows[param] <= b_max)]
+            if not clean_rows.empty:
+                prior_val = float(clean_rows[param].iloc[-1])
+                if "timestamp" in clean_rows.columns:
+                    p_ts = pd.to_datetime(clean_rows["timestamp"].iloc[-1], utc=True)
+                    dt_hours = max(0.1, min(24.0, (current_time - p_ts).total_seconds() / 3600.0))
 
     if prior_val is not None and dt_hours <= 6.0:
         expected_val = prior_val + (expected_roc * dt_hours) + peer_innovation_delta
     elif neighbor_median is not None and not pd.isna(neighbor_median):
-        expected_val = neighbor_median + (expected_roc * dt_hours)
+        expected_val = float(neighbor_median) + (expected_roc * dt_hours)
     elif not history_df.empty and param in history_df.columns and len(history_df[param].dropna()) > 0:
-        expected_val = float(history_df[param].dropna().mean()) + (expected_roc * dt_hours)
+        clean_vals = history_df[param].dropna()
+        clean_in_bounds = clean_vals[(clean_vals >= b_min) & (clean_vals <= b_max)]
+        if not clean_in_bounds.empty:
+            expected_val = float(clean_in_bounds.mean()) + (expected_roc * dt_hours)
+        else:
+            defaults = {"temperature_c": 25.0, "pressure_hpa": 1000.0, "humidity_pct": 50.0}
+            expected_val = defaults.get(param, 25.0)
     else:
         # Cold start physical default midpoint
         defaults = {"temperature_c": 25.0, "pressure_hpa": 1000.0, "humidity_pct": 50.0}
         expected_val = defaults.get(param, 25.0)
     
+    # Enforce strict thermodynamic boundary constraints
+    if param == "humidity_pct":
+        expected_val = max(0.0, min(100.0, expected_val))
+    elif param == "pressure_hpa":
+        expected_val = max(850.0, min(1085.0, expected_val))
+    elif param == "temperature_c":
+        expected_val = max(-50.0, min(60.0, expected_val))
+
     return float(expected_val), float(expected_roc)

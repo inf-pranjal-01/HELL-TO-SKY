@@ -1,0 +1,62 @@
+[
+  {
+    "warmup_hours": 0,
+    "precision_mean": 72.1,
+    "precision_std": 1.5,
+    "recall_mean": 98.75,
+    "recall_std": 0.37,
+    "f1_mean": 83.34,
+    "f1_std": 1.04,
+    "note": "Cold-start (all readings)"
+  },
+  {
+    "warmup_hours": 1,
+    "precision_mean": 72.2,
+    "precision_std": 1.5,
+    "recall_mean": 98.75,
+    "recall_std": 0.37,
+    "f1_mean": 83.4,
+    "f1_std": 1.04,
+    "note": "After 1h active history"
+  },
+  {
+    "warmup_hours": 3,
+    "precision_mean": 72.39,
+    "precision_std": 1.51,
+    "recall_mean": 98.75,
+    "recall_std": 0.37,
+    "f1_mean": 83.53,
+    "f1_std": 1.04,
+    "note": "After 3h active history"
+  },
+  {
+    "warmup_hours": 6,
+    "precision_mean": 72.72,
+    "precision_std": 1.51,
+    "recall_mean": 98.75,
+    "recall_std": 0.37,
+    "f1_mean": 83.75,
+    "f1_std": 1.04,
+    "note": "After 6h active history"
+  },
+  {
+    "warmup_hours": 12,
+    "precision_mean": 73.33,
+    "precision_std": 1.56,
+    "recall_mean": 98.75,
+    "recall_std": 0.37,
+    "f1_mean": 84.16,
+    "f1_std": 1.07,
+    "note": "After 12h active history"
+  },
+  {
+    "warmup_hours": 24,
+    "precision_mean": 73.47,
+    "precision_std": 1.63,
+    "recall_mean": 98.77,
+    "recall_std": 0.39,
+    "f1_mean": 84.25,
+    "f1_std": 1.12,
+    "note": "After 24h active history"
+  }
+]

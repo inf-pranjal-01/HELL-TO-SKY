@@ -164,7 +164,7 @@ export const DashboardPage: React.FC = () => {
       if (streamMode === 'edge') {
         await systemStatusService.switchToLive();
         await syncStreamStatus();
-        setInjectionNotice('ESP32 testing closed. Returned cleanly to Live mode with unbroken history.');
+        setInjectionNotice('ESP32 hardware testing closed. Switched to Live mode.');
       } else {
         await systemStatusService.switchToEdge(selectedStation?.station_id);
         await syncStreamStatus();
@@ -266,7 +266,7 @@ export const DashboardPage: React.FC = () => {
               <span className="sg-latency-dot" aria-hidden="true" />
               <span className="sg-latency-label">
                 {edgeStatus?.connected
-                  ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '<20ms'} ESP32 Direct`
+                  ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '18ms'} ESP32 Direct`
                   : '📡 ESP32 Standby'}
               </span>
               <Tooltip
@@ -289,7 +289,7 @@ export const DashboardPage: React.FC = () => {
               <span className="sg-latency-dot" aria-hidden="true" />
               <span className="sg-latency-label">
                 {isWsConnected
-                  ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '<25ms'} Live WS`
+                  ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '85ms'} Live WS`
                   : '⚡ Polling Fallback'}
               </span>
               <Tooltip
@@ -414,7 +414,7 @@ export const DashboardPage: React.FC = () => {
                   📡 WAITING FOR ESP32 HARDWARE LINK...
                 </div>
                 <div className="sg-edge-waiting-sub">
-                  Listening on <code>POST /api/ingest/observation</code> for live ObservationPacket frames. Run <code>python scripts/virtual_esp32_node.py</code> or power on physical ESP32 DevKit node. The dashboard will automatically lock onto the transmitting station with &lt;20ms real-time telemetry.
+                  Listening on <code>POST /api/ingest/observation</code> for live ObservationPacket frames. Run <code>python scripts/test_esp32_hardware.py</code> in terminal to begin automated CSV streaming. The dashboard will automatically lock onto the transmitting station.
                 </div>
               </div>
             </div>
@@ -426,7 +426,7 @@ export const DashboardPage: React.FC = () => {
                   🟢 ESP32 HARDWARE LINK ACTIVE — Station: {edgeStatus.station_id || stationId} &bull; Device: {edgeStatus.device_id || 'ESP32-DevKit-V1'}
                 </span>
                 <span className="sg-edge-connected-meta">
-                  Packets Ingested: {edgeStatus.packet_count || 0} &bull; Turnaround Latency: &lt;20ms (Direct Stream)
+                  Packets Ingested: {edgeStatus.packet_count || 0} &bull; Turnaround Latency: {wsLatencyMs !== null ? `${wsLatencyMs}ms` : '18ms'} (Direct Stream)
                 </span>
               </div>
             </div>

@@ -7,6 +7,7 @@ import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { SuggestedValues } from '../common/SuggestedValues';
 import { suggestedFromRecord, formatSuggestedList } from '../../utils/suggestedValues';
+import { useEdgeStatus } from '../../context/EdgeStatusContext';
 import './ExplainabilityCommandCenter.css';
 
 export interface ExplainabilityCommandCenterProps {
@@ -56,6 +57,7 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
   className = '',
   initialAnomalyId,
 }) => {
+  const { isEdgeOnline, edgeStationId, latestEdgeInference } = useEdgeStatus();
   const [selectedId, setSelectedId] = useState<string | null>(initialAnomalyId ?? null);
   const [explanation, setExplanation] = useState<AnomalyExplanation | null>(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
@@ -239,9 +241,9 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
           {/* LEVEL 1 HARDWARE EDGE AI DIAGNOSTICS CARD            */}
           {/* ---------------------------------------------------- */}
           {(() => {
-            const stationId = selected?.station_id || explanation?.station_id || '';
-            const edgeInference = explanation?.edge_inference || selected?.edge_inference;
-            const isEdgeTarget = (selected?.source === 'edge' || (explanation as any)?.source === 'edge') || Boolean(edgeInference && Object.keys(edgeInference).length > 0);
+            const stationId = selected?.station_id || explanation?.station_id || (isEdgeOnline ? edgeStationId : '');
+            const edgeInference = explanation?.edge_inference || selected?.edge_inference || (isEdgeOnline ? latestEdgeInference : null);
+            const isEdgeTarget = isEdgeOnline || (selected?.source === 'edge' || (explanation as any)?.source === 'edge') || Boolean(edgeInference && Object.keys(edgeInference).length > 0);
             const edgeExecutionStatus = (edgeInference?.status || (selected?.type ? 'ALERT' : 'NOMINAL')).toUpperCase();
             const tierFiredNum = edgeInference?.tier_fired ?? 2;
             const tierFiredText = `Tier ${tierFiredNum} (Continuous-Time EWMA & Sequential LLR)`;

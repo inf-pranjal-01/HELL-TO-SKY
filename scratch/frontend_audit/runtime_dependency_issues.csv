@@ -1,0 +1,3 @@
+transport_type,status,installed_deps,message_schema_valid,fallback_mechanism,details
+WebSocket (ws://localhost:8000/ws/live),PASS,websockets package installed,PASS,Frontend auto-polls /api/current-reading every 2000ms if disconnected,"Connection established. First frame: ['type', 'mode', 'timestamp']. Error: "
+HTTP Polling Fallback (/api/current-reading),PASS,"fastapi, uvicorn",PASS,Native axios retry & polling interval in useSensorPolling.ts,Verified 200 OK across active stations.

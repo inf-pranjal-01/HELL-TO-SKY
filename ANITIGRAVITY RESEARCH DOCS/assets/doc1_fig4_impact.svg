@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 160" width="100%" height="160">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#64748b" />
+    </marker>
+  </defs>
+  <rect width="100%" height="100%" fill="#ffffff" rx="8" />
+
+  <g transform="translate(15, 20)">
+    <!-- Step 1: Raw Observations -->
+    <rect x="0" y="20" width="180" height="90" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <rect x="0" y="20" width="180" height="22" rx="6" fill="#334155"/>
+    <text x="90" y="35" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">1. Continuous Ingestion</text>
+    <text x="90" y="60" fill="#1e293b" font-family="Inter, sans-serif" font-size="8" text-anchor="middle">1,000 National AWS</text>
+    <text x="90" y="76" fill="#64748b" font-family="Inter, sans-serif" font-size="7.5" text-anchor="middle">96,000 Obs / Day</text>
+    <text x="90" y="94" fill="#dc2626" font-family="Inter, sans-serif" font-size="7.5" font-weight="bold" text-anchor="middle">~960 Raw Alerts (1% Noise)</text>
+
+    <!-- Arrow 1 -> 2 -->
+    <line x1="185" y1="65" x2="225" y2="65" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+    <!-- Step 2: Automated Arbitration -->
+    <rect x="230" y="10" width="200" height="110" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <rect x="230" y="10" width="200" height="22" rx="6" fill="#1e3a8a"/>
+    <text x="330" y="25" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">2. Automated QC &amp; Spatial Veto</text>
+    <text x="330" y="48" fill="#1e3a8a" font-family="Inter, sans-serif" font-size="8" font-weight="bold" text-anchor="middle">• Tier 0-4 Physics &amp; ML Isolation</text>
+    <text x="330" y="66" fill="#334155" font-family="Inter, sans-serif" font-size="7.5" text-anchor="middle">• Tier 5 Sibling Peer Corroboration</text>
+    <text x="330" y="84" fill="#059669" font-family="Inter, sans-serif" font-size="7.5" font-weight="bold" text-anchor="middle">768 False Alarms Suppressed (80%)</text>
+    <text x="330" y="102" fill="#475569" font-family="Inter, sans-serif" font-size="7" text-anchor="middle">Sub-2ms Algorithmic Execution</text>
+
+    <!-- Arrow 2 -> 3 -->
+    <line x1="435" y1="65" x2="475" y2="65" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+    <!-- Step 3: Actionable Output -->
+    <rect x="480" y="20" width="180" height="90" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+    <rect x="480" y="20" width="180" height="22" rx="6" fill="#047857"/>
+    <text x="570" y="35" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">3. High-Fidelity Triage</text>
+    <text x="570" y="60" fill="#166534" font-family="Inter, sans-serif" font-size="8" font-weight="bold" text-anchor="middle">192 Valid Hardware Faults</text>
+    <text x="570" y="76" fill="#334155" font-family="Inter, sans-serif" font-size="7.5" text-anchor="middle">SHAP Diagnostic Attribution</text>
+    <text x="570" y="94" fill="#059669" font-family="Inter, sans-serif" font-size="7.5" font-weight="bold" text-anchor="middle">Zero Baseline Pollution</text>
+
+    <!-- Arrow 3 -> 4 -->
+    <line x1="665" y1="65" x2="705" y2="65" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+    <!-- Step 4: Operational Benefit -->
+    <rect x="710" y="20" width="160" height="90" rx="6" fill="#fdf4ff" stroke="#f0abfc" stroke-width="1.5"/>
+    <rect x="710" y="20" width="160" height="22" rx="6" fill="#86198f"/>
+    <text x="790" y="35" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">4. Defensible Benefit</text>
+    <text x="790" y="58" fill="#701a75" font-family="Inter, sans-serif" font-size="8" font-weight="bold" text-anchor="middle">25.6 Operator Hours</text>
+    <text x="790" y="74" fill="#701a75" font-family="Inter, sans-serif" font-size="7.5" text-anchor="middle">Saved / Day from Triage</text>
+    <text x="790" y="92" fill="#4a044e" font-family="Inter, sans-serif" font-size="7.5" font-weight="bold" text-anchor="middle">Protects NWP Grids</text>
+  </g>
+</svg>

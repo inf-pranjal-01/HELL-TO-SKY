@@ -419,7 +419,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                   <div className="sg-tooltip-score">Severity: {hoveredPoint.point.severity}</div>
                 )}
                 <SuggestedValues
-                  items={suggestedFromTrendPoint(hoveredPoint.point)}
+                  items={suggestedFromTrendPoint(hoveredPoint.point, selectedMetric)}
                   compact
                   showHeading
                   emptyLabel="Suggested replacement unavailable during baseline warm-up"

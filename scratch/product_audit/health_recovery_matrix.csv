@@ -1,0 +1,6 @@
+Station_Event,Initial_Health_State,Trigger_Packet,Final_Health_State,Latency_to_Transition_ms,Audit_Event_Logged,UI_Visual_Consistency
+Normal Ingestion Interruption,NORMAL,No telemetry received for 180s,DEGRADED / OFFLINE,0,SYSTEM_OFFLINE,Banner displays 'Station Offline' with retained history
+Packet Re-arrival after Dropout,OFFLINE,Valid telemetry packet received,NORMAL,<50ms,SYSTEM_RECOVERY,Banner clears 'Offline' state immediately
+Single Channel Sensor Fault,NORMAL,Temperature > 65C (Spike),DEGRADED (Temp Failed),<10ms,ANOMALY_DETECTED,Temp badge shows red; other sensors stay green
+Sensor Fault Cleared,DEGRADED,Normal temperature (28C) packet,NORMAL,<10ms,SYSTEM_RECOVERY,All sensor badges return to green
+Station Maintenance Mode Toggle,NORMAL,Operator sets Maintenance,MAINTENANCE,0ms,OPERATOR_MAINTENANCE,Maintenance badge rendered; alerts suppressed

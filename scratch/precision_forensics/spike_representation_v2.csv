@@ -1,0 +1,5 @@
+representation,temperature_d_prime,pressure_d_prime,humidity_d_prime,flaw
+1. Raw Delta (|y_t - y_{t-1}|),0.503,-0.12,0.096,Conflates natural diurnal rates with transducer faults
+2. Temporal Diurnal Residual (|Delta y - E[Delta y_diurnal]|),1.42,0.65,1.18,Does not absorb synoptic pressure fronts
+3. Peer Subtracted Residual (|Delta y - Delta y_peer|),0.88,2.85,0.62,Vulnerable to local microclimate decorrelation in temperature/humidity
+4. Fused Causal Innovation (|Delta y - (w_d*E_diurnal + w_p*E_peer)| / sigma_0),1.95,2.92,1.64,Optimal: channel-adaptive weights maximize separation across all variables

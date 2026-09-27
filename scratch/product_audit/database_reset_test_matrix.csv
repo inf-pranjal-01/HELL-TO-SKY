@@ -1,0 +1,6 @@
+test_id,description,expected_http,actual_http,latency_ms,state_after,verdict
+RST-01,Execute Reset DB (target='all'),200,200,2072.4,Clean / In-memory & DB wiped,PASS
+RST-02,Execute Reset DB a second consecutive time (Idempotency test),200,200,2181.54,Clean / No crash or corrupted schema,PASS
+RST-03,Verify DB & Memory convergence after Reset (read-after-write),200,200,12.5,Recent anomalies count: 0,PASS
+RST-04,Execute Replay-only scratch purge (target='replay'),200,200,8.1,"Replay scratch wiped, Live telemetry untouched",PASS
+RST-05,Query trends with out-of-range hours bound (hours=999999),400,400,4.2,Handled cleanly with HTTP 400,PASS

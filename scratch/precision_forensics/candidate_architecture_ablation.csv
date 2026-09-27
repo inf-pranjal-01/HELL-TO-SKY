@@ -1,0 +1,6 @@
+architecture_name,expected_movement_model,sigma_jump_formula,peer_role,expected_macro_precision,expected_macro_recall,expected_macro_f1,key_vulnerability
+Baseline (Pristine Production),Candidate A (Persistence 0.0),sqrt(2*floor^2 + 0.25*dt),None (Tier-1 Pure Local),72.35,97.27,82.97,Severe False Positives during natural diurnal heating and frontal transitions
+Atmospheric Process-Scaled Jump,Candidate A (Persistence 0.0),sqrt(2*floor^2 + sigma_proc^2 * dt),None (Tier-1 Pure Local),84.1,96.5,89.88,Eliminates ~60% of diurnal FPs but misses directional expectation
+Diurnal Solar Innovation Jump,Candidate C (Solar Diurnal Climatology Derivative),sqrt(2*floor^2 + sigma_diurnal_proc^2 * dt),None (Tier-1 Pure Local),87.4,96.2,91.59,Requires solar hour; does not account for synoptic pressure fronts
+Peer Context Subtracted Jump,Candidate D (Peer Median Delta),sqrt(2*floor^2 + sigma_peer_res^2 * dt),Continuous Environmental Predictor (Subtract Delta y_peer),90.8,96.1,93.37,Slightly vulnerable if peer buffer is cold or <2 peers active
+Fused Contextual Wald SPRT Architecture,Candidate E (Fused Diurnal + Peer Predictor),sqrt(2*floor^2 + sigma_pred^2 + sigma_proc^2 * dt),Continuous Environmental Predictor with Fallback to Diurnal,93.5,96.0,94.73,"Full theoretical optimum combining local, diurnal, and peer context"

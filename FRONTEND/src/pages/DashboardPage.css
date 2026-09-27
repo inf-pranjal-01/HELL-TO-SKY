@@ -506,3 +506,34 @@
   font-family: var(--font-mono, monospace);
 }
 
+.sg-edge-start-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.4rem 0.85rem !important;
+  background: rgba(6, 78, 59, 0.75) !important;
+  color: #6ee7b7 !important;
+  border: 1px solid rgba(16, 185, 129, 0.45) !important;
+  border-radius: 6px !important;
+  font-family: var(--font-mono, monospace) !important;
+  font-size: 0.76rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease-in-out !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.sg-edge-start-btn:hover {
+  background: rgba(6, 78, 59, 0.95) !important;
+  border-color: rgba(52, 211, 153, 0.8) !important;
+  color: #a7f3d0 !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25) !important;
+}
+
+.sg-edge-start-btn:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+

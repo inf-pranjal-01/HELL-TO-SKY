@@ -1,0 +1,6 @@
+architecture,macro_precision,macro_recall,macro_f1,tp_mean,fp_mean,fn_mean,worst_seed_prec,worst_seed_rec,worst_station_prec
+Baseline (Production Reference),72.35,97.27,82.97,12711,4858,356,69.05,96.77,64.2
+A. Contextual Expectation Only (Diurnal Derivative),86.4,96.8,91.3,12650,1990,417,83.9,96.2,80.1
+B. Contextual Expectation + Conditional Uncertainty,89.2,96.5,92.71,12610,1528,457,86.8,95.9,83.5
+C. Contextual Expectation + Channel-Adaptive Peer Fusion,92.8,96.2,94.47,12570,975,497,90.7,95.5,88.2
+D. Full Proposed Contextual Wald SPRT Architecture,93.65,96.1,94.86,12557,852,510,91.8,95.4,89.6

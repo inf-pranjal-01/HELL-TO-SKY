@@ -1,0 +1,7 @@
+mechanism_class,count,pct
+Recovered by Clean History Only (Pure Contamination),0,0.0
+Recovered by Raw Jump Only (Pure Contextual),6086,42.8470853280766
+Recovered by EITHER Factor Independently (Dual Causal Path),8118,57.152914671923405
+Recovered ONLY When BOTH Factors Removed (Strict Interaction),0,0.0
+Unrecovered in Factorial Grid (Intrinsic Sub-Threshold),967,6.807941424950719
+Total Subsequent Lost Points Audited,14204,100.0

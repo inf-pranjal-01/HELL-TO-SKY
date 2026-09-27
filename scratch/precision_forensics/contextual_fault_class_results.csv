@@ -1,0 +1,7 @@
+fault_class,mean_tp,mean_fn,mean_fp,class_recall_pct,class_precision_pct
+spike,0.0,0.0,627.1,0.0,0.0
+frozen_value,0.0,0.0,7.3,0.0,0.0
+sensor_drift,0.0,0.0,0.0,0.0,0.0
+multivariate,0.0,0.0,0.0,0.0,0.0
+physical_bounds,0.0,0.0,0.0,0.0,0.0
+other,10717.3,2349.3,3225.0,82.02,76.87

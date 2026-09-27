@@ -1,0 +1,9 @@
+station,timestamp,channel,ground_truth,detector_output,db_output,api_output,frontend_output,displayed_fault_type,displayed_state,explanation_id,classification
+AWS-CHN-024 (Chennai),2025-01-01T08:00:00Z,temperature_c,CLEAN,sensor_fail_low (Tier 0),sensor_fail_low,sensor_fail_low,Electrical Fail-Low (-40.0°C),sensor_fail_low,CRITICAL,anom_00001,INJECTED_FAULT_VERIFIED
+AWS-DEL-011 (Delhi),2025-01-01T09:00:00Z,pressure_hpa,CLEAN,sensor_fail_low (Tier 0),sensor_fail_low,sensor_fail_low,Barometric Zero Rail (0.0 hPa),sensor_fail_low,CRITICAL,anom_00002,INJECTED_FAULT_VERIFIED
+AWS-MUM-007 (Mumbai),2025-01-01T10:00:00Z,temperature_c,CLEAN,physical_bounds (Tier 0),physical_bounds,physical_bounds,Physical Upper Limit Breach (75.0°C),physical_bounds,CRITICAL,anom_00003,INJECTED_FAULT_VERIFIED
+AWS-BHO-030 (Bhopal),2025-01-01T11:00:00Z,temperature_c,CLEAN,spike (Tier 1),spike,spike,Instantaneous Temperature Spike (+28.0°C),spike,WARNING,anom_00004,INJECTED_FAULT_VERIFIED
+AWS-KOL-015 (Kolkata),2025-01-01T12:00:00Z,humidity_pct,CLEAN,multivariate_inconsistency (Tier 3/4),multivariate_inconsistency,multivariate_inconsistency,Coupled Clausius-Clapeyron Conflict,multivariate_inconsistency,WARNING,anom_00005,INJECTED_FAULT_VERIFIED
+AWS-VAR-052 (Varanasi),2025-01-01T13:00:00Z,humidity_pct,CLEAN,frozen_value (Tier 1),frozen_value,frozen_value,Zero-Variance Sensor Freeze,frozen_value,WARNING,anom_00006,INJECTED_FAULT_VERIFIED
+AWS-RAN-067 (Ranchi),2025-01-01T14:00:00Z,temperature_c,CLEAN,drift (Tier 2),drift,drift,Persistent Calibration Drift,drift,WARNING,anom_00007,INJECTED_FAULT_VERIFIED
+AWS-BHO-101 (Sehore),2025-01-01T07:00:00Z,humidity_pct,CLEAN,frozen_value (Tier 1),frozen_value,frozen_value,Frozen Value,frozen_value,RULE ONLY STATISTICAL,anom_sehore_01,DETECTOR_FALSE_POSITIVE

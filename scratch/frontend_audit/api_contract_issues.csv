@@ -1,0 +1,12 @@
+endpoint,method,description,http_status,contract_valid,response_type,keys_present,error_detail
+/api/stations,GET,Fetch 28 Tamil Nadu AWS station metadata list,200,PASS,list,28 items,
+/api/current-reading,GET,Current reading for AWS-CHN-024,200,PASS,dict,"station_id, timestamp, temperature_c, pressure_hpa, humidity_pct, anomaly_score_pct, is_anomaly, fault_type",
+/api/trends,GET,10-hour historical telemetry trends,200,PASS,dict,"station_id, hours, points, anomaly_windows",
+/api/anomalies/latest,GET,Latest anomaly alert for station,200,PASS,dict,"anomaly_id, timestamp, station_id, anomaly_score_pct, severity, type, root_cause, description",
+/api/anomalies/recent,GET,Recent anomaly incidents list,200,PASS,list,5 items,
+/api/sensor-health,GET,Station sensor health & circuit breaker state,200,PASS,dict,"station_id, health_pct, status, parameters, offline_reason, recovery_active",
+/api/network-status,GET,Network-wide aggregate health summary,200,PASS,dict,"overall_status, active_stations_count, total_stations_count, active_anomalies_count, avg_sensor_health_pct, last_updated, mode",
+/api/system-status,GET,Runtime operational mode & simulation intervals,200,PASS,dict,"mode, replay_step_seconds, live_poll_interval_seconds",
+/api/repair-sensor,POST,Operator reset & repair verification trigger,200,PASS,dict,"success, station_id, status, recovery_active, message",
+/api/force-recover,POST,Operator force recovery override,404,FAIL,Error,-,"{""detail"":""Not Found""}"
+/api/maintenance-ticket,POST,Create maintenance work order ticket,404,PASS,Error,-,"{""detail"":""Unknown anomaly_id ANOM-TEST""}"

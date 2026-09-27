@@ -1,0 +1,8 @@
+Fault_Type,Injected_Channel,Affected_Parameters_List,Temperature_Marker_Rendered,Humidity_Marker_Rendered,Pressure_Marker_Rendered,Wind_Marker_Rendered,Radiation_Marker_Rendered,Correctly_Isolated
+Single-Channel Temperature Spike,temperature,"[""temperature""]",TRUE,FALSE,FALSE,FALSE,FALSE,TRUE
+Single-Channel Humidity Drift,relative_humidity,"[""relative_humidity""]",FALSE,TRUE,FALSE,FALSE,FALSE,TRUE
+Single-Channel Pressure Step,surface_pressure,"[""surface_pressure""]",FALSE,FALSE,TRUE,FALSE,FALSE,TRUE
+Single-Channel Wind Spike,wind_speed,"[""wind_speed""]",FALSE,FALSE,FALSE,TRUE,FALSE,TRUE
+Multivariate Sensor Freeze,all,"[""temperature"",""relative_humidity"",""surface_pressure""]",TRUE,TRUE,TRUE,FALSE,FALSE,TRUE
+Complete Station Dropout,all,"[""temperature"",""relative_humidity"",""surface_pressure"",""wind_speed"",""solar_radiation""]",TRUE,TRUE,TRUE,TRUE,TRUE,TRUE
+Unspecified / Legacy Anomaly,none,"[]",TRUE,TRUE,TRUE,TRUE,TRUE,TRUE

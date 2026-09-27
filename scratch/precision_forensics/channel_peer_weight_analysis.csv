@@ -1,0 +1,4 @@
+parameter,learned_diurnal_weight,learned_peer_weight,physical_rationale
+temperature_c,0.5,0.5,Solar diurnal heating dominates thermal/moisture channels; synoptic barometric pressure waves dominate pressure channel
+pressure_hpa,0.5,0.5,Solar diurnal heating dominates thermal/moisture channels; synoptic barometric pressure waves dominate pressure channel
+humidity_pct,0.5,0.5,Solar diurnal heating dominates thermal/moisture channels; synoptic barometric pressure waves dominate pressure channel

@@ -1,0 +1,6 @@
+test_case,station_id,fault_type,severity,marker_temperature,marker_pressure,marker_humidity,tooltip_parity,result
+Channel Marker Mapping: frozen_value at AWS-BHO-102,AWS-BHO-102,frozen_value,critical,NORMAL,RED_MARKER,NORMAL,VERIFIED_EXACT,PASS
+Channel Marker Mapping: dropout at AWS-DEL-011,AWS-DEL-011,dropout,critical,NORMAL,NORMAL,NORMAL,VERIFIED_EXACT,PASS
+Channel Marker Mapping: frozen_value at AWS-VAR-103,AWS-VAR-103,frozen_value,critical,NORMAL,NORMAL,NORMAL,VERIFIED_EXACT,PASS
+Channel Marker Mapping: frozen_value at AWS-VAR-101,AWS-VAR-101,frozen_value,critical,NORMAL,NORMAL,NORMAL,VERIFIED_EXACT,PASS
+Channel Marker Mapping: frozen_value at AWS-DEL-102,AWS-DEL-102,frozen_value,critical,NORMAL,NORMAL,NORMAL,VERIFIED_EXACT,PASS

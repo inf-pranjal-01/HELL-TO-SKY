@@ -1,0 +1,5 @@
+from_state,to_state,trigger,valid,tested
+LIVE,REPLAY,POST /api/inject-anomaly,True,PASS
+REPLAY,LIVE,POST /api/system-mode {'mode':'live'},True,PASS
+OFFLINE,WARNING,POST /api/repair-sensor,True,PASS
+WARNING,HEALTHY,3 consecutive clean readings,True,PASS

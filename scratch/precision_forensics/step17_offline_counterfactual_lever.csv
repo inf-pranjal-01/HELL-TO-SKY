@@ -1,0 +1,2 @@
+total_step16_fps,fps_removed_by_peer_consensus,fps_removed_pct,mean_fps_removed_per_seed,total_step16_tps,tps_lost_by_peer_consensus,tps_lost_pct,mean_tps_lost_per_seed,projected_macro_precision,projected_macro_recall
+33716,123,0.36481195871396366,17.571428571428573,89387,211,0.23605222235895598,30.142857142857142,72.63722926797482,97.4963374368618

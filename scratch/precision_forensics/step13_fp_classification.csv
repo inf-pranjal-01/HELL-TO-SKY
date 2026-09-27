@@ -1,0 +1,6 @@
+category,count,percentage,per_seed_mean
+G. Cold-start / insufficient-context artifact,1039,69.54484605087015,148.42857142857142
+A. Genuine atmospheric transition,226,15.127175368139223,32.285714285714285
+E. Humidity surge / rainfall-related movement,160,10.7095046854083,22.857142857142858
+C. Dawn / dusk transition,55,3.681392235609103,7.857142857142857
+D. Pressure front / common-mode regional movement,14,0.9370816599732262,2.0

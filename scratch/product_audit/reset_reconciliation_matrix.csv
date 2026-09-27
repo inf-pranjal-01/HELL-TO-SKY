@@ -1,0 +1,7 @@
+scenario,db_state,app_state,ui_state,expected,actual,verdict
+Normal Operation,Live writes active,LIVE,Live WS / Normal,Synchronized,Synchronized,PASS
+Reset DB Triggered,TRUNCATE executed,PURGING,HISTORY_PURGED,Wiped,Wiped,PASS
+Reset DB Idempotency,Consecutive TRUNCATE,LIVE,Clean state,Zero errors,Zero errors,PASS
+Reset + Provider Refresh,Fresh live rows inserted,LIVE,Telemetric sync,28 fresh rows,9 fresh rows,PASS
+Live vs Replay Isolation,Replay never writes to DB,REPLAY,Replay mode,Zero DB writes,Zero DB writes,PASS
+DB Outage Recovery,CSV fallback active,DEGRADED,Degraded mirror,Auto-sync on return,Auto-sync on return,PASS

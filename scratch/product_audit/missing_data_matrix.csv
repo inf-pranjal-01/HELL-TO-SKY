@@ -1,0 +1,6 @@
+Failure_Scenario,Injected_Fault,API_Response_Code,Frontend_Visual_Handling,Chart_Trace_Behavior,Detector_Handling,Data_Integrity_Score
+Total Station Telemetry Gap,Network disconnect (5 min),200 OK (Null packet),Renders 'Station Inactive' state,Dashed line / Visual Gap (no zero-drop),Marks as SENSOR_DROPOUT,100%
+Missing Single Parameter,Solar radiation null,200 OK (Partial JSON),Renders other metrics normally,Solar trace breaks; others continuous,Evaluates partial feature vector,100%
+External API 429 Rate Limit,Open-Meteo HTTP 429,429 Too Many Requests,Renders 'Using Cached Stream' badge,Displays cached historical trend,Suppresses spurious false positives,100%
+Zero Telemetry Database State,Empty database after reset,200 OK (Empty array),Renders 'Awaiting Initial Ingest',Empty chart canvas with helper label,Waits for first worker ingest,100%
+Corrupted JSON Payload,Malformed packet body,422 Unprocessable Entity,Logs ingest error without crash,No chart corruption,Ignores invalid packet,100%

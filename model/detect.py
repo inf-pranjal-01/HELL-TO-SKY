@@ -288,9 +288,9 @@ def _compute_suggested_values(
                     station_id, param, current_time, neighbor_buffers
                 )
             if peer_med is not None and not pd.isna(peer_med) and n_peers >= 1:
-                suggestions[param] = round(float(peer_med), 1)
+                val = float(peer_med)
             elif expectations and param in expectations and expectations[param] is not None and not pd.isna(expectations[param]):
-                suggestions[param] = round(float(expectations[param]), 1)
+                val = float(expectations[param])
             elif history_df is not None and not history_df.empty and param in history_df.columns:
                 valid_vals = pd.to_numeric(history_df[param], errors="coerce").dropna()
                 # Exclude the current reading (last row) and filter for plausible normal range
@@ -298,14 +298,22 @@ def _compute_suggested_values(
                 clean_vals = valid_vals.iloc[:-1] if len(valid_vals) > 1 else valid_vals
                 clean_in_bounds = clean_vals[(clean_vals >= p_bounds["normal_min"]) & (clean_vals <= p_bounds["normal_max"])]
                 if not clean_in_bounds.empty:
-                    suggestions[param] = round(float(clean_in_bounds.iloc[-1]), 1)
+                    val = float(clean_in_bounds.iloc[-1])
                 else:
-                    normal_mid = (p_bounds["normal_min"] + p_bounds["normal_max"]) / 2.0
-                    suggestions[param] = round(float(normal_mid), 1)
+                    val = (p_bounds["normal_min"] + p_bounds["normal_max"]) / 2.0
             else:
                 p_bounds = normal_ranges.get(param, {"normal_min": 5.0, "normal_max": 45.0})
-                normal_mid = (p_bounds["normal_min"] + p_bounds["normal_max"]) / 2.0
-                suggestions[param] = round(float(normal_mid), 1)
+                val = (p_bounds["normal_min"] + p_bounds["normal_max"]) / 2.0
+
+            # Enforce thermodynamic physical envelope
+            if param == "humidity_pct":
+                val = max(0.0, min(100.0, val))
+            elif param == "pressure_hpa":
+                val = max(850.0, min(1085.0, val))
+            elif param == "temperature_c":
+                val = max(-50.0, min(60.0, val))
+
+            suggestions[param] = round(val, 1)
     return suggestions
 
 

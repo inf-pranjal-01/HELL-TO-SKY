@@ -1,0 +1,7 @@
+metric,baseline,step7_production,delta
+Macro Precision (%),72.35,73.52,1.17
+Macro Recall (%),97.27,82.01,-15.26
+Macro F1 Score (%),82.97,77.52,-5.45
+Mean False Positives (FP),4858.0,3859.4,-998.6
+Mean True Positives (TP),12711.0,10717.3,-1993.7
+Mean False Negatives (FN),356.0,2349.3,1993.3

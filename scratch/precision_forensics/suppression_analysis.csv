@@ -1,0 +1,4 @@
+param,lost_tps_with_baseline_z_ge_3,blocked_by_sigma_inflation,blocked_by_sigma_inflation_pct,erased_by_subtraction,erased_by_subtraction_pct,mean_sigma_baseline,mean_sigma_step7,mean_sigma_inflation_ratio,mean_suppression_ratio
+temperature_c,8649,2945,34.05017921146953,5704,65.94982078853047,0.5196152422706631,0.5196152422706631,1.0,0.0
+pressure_hpa,4886,575,11.768317642243144,4311,88.23168235775685,0.8660254037844383,0.8660254037844383,1.0,0.0
+humidity_pct,9638,4456,46.233658435360034,5182,53.766341564639966,1.5,1.5,1.0,0.0

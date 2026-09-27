@@ -1,0 +1,6 @@
+Transition_Action,Initial_Mode,Target_Mode,Chart_Buffer_State,Anomaly_List_State,Header_Controls_State,Leaked_State_Detected
+Switch Live to Replay,LIVE,REPLAY,Flushed & Rehydrated from Benchmark Seed,Populated with Replay Incidents,Replay Progress Bar & Playback Controls Visible,NONE
+Switch Replay to Live,REPLAY,LIVE,Flushed & Rehydrated from Canonical DB/Live Cache,Populated with Live DB Incidents,Live Polling Indicator Active (Replay Bar Hidden),NONE
+Reset DB during Live,LIVE,LIVE,Transitional Spinner -> Initializing 28 Stations,Cleared -> Repopulated from Live Ingest,Reset DB Button Disabled with Spinner,NONE
+Reset DB during Replay,REPLAY,REPLAY,Replay Clock Paused & State Reset,Replay Benchmark History Cleared,Replay Controls Reset to 00:00:00,NONE
+Station Switch during Live,LIVE (Station A),LIVE (Station B),Switched to Station B Canonical Stream,Filtered strictly to Station B Incidents,Station B Metadata & Status Displayed,NONE

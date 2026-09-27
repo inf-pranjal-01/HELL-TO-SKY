@@ -1,0 +1,4 @@
+stage,AWS-DEL-011_status,AWS-DEL-011_health_pct,AWS-DEL-011_metadata_status,network_active_count
+initial_live,HEALTHY,100,,
+replay_active,HEALTHY,100,,
+post_live_rehydrated,HEALTHY,100,NORMAL,28.0

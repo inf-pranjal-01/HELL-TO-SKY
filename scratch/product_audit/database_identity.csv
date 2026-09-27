@@ -1,0 +1,2 @@
+database_name,schema_name,engine_version,timescaledb_version,is_hypertable,table_name,connection_status
+tsdb,public,PostgreSQL 18.6 (Ubuntu 18.6-1.pgdg22.04+2),2.30.0,False,sensor_readings,HEALTHY_CONNECTED
