@@ -6,7 +6,7 @@ import './SensorMetricCard.css';
 export interface SensorMetricCardProps {
   title: string;
   icon: React.ReactNode;
-  value?: number;
+  value?: number | null;
   unit: string;
   normalMin?: number;
   normalMax?: number;

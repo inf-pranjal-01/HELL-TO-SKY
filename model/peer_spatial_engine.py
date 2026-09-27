@@ -241,3 +241,103 @@ class PeerSpatialEngine:
             "veto": bool(is_regional_weather)
         }
         return spatial_llr, diagnostics
+
+    @classmethod
+    def compute_continuous_peer_evidence(
+        cls,
+        target_station_id: str,
+        param: str,
+        current_time: pd.Timestamp,
+        target_val: float,
+        prior_val: float,
+        target_sigma: float,
+        neighbor_buffers: dict,
+        use_lag_awareness: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Computes continuous peer evidence, surprise z-score, and common-mode discount.
+        Used for robust peer corroboration and safety invariant verification.
+        """
+        target_delta = target_val - prior_val
+        eff_sigma = max(1e-4, target_sigma * 0.9)
+        raw_z = target_delta / eff_sigma
+
+        peer_deltas = []
+        peer_deltas_lag1 = []
+        sibling_ids = cls.get_sibling_peers(target_station_id)
+
+        for pid in sibling_ids:
+            buf = neighbor_buffers.get(pid)
+            if buf is None:
+                continue
+            df = buf.raw_history_df() if hasattr(buf, "raw_history_df") else (
+                buf.get_dataframe() if hasattr(buf, "get_dataframe") else (
+                    buf if isinstance(buf, pd.DataFrame) else None
+                )
+            )
+            if df is None or df.empty or param not in df.columns:
+                continue
+            
+            pvals = pd.to_numeric(df[param], errors="coerce").dropna().values
+            if len(pvals) >= 2:
+                d0 = float(pvals[-1] - pvals[-2])
+                peer_deltas.append(d0)
+            if len(pvals) >= 3:
+                d1 = float(pvals[-2] - pvals[-3])
+                peer_deltas_lag1.append(d1)
+
+        if not peer_deltas:
+            return {
+                "z_surprise": raw_z,
+                "common_mode_discount": 0.0,
+                "peer_median_d": 0.0,
+                "peer_dispersion": 0.5,
+                "has_1h_phase_lag": False,
+                "applied_lag": 0
+            }
+
+        # Check lag awareness
+        has_1h_lag = False
+        applied_lag = 0
+        active_deltas = peer_deltas
+
+        if use_lag_awareness and peer_deltas_lag1:
+            med_d0 = float(np.median(peer_deltas))
+            med_d1 = float(np.median(peer_deltas_lag1))
+            if abs(target_delta - med_d1) < abs(target_delta - med_d0) and abs(med_d1) > 0.5:
+                has_1h_lag = True
+                applied_lag = 1
+                active_deltas = peer_deltas_lag1
+
+        peer_median_d = float(np.median(active_deltas))
+        iqr = float(np.percentile(active_deltas, 75) - np.percentile(active_deltas, 25))
+        peer_dispersion = max(0.0, iqr / 1.349 if iqr > 0 else float(np.std(active_deltas)))
+
+        diff = target_delta - peer_median_d
+        z_surprise = diff / eff_sigma
+
+        # Count agreeing peers
+        agreeing_peers = sum(1 for d in active_deltas if abs(d - target_delta) < 0.5)
+        peer_fraction = agreeing_peers / len(active_deltas)
+
+        # Coherence factor
+        coherence = 1.0 / (1.0 + 0.5 * peer_dispersion)
+
+        # Common-mode discount
+        if peer_fraction >= 0.6 and abs(target_delta) > 0.5:
+            raw_discount = max(0.0, (target_delta / target_sigma) ** 2 - (diff / target_sigma) ** 2)
+            common_mode_discount = raw_discount * peer_fraction * coherence
+        else:
+            common_mode_discount = 0.0
+
+        if abs(z_surprise) > 5.0 and abs(peer_median_d) < 0.5:
+            common_mode_discount = 0.0
+
+        return {
+            "z_surprise": float(z_surprise),
+            "common_mode_discount": float(common_mode_discount),
+            "peer_median_d": float(peer_median_d),
+            "peer_dispersion": float(peer_dispersion),
+            "has_1h_phase_lag": bool(has_1h_lag),
+            "applied_lag": applied_lag
+        }

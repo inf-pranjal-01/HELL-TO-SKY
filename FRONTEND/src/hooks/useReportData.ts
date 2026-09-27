@@ -115,7 +115,7 @@ export function useReportData(): UseReportDataResult {
       .map((s) => networkReadings[s.station_id])
       .filter((r): r is NonNullable<typeof r> => r != null);
 
-    const currentTelemetry = rawReading
+    const currentTelemetry = (rawReading && rawReading.temperature_c?.value != null && rawReading.pressure_hpa?.value != null && rawReading.humidity_pct?.value != null)
       ? {
           temperature_c: rawReading.temperature_c.value,
           pressure_hpa: rawReading.pressure_hpa.value,
@@ -163,13 +163,11 @@ export function useReportData(): UseReportDataResult {
   ]);
 
   // Generate Report action
-  const generateReport = useCallback(() => {
+  const generateReport = useCallback(async () => {
     setIsGenerating(true);
-    setGeneratedTimestamp(new Date().toISOString());
-    setTimeout(() => {
-      setIsGenerating(false);
-    }, 250);
-  }, []);
+    await loadReportRawData();
+    setIsGenerating(false);
+  }, [loadReportRawData]);
 
   // Print Report action
   const printReport = useCallback(() => {

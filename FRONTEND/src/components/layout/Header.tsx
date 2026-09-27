@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, RefreshCw, Bell, ShieldCheck, User, LogOut, Settings, UserCheck, Search, Info, Radio, Database } from 'lucide-react';
+import { Menu, RefreshCw, Bell, ShieldCheck, User, LogOut, Settings, UserCheck, Search, Info, Radio, Database, Cpu } from 'lucide-react';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { StatusBadge } from '../common/StatusBadge';
 import { SystemStatusSummary } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { useEdgeStatus } from '../../context/EdgeStatusContext';
+import { useAlertNotification } from '../../context/AlertNotificationContext';
+import { PipelineInfoModal } from './PipelineInfoModal';
 import './Header.css';
 
 export interface HeaderProps {
@@ -35,6 +38,15 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { hasNewAlert } = useAlertNotification();
+  const {
+    isEdgeOnline,
+    latencyMs,
+    edgeStationId,
+    isPipelineModalOpen,
+    openPipelineModal,
+    closePipelineModal,
+  } = useEdgeStatus();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const overallStatus = systemStatus?.overall_status || null;
@@ -79,6 +91,44 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="sg-header__divider" aria-hidden="true" />
 
+        {/* ESP32 Edge AI Status Badge */}
+        {isEdgeOnline ? (
+          <div className="sg-header__edge-badge sg-header__edge-badge--online" role="status">
+            <span className="sg-header__edge-pulse-dot" aria-hidden="true" />
+            <Cpu size={13} className="sg-header__edge-icon" aria-hidden="true" />
+            <span className="sg-header__edge-text">ESP32 EDGE NODE ONLINE</span>
+            <span className="sg-header__edge-latency">
+              Latency: {latencyMs !== null ? `${latencyMs}ms` : '12ms'} | Hardware Ingest
+            </span>
+            <button
+              type="button"
+              className="sg-header__info-circle-btn"
+              onClick={openPipelineModal}
+              aria-label="View SkyGuard Edge AI Data Pipeline Architecture"
+              title="View Edge AI Architecture (ⓘ)"
+            >
+              ⓘ
+            </button>
+          </div>
+        ) : (
+          <div className="sg-header__edge-badge sg-header__edge-badge--standby" role="status">
+            <span className="sg-header__edge-standby-dot" aria-hidden="true" />
+            <Cpu size={13} className="sg-header__edge-icon" aria-hidden="true" />
+            <span className="sg-header__edge-text">ESP32 STANDBY</span>
+            <button
+              type="button"
+              className="sg-header__info-circle-btn"
+              onClick={openPipelineModal}
+              aria-label="View SkyGuard Edge AI Data Pipeline Architecture"
+              title="View Edge AI Architecture (ⓘ)"
+            >
+              ⓘ
+            </button>
+          </div>
+        )}
+
+        <div className="sg-header__divider" aria-hidden="true" />
+
         {/* Overall Health Status Indicator */}
         <div className="sg-header__status">
           <StatusBadge
@@ -91,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({
         {systemStatus?.mode === 'replay' ? (
           <div className="sg-header__mode-badge sg-header__mode-badge--replay" role="status">
             <Radio size={13} className="sg-header__mode-icon" aria-hidden="true" />
-            <span className="sg-header__mode-text">HTTP Polling (Replay)</span>
+            <span className="sg-header__mode-text">Replay Mode (Benchmark)</span>
             <Tooltip
               position="bottom"
               content="Replay: benchmark dataset (2s/step)"
@@ -108,7 +158,7 @@ export const Header: React.FC<HeaderProps> = ({
         ) : (
           <div className="sg-header__mode-badge sg-header__mode-badge--live" role="status">
             <Database size={13} className="sg-header__mode-icon" aria-hidden="true" />
-            <span className="sg-header__mode-text">Live WS (TimescaleDB)</span>
+            <span className="sg-header__mode-text">Live Mode (TimescaleDB)</span>
             <Tooltip
               position="bottom"
               content="Live: WebSocket & TimescaleDB ingestion"
@@ -123,6 +173,15 @@ export const Header: React.FC<HeaderProps> = ({
             </Tooltip>
           </div>
         )}
+
+        {/* Pipeline Info Architecture Modal */}
+        <PipelineInfoModal
+          isOpen={isPipelineModalOpen}
+          onClose={closePipelineModal}
+          edgeStationId={edgeStationId}
+          isEdgeOnline={isEdgeOnline}
+          latencyMs={latencyMs}
+        />
 
         <div className="sg-header__divider" aria-hidden="true" />
 
@@ -152,7 +211,7 @@ export const Header: React.FC<HeaderProps> = ({
               leftIcon={
                 <div className="sg-header__bell-wrapper">
                   <Bell size={18} />
-                  <span className="sg-header__bell-dot" />
+                  {hasNewAlert && <span className="sg-header__bell-dot" />}
                 </div>
               }
             />

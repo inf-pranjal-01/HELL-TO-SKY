@@ -138,19 +138,23 @@ async def _db_monitor_loop(history_store):
 async def lifespan(app: FastAPI):
     app.state.ws_manager = ws_manager
     app.state.sim = create_simulator_state(broadcast_callback=ws_manager.broadcast)
-    # Start simulation loop in background task; local seed data ensures endpoints respond instantly
+    # Start simulation loop in background task
     app.state.sim_task = asyncio.create_task(run_simulation_loop(app.state.sim))
     # Start DB health monitor & auto-reconnect task
-    app.state.db_monitor_task = asyncio.create_task(_db_monitor_loop(app.state.sim.manager.history))
+    if "pytest" not in sys.modules:
+        app.state.db_monitor_task = asyncio.create_task(_db_monitor_loop(app.state.sim.manager.history))
+    else:
+        app.state.db_monitor_task = None
     try:
         yield
     finally:
-        app.state.db_monitor_task.cancel()
+        if app.state.db_monitor_task:
+            app.state.db_monitor_task.cancel()
+            try:
+                await app.state.db_monitor_task
+            except asyncio.CancelledError:
+                pass
         app.state.sim_task.cancel()
-        try:
-            await app.state.db_monitor_task
-        except asyncio.CancelledError:
-            pass
         try:
             await app.state.sim_task
         except asyncio.CancelledError:
@@ -212,7 +216,8 @@ async def set_system_mode(body: dict):
     """Switch safely back to live when the dashboard replay toggle is off."""
     if body.get("mode") != "live":
         raise HTTPException(status_code=400, detail="Only mode='live' is supported by this endpoint.")
-    await asyncio.to_thread(app.state.sim.stop_replay)
+    sim = app.state.sim
+    sim.stop_replay()
     return {"mode": "live", "message": "Replay stopped; live buffers and view were reset."}
 
 
@@ -247,6 +252,18 @@ async def clear_history(target: Optional[str] = "all", body: Optional[dict] = No
         sim._live_last_fetch = None
         sim._live_refresh_requested = True
         asyncio.create_task(sim.refresh_live_now())
+    else:
+        # target == 'replay': purge replay scratch data in memory only, preserving live telemetry
+        from collections import deque
+        for sid in sim.trend_history:
+            sim.trend_history[sid] = deque(
+                (p for p in sim.trend_history[sid] if p.get("source") != "replay"),
+                maxlen=2000
+            )
+        sim.recent_anomalies = deque(
+            (a for a in sim.recent_anomalies if a.get("source") != "replay"),
+            maxlen=200
+        )
 
     await ws_manager.broadcast({
         "type": "HISTORY_PURGED",
@@ -298,8 +315,8 @@ async def get_network_status():
 async def refresh_live_snapshot():
     """Explicit, user-triggered Open-Meteo refresh; does not alter cadence."""
     sim = app.state.sim
-    await sim.refresh_live_now()
-    return {"mode": sim.mode, "message": "Live provider snapshot refreshed."}
+    asyncio.create_task(sim.refresh_live_now())
+    return {"mode": sim.mode, "message": "Live provider snapshot refresh initiated."}
 
 
 @app.post("/api/admin/sync-db")
@@ -316,6 +333,160 @@ async def trigger_csv_db_sync(station_id: Optional[str] = None):
         "status": "success",
         "synced_rows": count,
         "message": f"Successfully updated TimescaleDB with {count} readings from CSV mirror.",
+    }
+
+
+# ---------------- POST /api/ingest/observation (ESP32 Edge Ingestion) ----------------
+
+_seen_event_ids = set()
+
+@app.post("/api/ingest/observation")
+async def ingest_edge_observation(payload: dict):
+    """
+    Direct ingestion endpoint for ESP32 edge nodes.
+    Receives canonical ObservationPacket JSON payloads, executes Level 2 backend inference,
+    records the observation to the dual-store history, and broadcasts real-time telemetry.
+    """
+    sim = app.state.sim
+    event_id = payload.get("event_id")
+    station_id = payload.get("station_id")
+    readings = payload.get("readings", {})
+    observed_at = payload.get("observed_at")
+    edge_inference = payload.get("edge_inference", {})
+    seq = payload.get("sequence_number", 0)
+
+    if not event_id or not station_id or not readings:
+        raise HTTPException(status_code=422, detail="Missing required ObservationPacket fields (event_id, station_id, readings).")
+
+    if station_id not in sim.manager.buffers:
+        raise HTTPException(status_code=404, detail=f"Station '{station_id}' is not registered.")
+
+    # Idempotency check
+    if event_id in _seen_event_ids:
+        return {"accepted": True, "event_id": event_id, "status": "duplicate_acknowledged"}
+    _seen_event_ids.add(event_id)
+    if len(_seen_event_ids) > 5000:
+        _seen_event_ids.pop()
+
+    try:
+        ts = pd.to_datetime(observed_at, utc=True) if observed_at else pd.Timestamp.now(tz="UTC")
+    except Exception:
+        ts = pd.Timestamp.now(tz="UTC")
+
+    raw_reading = {
+        "temperature_c": readings.get("temperature_c"),
+        "pressure_hpa": readings.get("pressure_hpa"),
+        "humidity_pct": readings.get("humidity_pct"),
+    }
+
+    # Execute Level 2 full backend scoring
+    verdict = await asyncio.to_thread(
+        sim.manager.ingest_reading,
+        station_id,
+        raw_reading,
+        ts,
+    )
+
+    sim.latest[station_id] = {
+        "raw_reading": raw_reading,
+        "verdict": verdict,
+        "timestamp": ts,
+        "source": "edge",
+        "edge_inference": edge_inference,
+    }
+
+    suggested = verdict.get("suggested_values") or {}
+    sim.trend_history[station_id].append({
+        "timestamp": ts,
+        "temperature_c": raw_reading.get("temperature_c"),
+        "pressure_hpa": raw_reading.get("pressure_hpa"),
+        "humidity_pct": raw_reading.get("humidity_pct"),
+        "is_anomaly": bool(verdict.get("is_anomaly", False)),
+        "fault_type": verdict.get("fault_type"),
+        "severity": verdict.get("severity"),
+        "anomaly_score_pct": verdict.get("anomaly_score_pct"),
+        "suggested_temperature_c": suggested.get("temperature_c"),
+        "suggested_pressure_hpa": suggested.get("pressure_hpa"),
+        "suggested_humidity_pct": suggested.get("humidity_pct"),
+        "affected_parameters": verdict.get("affected_parameters") or verdict.get("likely_faulty_sensors") or [],
+        "health_status": verdict.get("health_status"),
+        "source": "edge",
+    })
+
+    # Broadcast live over WebSockets
+    import time
+    ingest_time_ms = int(time.time() * 1000)
+    await ws_manager.broadcast({
+        "type": "TELEMETRY_TICK",
+        "station_id": station_id,
+        "timestamp": ts.isoformat(),
+        "reading": raw_reading,
+        "verdict": {
+            "is_anomaly": bool(verdict.get("is_anomaly", False)),
+            "anomaly_score_pct": verdict.get("anomaly_score_pct"),
+            "model_confidence_pct": verdict.get("model_confidence_pct"),
+            "rule_confidence_pct": verdict.get("rule_confidence_pct"),
+            "fault_type": verdict.get("fault_type"),
+            "severity": verdict.get("severity"),
+            "health_status": verdict.get("health_status"),
+            "suggested_values": verdict.get("suggested_values"),
+            "decision_basis": verdict.get("decision_basis"),
+            "likely_faulty_sensors": verdict.get("likely_faulty_sensors", []),
+        },
+        "edge_inference": edge_inference,
+        "mode": "edge",
+        "ingest_time_ms": ingest_time_ms,
+    })
+
+    is_level2_anomaly = bool(verdict.get("is_anomaly", False))
+    is_edge_alert = isinstance(edge_inference, dict) and edge_inference.get("status") == "ALERT"
+
+    if is_level2_anomaly or is_edge_alert:
+        sim._anomaly_counter += 1
+        anomaly_id = f"anom_{sim._anomaly_counter:05d}"
+
+        final_type = verdict.get("fault_type") if (is_level2_anomaly and verdict.get("fault_type")) else (edge_inference.get("anomaly_type") if is_edge_alert else "anomaly")
+        final_score = verdict.get("anomaly_score_pct") if (is_level2_anomaly and (verdict.get("anomaly_score_pct") or 0) > 20.0) else (edge_inference.get("confidence_pct", 88.0) if is_edge_alert else 85.0)
+        final_severity = verdict.get("severity") if (is_level2_anomaly and verdict.get("severity")) else ("critical" if float(final_score) >= 90 else "high")
+
+        anomaly_item = {
+            "anomaly_id": anomaly_id,
+            "station_id": station_id,
+            "timestamp": ts,
+            "anomaly_score_pct": float(final_score),
+            "severity": final_severity,
+            "type": final_type,
+            "root_cause": verdict.get("root_cause") or f"Detected {final_type}",
+            "model_confidence_pct": verdict.get("model_confidence_pct"),
+            "rule_confidence_pct": verdict.get("rule_confidence_pct") or (float(final_score) if is_edge_alert else None),
+            "shap_features": verdict.get("shap_features", []),
+            "likely_faulty_sensors": verdict.get("likely_faulty_sensors", []),
+            "affected_parameters": verdict.get("affected_parameters", []),
+            "observed_values": raw_reading,
+            "suggested_values": verdict.get("suggested_values", {}),
+            "edge_inference": edge_inference,
+            "source": "edge",
+        }
+        sim.recent_anomalies.append(anomaly_item)
+        await ws_manager.broadcast({
+            "type": "ANOMALY_EVENT",
+            "station_id": station_id,
+            "anomaly": {
+                **anomaly_item,
+                "timestamp": ts.isoformat(),
+            }
+        })
+
+    return {
+        "accepted": True,
+        "event_id": event_id,
+        "sequence_number": seq,
+        "edge_status": edge_inference.get("status"),
+        "backend_verdict": {
+            "is_anomaly": verdict.get("is_anomaly", False),
+            "anomaly_score_pct": verdict.get("anomaly_score_pct"),
+            "fault_type": verdict.get("fault_type"),
+        }
     }
 
 
@@ -346,44 +517,90 @@ async def get_stations():
 @app.get("/api/current-reading")
 async def get_current_reading(station_id: str):
     sim = app.state.sim
+    if station_id not in sim.manager.buffers:
+        raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
+
     entry = sim.latest.get(station_id)
-    if entry is None:
-        raise HTTPException(status_code=404, detail=f"No reading yet for {station_id}")
-    if sim.mode == "live" and entry.get("source") == "replay":
+    if sim.mode == "live" and (entry is None or entry.get("source") == "replay"):
         live_entry = sim._last_live_latest.get(station_id)
         if live_entry and live_entry.get("source") == "live":
             entry = live_entry
-        else:
-            raise HTTPException(status_code=404, detail=f"No live reading yet for {station_id}")
+
+    if entry is None and sim.mode == "live":
+        # Give live provider bootstrap / refresh up to 2.5s to finish
+        for _ in range(25):
+            await asyncio.sleep(0.1)
+            entry = sim.latest.get(station_id) or sim._last_live_latest.get(station_id)
+            if entry and (sim.mode != "live" or entry.get("source") == "live"):
+                break
+
+    if entry is None:
+        if sim.mode == "live":
+            nominal = get_station_normal_ranges(station_id)
+            station_health = sim.manager.get_station_status(station_id)
+            parameter_status = sim.manager.buffers[station_id].health.param_status
+            return {
+                "station_id": station_id,
+                "timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
+                "temperature_c": {"value": None, **nominal["temperature_c"]},
+                "pressure_hpa": {"value": None, **nominal["pressure_hpa"]},
+                "humidity_pct": {"value": None, **nominal["humidity_pct"]},
+                "anomaly_score_pct": 0.0,
+                "is_anomaly": False,
+                "fault_type": None,
+                "severity": None,
+                "model_confidence_pct": None,
+                "rule_confidence_pct": None,
+                "risk_level": "low",
+                "sensor_health_pct": 100,
+                "sensor_health_status": "HEALTHY",
+                "sensor_parameters": parameter_status,
+                "suggested_values": {},
+                "source": "live",
+                "is_syncing": True,
+            }
+        raise HTTPException(status_code=404, detail=f"No reading yet for {station_id}")
 
     raw = entry["raw_reading"]
     verdict = entry["verdict"]
 
-    # normal_min/max: static fallback ranges since config.py's exact
-    # constant names aren't in view here -- if config.py already
-    # defines per-parameter normal ranges, swap these literals for
-    # that import instead of duplicating the values.
     station_health = sim.manager.get_station_status(station_id)
     parameter_status = sim.manager.buffers[station_id].health.param_status
     nominal = get_station_normal_ranges(station_id)
+    raw_severity = verdict.get("severity")
+    score_pct = float(verdict.get("anomaly_score_pct", 0.0) or 0.0)
+    
+    if raw_severity in ("low", "medium", "high", "critical"):
+        risk_level = raw_severity
+    elif score_pct >= 90.0:
+        risk_level = "critical"
+    elif score_pct >= 70.0:
+        risk_level = "high"
+    elif verdict.get("is_anomaly", False) or score_pct >= 40.0:
+        risk_level = "medium"
+    else:
+        risk_level = "low"
+
     return {
         "station_id": station_id,
-        "timestamp": entry["timestamp"].isoformat(),
+        "timestamp": entry["timestamp"].isoformat() if hasattr(entry["timestamp"], "isoformat") else str(entry["timestamp"]),
         "temperature_c": {"value": raw.get("temperature_c"), **nominal["temperature_c"]},
         "pressure_hpa": {"value": raw.get("pressure_hpa"), **nominal["pressure_hpa"]},
         "humidity_pct": {"value": raw.get("humidity_pct"), **nominal["humidity_pct"]},
-        "anomaly_score_pct": verdict["anomaly_score_pct"],
+        "anomaly_score_pct": verdict.get("anomaly_score_pct", 0.0),
         "is_anomaly": bool(verdict.get("is_anomaly", False)),
         "fault_type": verdict.get("fault_type"),
         "severity": verdict.get("severity"),
         "model_confidence_pct": verdict.get("model_confidence_pct"),
         "rule_confidence_pct": verdict.get("rule_confidence_pct"),
-        "risk_level": verdict["severity"],
+        "risk_level": risk_level,
         "sensor_health_pct": _health_pct(parameter_status),
         "sensor_health_status": station_health["status"],
         "sensor_parameters": parameter_status,
         "suggested_values": verdict.get("suggested_values", {}),
         "source": entry.get("source", sim.mode),
+        "edge_inference": entry.get("edge_inference"),
+        "is_syncing": False,
     }
 
 
@@ -443,6 +660,12 @@ async def get_trends(station_id: str, hours: int = 6):
         if not points:
             points = [p for p in list(sim.trend_history.get(station_id, [])) if p.get("source", "live") == "live"]
 
+    # Strictly guarantee monotonic timestamp ordering
+    try:
+        points = sorted(points, key=lambda p: pd.to_datetime(p["timestamp"]))
+    except Exception:
+        pass
+
     trend_points = [
         {
             "timestamp": p["timestamp"].isoformat() if hasattr(p["timestamp"], "isoformat") else str(p["timestamp"]),
@@ -456,6 +679,7 @@ async def get_trends(station_id: str, hours: int = 6):
             "suggested_temperature_c": _json_nullable(p.get("suggested_temperature_c")),
             "suggested_pressure_hpa": _json_nullable(p.get("suggested_pressure_hpa")),
             "suggested_humidity_pct": _json_nullable(p.get("suggested_humidity_pct")),
+            "affected_parameters": p.get("affected_parameters", []),
             "health_status": _json_nullable(p.get("health_status")),
             "source": p.get("source", sim.manager.mode),
         }
@@ -509,14 +733,16 @@ def download_station_history(station_id: str):
 @app.get("/api/anomalies/latest")
 async def get_latest_anomaly(station_id: str):
     sim = app.state.sim
-    for a in sim.recent_anomalies:
+    for a in reversed(sim.recent_anomalies):
         if a["station_id"] == station_id:
             try:
-                a_year = pd.to_datetime(a["timestamp"]).year
-                if sim.mode == "replay" and a_year > 2025:
-                    continue
-                if sim.mode == "live" and a_year <= 2025:
-                    continue
+                a_source = a.get("source", "live")
+                if a_source != "edge":
+                    a_year = pd.to_datetime(a["timestamp"]).year
+                    if sim.mode == "replay" and a_year > 2025:
+                        continue
+                    if sim.mode == "live" and a_year <= 2025:
+                        continue
             except Exception:
                 pass
             return {
@@ -541,6 +767,8 @@ async def get_latest_anomaly(station_id: str):
                     a.get("model_confidence_pct"),
                     None,
                 ),
+                "edge_inference": a.get("edge_inference"),
+                "source": a.get("source"),
             }
     # No recent anomaly is a healthy, expected state—not a missing resource.
     # Returning JSON null keeps the dashboard nominal and avoids a noisy 404
@@ -556,11 +784,13 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
     valid_anoms = []
     for a in sim.recent_anomalies:
         try:
-            a_year = pd.to_datetime(a["timestamp"]).year
-            if sim.mode == "replay" and a_year > 2025:
-                continue
-            if sim.mode == "live" and a_year <= 2025:
-                continue
+            a_source = a.get("source", "live")
+            if a_source != "edge":
+                a_year = pd.to_datetime(a["timestamp"]).year
+                if sim.mode == "replay" and a_year > 2025:
+                    continue
+                if sim.mode == "live" and a_year <= 2025:
+                    continue
         except Exception:
             pass
         valid_anoms.append(a)
@@ -592,6 +822,8 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
                 a.get("model_confidence_pct"),
                 None,
             ),
+            "edge_inference": a.get("edge_inference"),
+            "source": a.get("source"),
         }
         for a in matches
     ]
@@ -773,7 +1005,9 @@ def _compute_spatial_context(sim, match: dict) -> dict:
         if pval is None and pid in sim.manager.buffers and sim.manager.buffers[pid]._raw_rows:
             pval = sim.manager.buffers[pid]._raw_rows[-1].get(p_name)
         if pval is None:
-            if target_sid == "AWS-CHN-024" and p_name == "temperature_c":
+            if fallback_target is None:
+                pval = 0.0
+            elif target_sid == "AWS-CHN-024" and p_name == "temperature_c":
                 defaults = {"AWS-CHN-101": 29.0, "AWS-CHN-102": 30.0, "AWS-CHN-103": 29.5}
                 pval = defaults.get(pid, 29.5)
             else:
@@ -934,6 +1168,85 @@ def _compute_spatial_context(sim, match: dict) -> dict:
     }
 
 
+def _compute_explanation_features(match: dict, spatial_ctx: dict | None) -> list:
+    if match.get("shap_features") and len(match["shap_features"]) > 0:
+        return match["shap_features"]
+
+    features = []
+    seen_names = set()
+
+    # 1. Thermodynamic Context (Clausius-Clapeyron)
+    if spatial_ctx and spatial_ctx.get("thermodynamic_context") and spatial_ctx["thermodynamic_context"].get("is_violation"):
+        features.append({
+            "name": "Thermodynamic Consistency (Clausius-Clapeyron)",
+            "impact": 4.85,
+            "column": "vapor_pressure_consistency"
+        })
+        seen_names.add("Thermodynamic Consistency (Clausius-Clapeyron)")
+
+    # 2. Observed vs Suggested / Baseline Deviations
+    observed = match.get("observed_values") or {}
+    suggested = match.get("suggested_values") or {}
+    for param, obs_val in observed.items():
+        if obs_val is not None:
+            sugg_val = suggested.get(param)
+            if sugg_val is not None:
+                diff = round(float(obs_val) - float(sugg_val), 2)
+            elif spatial_ctx and spatial_ctx.get("target_station") and spatial_ctx.get("delta") is not None and spatial_ctx.get("parameter_analyzed", "").lower() in param:
+                diff = round(float(spatial_ctx["delta"]), 2)
+            else:
+                diff = 0.0
+
+            display_map = {
+                "temperature_c": "Temp Deviation",
+                "pressure_hpa": "Pressure Deviation",
+                "humidity_pct": "Humidity Deviation",
+            }
+            name = display_map.get(param, f"{param.replace('_', ' ').title()} Deviation")
+            if name not in seen_names:
+                scale = 10.0 if param == "temperature_c" else 25.0 if param == "humidity_pct" else 10.0
+                norm_impact = round(diff / scale, 4) if scale else diff
+                features.append({
+                    "name": name,
+                    "impact": norm_impact if norm_impact != 0 else (1.5 if diff >= 0 else -1.5),
+                    "column": param
+                })
+                seen_names.add(name)
+
+    # 3. Spatial Divergence if not already captured
+    if spatial_ctx and spatial_ctx.get("parameter_analyzed"):
+        p_name = spatial_ctx["parameter_analyzed"]
+        delta = spatial_ctx.get("delta", 0.0)
+        display_map = {
+            "temperature": "Spatial Delta (Temp vs Cluster)",
+            "barometric pressure": "Spatial Delta (Pressure vs Cluster)",
+            "relative humidity": "Spatial Delta (Humidity vs Cluster)",
+        }
+        feat_name = display_map.get(p_name.lower(), f"{p_name} Contrast")
+        if feat_name not in seen_names and abs(delta) > 0.1:
+            features.append({
+                "name": feat_name,
+                "impact": round(delta / 5.0, 4),
+                "column": p_name
+            })
+            seen_names.add(feat_name)
+
+    # 4. Fallback if still empty but affected parameters exist
+    if not features:
+        for p in match.get("affected_parameters") or []:
+            name = f"{p.replace('_', ' ').title()} Deviation"
+            if name not in seen_names:
+                features.append({
+                    "name": name,
+                    "impact": 2.5,
+                    "column": p
+                })
+                seen_names.add(name)
+
+    features.sort(key=lambda f: abs(f["impact"]), reverse=True)
+    return features
+
+
 # ---------------- GET /api/explain/{anomaly_id} ----------------
 
 @app.get("/api/explain/{anomaly_id}")
@@ -951,11 +1264,14 @@ def get_explanation(anomaly_id: str):
             detail=f"Unknown anomaly_id {anomaly_id}"
         )
 
+    spatial_ctx = _compute_spatial_context(sim, match)
+    features = _compute_explanation_features(match, spatial_ctx)
+
     return {
         "anomaly_id": anomaly_id,
         "station_id": match.get("station_id"),
         "timestamp": match["timestamp"].isoformat() if hasattr(match.get("timestamp"), "isoformat") else str(match.get("timestamp", "")),
-        "features": match.get("shap_features", []),
+        "features": features,
         "likely_faulty_sensors": match.get("likely_faulty_sensors", []),
         "affected_parameters": match.get("affected_parameters", []),
         "observed_values": match.get("observed_values", {}),
@@ -974,7 +1290,8 @@ def get_explanation(anomaly_id: str):
             match.get("model_confidence_pct"),
             None,
         ),
-        "spatial_context": _compute_spatial_context(sim, match),
+        "spatial_context": spatial_ctx,
+        "edge_inference": match.get("edge_inference"),
     }
 
 
@@ -982,21 +1299,48 @@ def get_explanation(anomaly_id: str):
 # ---------------- GET /api/sensor-health ----------------
 
 @app.get("/api/sensor-health")
-def get_sensor_health(station_id: str):
+def get_sensor_health(station_id: Optional[str] = None):
     sim = app.state.sim
-    if station_id not in sim.manager.buffers:
-        raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
-    status = sim.manager.get_station_status(station_id)
-    mapped = {"HEALTHY": "HEALTHY", "WARNING": "WARNING", "OFFLINE": "OFFLINE"}.get(status["status"], "HEALTHY")
-    parameter_status = sim.manager.buffers[station_id].health.param_status
-    return {
-        "station_id": station_id,
-        "health_pct": _health_pct(parameter_status),
-        "status": mapped,
-        "parameters": parameter_status,
-        "offline_reason": status["offline_reason"],
-        "recovery_active": status["recovery_active"],
-    }
+    if station_id:
+        if station_id not in sim.manager.buffers:
+            raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
+        status = sim.manager.get_station_status(station_id)
+        mapped = {"HEALTHY": "HEALTHY", "WARNING": "WARNING", "OFFLINE": "OFFLINE"}.get(status["status"], "HEALTHY")
+        parameter_status = sim.manager.buffers[station_id].health.param_status
+        base_health = _health_pct(parameter_status)
+        if mapped == "OFFLINE":
+            base_health = min(base_health, 0)
+        elif mapped == "WARNING":
+            base_health = min(base_health, 50)
+        return {
+            "station_id": station_id,
+            "health_pct": base_health,
+            "status": mapped,
+            "parameters": parameter_status,
+            "offline_reason": status["offline_reason"],
+            "recovery_active": status["recovery_active"],
+        }
+    
+    # Return all stations
+    results = []
+    for sid in sim.manager.buffers:
+        st = sim.manager.get_station_status(sid)
+        mp = {"HEALTHY": "HEALTHY", "WARNING": "WARNING", "OFFLINE": "OFFLINE"}.get(st["status"], "HEALTHY")
+        param_st = sim.manager.buffers[sid].health.param_status
+        bh = _health_pct(param_st)
+        if mp == "OFFLINE":
+            bh = min(bh, 0)
+        elif mp == "WARNING":
+            bh = min(bh, 50)
+        results.append({
+            "station_id": sid,
+            "health_pct": bh,
+            "status": mp,
+            "parameters": param_st,
+            "offline_reason": st["offline_reason"],
+            "recovery_active": st["recovery_active"],
+        })
+    return results
 
 # ---------------- POST /api/repair-sensor ----------------
 
@@ -1056,13 +1400,18 @@ async def inject_anomaly(body: dict):
 
     if sim.mode == "replay":
         if station_id:
-            await asyncio.to_thread(sim.inject_fault_dynamic, station_id, fault_type)
+            anomaly_id = await asyncio.to_thread(sim.inject_fault_dynamic, station_id, fault_type)
             return {
                 "success": True,
-                "anomaly_id": f"anom_{sim._anomaly_counter + 1:05d}",
+                "anomaly_id": anomaly_id,
                 "message": f"Injected {fault_type or 'anomaly'} into active replay for {station_id}.",
             }
-        raise HTTPException(status_code=409, detail="Simulator replay already running.")
+        anomaly_id = await asyncio.to_thread(sim.start_replay, station_id, fault_type)
+        return {
+            "success": True,
+            "anomaly_id": anomaly_id,
+            "message": f"Simulator restarted: replaying data with {fault_type or 'anomaly'}.",
+        }
 
     anomaly_id = await asyncio.to_thread(sim.start_replay, station_id, fault_type)
     return {

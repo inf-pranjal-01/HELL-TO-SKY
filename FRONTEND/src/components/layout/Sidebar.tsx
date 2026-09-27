@@ -18,6 +18,7 @@ import { Button } from "../common/Button";
 import { StationSelector } from "./StationSelector";
 import { ROUTE_REGISTRY } from "../../config/routeRegistry";
 import { useFocusTrap, announceToScreenReader } from "../../hooks/useFocusTrap";
+import { useAlertNotification } from "../../context/AlertNotificationContext";
 import "./Sidebar.css";
 
 export interface SidebarProps {
@@ -40,6 +41,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const drawerRef = useFocusTrap<HTMLElement>(isMobileOpen, onCloseMobile, {
     triggerRef: mobileTriggerRef,
   });
+
+  const { hasNewAlert } = useAlertNotification();
 
   const handleBackdropClick = () => onCloseMobile();
 
@@ -110,6 +113,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <ul className="sg-sidebar__menu" role="list">
             {ROUTE_REGISTRY.map((route) => {
               const Icon = route.icon;
+              const isAlertsRoute = route.path === "/alerts";
+              const showDot = isAlertsRoute && hasNewAlert;
+
               const linkContent = (
                 <NavLink
                   to={route.path}
@@ -119,12 +125,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     `sg-sidebar__item ${isActive ? "sg-sidebar__item--active" : ""}`
                   }
                   aria-current={undefined}
+                  aria-label={showDot ? `${route.shortLabel} (New anomaly alert)` : undefined}
                 >
-                  <span className="sg-sidebar__icon" aria-hidden="true">
+                  <span className="sg-sidebar__icon sg-sidebar__icon-wrapper" aria-hidden="true">
                     <Icon size={20} />
+                    {isCollapsed && showDot && (
+                      <span className="sg-sidebar__icon-dot" aria-hidden="true" />
+                    )}
                   </span>
                   {!isCollapsed && (
                     <span className="sg-sidebar__label">{route.shortLabel}</span>
+                  )}
+                  {!isCollapsed && showDot && (
+                    <span
+                      className="sg-sidebar__alert-dot"
+                      role="status"
+                      aria-label="New anomaly alert"
+                    />
                   )}
                 </NavLink>
               );
@@ -132,7 +149,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               return (
                 <li key={route.path}>
                   {isCollapsed ? (
-                    <Tooltip content={route.shortLabel} position="right">
+                    <Tooltip
+                      content={
+                        showDot ? `${route.shortLabel} • New Alert` : route.shortLabel
+                      }
+                      position="right"
+                    >
                       {linkContent}
                     </Tooltip>
                   ) : (

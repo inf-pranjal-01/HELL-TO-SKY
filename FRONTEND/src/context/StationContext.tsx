@@ -56,7 +56,16 @@ export const StationProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const interval = setInterval(() => {
       fetchStations(false);
     }, 20000); // 20s background status polling
-    return () => clearInterval(interval);
+
+    const handleRefreshEvent = () => {
+      fetchStations(false);
+    };
+    window.addEventListener('sg-refresh-stations', handleRefreshEvent);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('sg-refresh-stations', handleRefreshEvent);
+    };
   }, [fetchStations]);
 
   return (

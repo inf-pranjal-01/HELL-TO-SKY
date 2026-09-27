@@ -44,6 +44,19 @@
   margin: 0;
 }
 
+.sg-edge-hardware-tag {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  padding: 0.18rem 0.55rem;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.12);
+}
+
 /* Live freshness indicator */
 .sg-live-badge-container {
   display: inline-flex;

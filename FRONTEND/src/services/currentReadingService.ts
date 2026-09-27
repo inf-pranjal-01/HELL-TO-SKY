@@ -37,15 +37,15 @@ export const currentReadingService = {
             timestamp: new Date().toISOString(),
             temperature_c: {
               ...data.temperature_c,
-              value: Number((data.temperature_c.value + jitter).toFixed(1)),
+              value: data.temperature_c.value != null ? Number((data.temperature_c.value + jitter).toFixed(1)) : null,
             },
             pressure_hpa: {
               ...data.pressure_hpa,
-              value: Number((data.pressure_hpa.value + jitter * 0.5).toFixed(1)),
+              value: data.pressure_hpa.value != null ? Number((data.pressure_hpa.value + jitter * 0.5).toFixed(1)) : null,
             },
             humidity_pct: {
               ...data.humidity_pct,
-              value: Number(Math.min(100, Math.max(10, data.humidity_pct.value - jitter)).toFixed(1)),
+              value: data.humidity_pct.value != null ? Number(Math.min(100, Math.max(10, data.humidity_pct.value - jitter)).toFixed(1)) : null,
             },
           };
 

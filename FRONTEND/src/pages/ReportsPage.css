@@ -140,15 +140,17 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 12mm;
+    margin: 12mm 14mm;
   }
 
-  * {
+  *, *::before, *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
   }
 
-  /* Hide non-printable interactive controls */
+  /* Hide non-printable interactive controls and UI chrome */
   .no-print,
   .sg-header,
   .sg-sidebar,
@@ -158,36 +160,40 @@
   button,
   .sg-report-header__actions,
   .sg-report-period-container,
-  .sg-report-chart-tabs {
+  .sg-report-chart-tabs,
+  .sg-report-table-btn,
+  .sg-report-section__badge {
     display: none !important;
   }
 
+  html,
   body,
   #root,
   .sg-app-shell,
   .sg-main-content,
-  .sg-reports-page {
+  .sg-reports-page,
+  .sg-report-document {
     background: #ffffff !important;
+    background-color: #ffffff !important;
     color: #0f172a !important;
     margin: 0 !important;
     padding: 0 !important;
     max-width: 100% !important;
+    width: 100% !important;
     box-shadow: none !important;
-  }
-
-  .sg-report-document {
-    padding: 0 !important;
   }
 
   .sg-report-header {
     border-bottom: 2pt solid #0f172a !important;
-    padding-bottom: 10pt !important;
-    margin-bottom: 14pt !important;
+    padding-bottom: 8pt !important;
+    margin-bottom: 12pt !important;
+    background: transparent !important;
   }
 
   .sg-report-header__title {
     color: #0f172a !important;
-    font-size: 1.6rem !important;
+    font-size: 1.5rem !important;
+    font-weight: 800 !important;
   }
 
   .sg-report-header__subtitle {
@@ -199,32 +205,37 @@
     background: #f8fafc !important;
     border: 1pt solid #cbd5e1 !important;
     color: #0f172a !important;
-    margin-top: 8pt !important;
+    margin-top: 6pt !important;
+    padding: 6pt 10pt !important;
   }
 
   .sg-report-header__meta-val {
     color: #0f172a !important;
+    font-weight: 700 !important;
   }
 
   .sg-report-section {
     background: #ffffff !important;
+    background-color: #ffffff !important;
     border: 1pt solid #cbd5e1 !important;
     color: #0f172a !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     margin-bottom: 12pt !important;
-    box-shadow: none !important;
     padding: 10pt 12pt !important;
+    border-radius: 4pt !important;
+  }
+
+  .sg-report-section__header {
+    border-bottom: 1pt solid #e2e8f0 !important;
+    padding-bottom: 4pt !important;
+    margin-bottom: 8pt !important;
   }
 
   .sg-report-section__title {
     color: #0f172a !important;
     font-size: 1.05rem !important;
-  }
-
-  .sg-report-section__badge {
-    color: #475569 !important;
-    font-size: 0.7rem !important;
+    font-weight: 700 !important;
   }
 
   .sg-report-station-card,
@@ -234,32 +245,49 @@
   .sg-report-health-info-card,
   .sg-report-spatial-delta-card,
   .sg-report-insights-card,
-  .sg-report-chart-container {
+  .sg-report-chart-container,
+  .sg-report-meta-item,
+  .sg-report-spatial-card,
+  .sg-report-health-card {
     background: #f8fafc !important;
+    background-color: #f8fafc !important;
     border: 1pt solid #e2e8f0 !important;
     color: #0f172a !important;
     box-shadow: none !important;
+    border-radius: 4pt !important;
   }
 
   .sg-report-meta-val,
   .sg-report-meta-key,
   .sg-report-stat-title,
+  .sg-report-stat-value,
   .sg-report-insights-text,
   .sg-report-spatial-verdict-text,
-  .sg-report-health-info-text {
+  .sg-report-health-info-text,
+  .sg-report-subheading,
+  .sg-report-dist-name,
+  .sg-report-dist-count {
     color: #0f172a !important;
   }
 
-  table {
-    page-break-inside: auto !important;
-    break-inside: auto !important;
-    border-collapse: collapse !important;
-    width: 100% !important;
+  .sg-report-meta-sub {
+    color: #475569 !important;
   }
 
-  tr {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
+  .sg-report-table-wrapper {
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  table,
+  .sg-report-table {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+    font-size: 8pt !important;
   }
 
   thead {
@@ -268,23 +296,35 @@
 
   .sg-report-table thead th {
     background: #f1f5f9 !important;
+    background-color: #f1f5f9 !important;
     color: #0f172a !important;
     border-bottom: 1.5pt solid #94a3b8 !important;
-    font-size: 0.75rem !important;
+    font-size: 7.5pt !important;
+    font-weight: 700 !important;
+    padding: 5pt 6pt !important;
   }
 
   .sg-report-table tbody td {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
     color: #0f172a !important;
-    border-bottom: 0.5pt solid #cbd5e1 !important;
-    font-size: 0.75rem !important;
+    border-bottom: 0.5pt solid #e2e8f0 !important;
+    font-size: 7.5pt !important;
+    padding: 4pt 6pt !important;
   }
 
   .sg-report-type-cell {
     color: #0f172a !important;
+    font-weight: 600 !important;
   }
 
   .sg-report-cause-cell {
     color: #334155 !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .sg-report-dist-track,
@@ -295,11 +335,13 @@
   .sg-report-spatial-verdict--ok {
     background: #f0fdf4 !important;
     border: 1pt solid #86efac !important;
+    color: #166534 !important;
   }
 
   .sg-report-spatial-verdict--dev {
     background: #fffbeb !important;
     border: 1pt solid #fde68a !important;
+    color: #92400e !important;
   }
 
   .sg-report-svg line {
@@ -312,35 +354,37 @@
 
   .sg-report-certification {
     background: #f8fafc !important;
+    background-color: #f8fafc !important;
     border: 1.5pt solid #0f172a !important;
     color: #0f172a !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     margin-top: 14pt !important;
-    padding: 12pt 14pt !important;
-    box-shadow: none !important;
+    padding: 10pt 12pt !important;
+    border-radius: 4pt !important;
+  }
+
+  .sg-report-certification * {
+    color: #0f172a !important;
   }
 
   .sg-report-certification__header {
     border-bottom: 1pt solid #cbd5e1 !important;
+    padding-bottom: 4pt !important;
   }
 
   .sg-report-certification__badge {
     background: #0f172a !important;
+    background-color: #0f172a !important;
     color: #ffffff !important;
     border: none !important;
-  }
-
-  .sg-report-certification__classification {
-    color: #0f172a !important;
+    padding: 2pt 6pt !important;
+    font-size: 7pt !important;
   }
 
   .sg-report-certification__statement {
     color: #334155 !important;
-  }
-
-  .sg-report-certification__val {
-    color: #0f172a !important;
+    font-size: 8pt !important;
   }
 
   .sg-report-certification__sig-line {

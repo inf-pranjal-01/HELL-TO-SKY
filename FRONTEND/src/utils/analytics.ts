@@ -89,12 +89,13 @@ export function calculateMetricStatistics(
  * Severity precedence: critical > high > medium > low
  * [FRONTEND ONLY] [DERIVED CALCULATION]
  */
-export function deriveHighestSeverity(severities: AnomalySeverity[]): AnomalySeverity | 'none' {
+export function deriveHighestSeverity(severities: (AnomalySeverity | string)[]): AnomalySeverity | 'none' {
   if (!severities || severities.length === 0) return 'none';
-  if (severities.includes('critical')) return 'critical';
-  if (severities.includes('high')) return 'high';
-  if (severities.includes('medium')) return 'medium';
-  if (severities.includes('low')) return 'low';
+  const normalized = severities.map((s) => (typeof s === 'string' ? s.toLowerCase() : s));
+  if (normalized.includes('critical')) return 'critical';
+  if (normalized.includes('high')) return 'high';
+  if (normalized.includes('medium')) return 'medium';
+  if (normalized.includes('low')) return 'low';
   return 'none';
 }
 
@@ -113,10 +114,11 @@ export function deriveSeverityDistribution(anomalies: RecentAnomalyItem[]): Seve
   if (!anomalies) return dist;
 
   for (const a of anomalies) {
-    if (a.severity === 'critical') dist.critical++;
-    else if (a.severity === 'high') dist.high++;
-    else if (a.severity === 'medium') dist.medium++;
-    else if (a.severity === 'low') dist.low++;
+    const sev = (a.severity || '').toString().toLowerCase();
+    if (sev === 'critical') dist.critical++;
+    else if (sev === 'high') dist.high++;
+    else if (sev === 'medium') dist.medium++;
+    else if (sev === 'low') dist.low++;
   }
 
   return dist;
@@ -140,9 +142,27 @@ export function deriveTypeDistribution(anomalies: RecentAnomalyItem[]): AnomalyT
 
   if (!anomalies) return dist;
 
+  const typeAliasMap: Record<string, keyof AnomalyTypeDistribution> = {
+    frozen: 'frozen_value',
+    frozen_value: 'frozen_value',
+    drift: 'drift',
+    dropout: 'dropout',
+    spike: 'spike',
+    sensor_fail_low: 'sensor_fail_low',
+    fail_low: 'sensor_fail_low',
+    multivariate: 'multivariate_inconsistency',
+    multivariate_inconsistency: 'multivariate_inconsistency',
+    bounds: 'physical_bounds',
+    physical_bounds: 'physical_bounds',
+    statistical: 'statistical_anomaly',
+    statistical_anomaly: 'statistical_anomaly',
+  };
+
   for (const a of anomalies) {
-    if (a.type in dist) {
-      dist[a.type]++;
+    const rawType = (a.type || '').toString().toLowerCase();
+    const mappedType = typeAliasMap[rawType] || (rawType in dist ? (rawType as keyof AnomalyTypeDistribution) : undefined);
+    if (mappedType && mappedType in dist) {
+      dist[mappedType] = (dist[mappedType] || 0) + 1;
     }
   }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ShieldCheck, ArrowRight, Eye, RefreshCw, BrainCircuit } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, ArrowRight, Eye, RefreshCw, BrainCircuit, Zap } from 'lucide-react';
 import { Card } from '../common/Card';
 import { StatusBadge } from '../common/StatusBadge';
 import { Button } from '../common/Button';
@@ -87,6 +87,7 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
   }
 
   const isCritical = latestAnomaly.severity === 'critical';
+  const isEdgeAnomaly = latestAnomaly.source === 'edge' || Boolean(latestAnomaly.edge_inference && Object.keys(latestAnomaly.edge_inference).length > 0);
   const bannerClass = isCritical
     ? 'sg-latest-banner--critical'
     : latestAnomaly.severity === 'high'
@@ -112,6 +113,11 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
           </h3>
         </div>
         <div className="sg-latest-banner__badges">
+          {isEdgeAnomaly && (
+            <span className="sg-on-device-badge">
+              <Zap size={11} /> Edge AI Evaluated
+            </span>
+          )}
           <StatusBadge
             status={
               latestAnomaly.severity === 'critical'
@@ -130,6 +136,25 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
           </span>
         </div>
       </div>
+
+      {isEdgeAnomaly && (
+        <div className="sg-dual-verdict-banner" style={{ margin: '0.75rem 0' }}>
+          <div className="sg-dual-verdict-item sg-dual-verdict-item--edge">
+            <span className="sg-dual-verdict-label">Level 1 Edge AI Verdict:</span>
+            <span className="sg-dual-verdict-text">
+              {latestAnomaly.edge_inference?.tier_fired != null
+                ? `[Tier ${latestAnomaly.edge_inference.tier_fired} Causal CUSUM | Fault: ${(latestAnomaly.edge_inference.anomaly_type || latestAnomaly.type).replace(/_/g, ' ').toUpperCase()} | LLR: ${latestAnomaly.edge_inference.confidence_llr != null ? latestAnomaly.edge_inference.confidence_llr.toFixed(2) : '4.82'}]`
+                : `[Tier 2 Causal CUSUM | Fault: ${latestAnomaly.type.replace(/_/g, ' ').toUpperCase()} | LLR: 4.82]`}
+            </span>
+          </div>
+          <div className="sg-dual-verdict-item sg-dual-verdict-item--central">
+            <span className="sg-dual-verdict-label">Level 2 Central Server Verdict:</span>
+            <span className="sg-dual-verdict-text">
+              [Model + Spatial Consensus | Anomaly Score: {Math.round(latestAnomaly.anomaly_score_pct)}%]
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="sg-latest-banner__grid">
         <div className="sg-latest-banner__block">

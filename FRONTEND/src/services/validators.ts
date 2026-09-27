@@ -164,9 +164,9 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
       );
     }
     return {
-      value: (metric.value !== null && typeof metric.value === 'number' && !Number.isNaN(metric.value))
+      value: (metric.value !== null && metric.value !== undefined && typeof metric.value === 'number' && !Number.isNaN(metric.value))
         ? Number(metric.value)
-        : Number(metric.normal_min ?? 0),
+        : null,
       normal_min: Number(metric.normal_min),
       normal_max: Number(metric.normal_max),
     };
@@ -176,18 +176,14 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
     throw ApiError.validationError('Current reading missing numeric anomaly_score_pct.');
   }
 
-  const validRiskLevels = ['low', 'medium', 'high', 'critical'] as const;
-  type RiskLevelValue = (typeof validRiskLevels)[number];
-
-  if (
-    typeof data.risk_level !== 'string' ||
-    !validRiskLevels.includes(data.risk_level as RiskLevelValue)
-  ) {
-    throw ApiError.validationError(
-      `Current reading has invalid risk_level: "${String(data.risk_level)}".`
-    );
+  let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
+  if (typeof data.risk_level === 'string') {
+    const r = data.risk_level.toLowerCase();
+    if (r === 'critical') riskLevel = 'critical';
+    else if (r === 'high') riskLevel = 'high';
+    else if (r === 'medium' || r === 'moderate') riskLevel = 'medium';
+    else riskLevel = 'low';
   }
-  const riskLevel = data.risk_level as RiskLevelValue;
 
   if (typeof data.sensor_health_pct !== 'number') {
     throw ApiError.validationError('Current reading missing numeric sensor_health_pct.');

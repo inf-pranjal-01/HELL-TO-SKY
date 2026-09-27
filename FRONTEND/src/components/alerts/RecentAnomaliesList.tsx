@@ -153,7 +153,14 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                       <StatusBadge status={badgeSev} label={anom.severity.toUpperCase()} size="sm" />
                     </td>
                     <td className="sg-alerts-table-type">
-                      {anom.type.replace('_', ' ')}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <span>{anom.type.replace('_', ' ')}</span>
+                        {(anom.source === 'edge' || Boolean(anom.edge_inference && Object.keys(anom.edge_inference).length > 0)) && (
+                          <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', borderRadius: '3px', background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)', fontFamily: 'monospace', fontWeight: 700 }}>
+                            ⚡ EDGE
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="sg-alerts-table-score">
                       <span className={anom.anomaly_score_pct > 75 ? 'text-critical' : 'text-warning'}>

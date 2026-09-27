@@ -58,9 +58,6 @@ class HistoryStore:
         self.use_db = False
         self._db_pool = None
         self._init_timescale_pool()
-        if self.use_db:
-            # Sync any historical CSV records that may not yet be in TimescaleDB
-            self.trigger_background_sync()
 
     def _init_timescale_pool(self):
         db_url = os.environ.get("DATABASE_URL") or os.environ.get("TIMESCALE_SERVICE_URL")
@@ -81,21 +78,77 @@ class HistoryStore:
                 keepalives_count=5,
                 connect_timeout=10
             )
-            # Test connection
+            # Test connection and bootstrap schema
             conn = self._db_pool.getconn()
             try:
                 with conn.cursor() as cur:
-                    cur.execute("SET statement_timeout = '3000ms';")
+                    cur.execute("SET statement_timeout = '5000ms';")
                     cur.execute("SELECT 1;")
                 conn.commit()
+                self._ensure_schema(conn)
                 self.use_db = True
-                print("[HistoryStore] Connected to TimescaleDB (Tiger Cloud) successfully.")
+                print("[HistoryStore] Connected to TimescaleDB (Tiger Cloud) and verified schema successfully.")
             finally:
                 self._db_pool.putconn(conn)
         except Exception as e:
             print(f"[HistoryStore] TimescaleDB connection failed: {e!r}. Operating in CSV fallback mode.")
             self.use_db = False
             self._db_pool = None
+
+    def _ensure_schema(self, conn):
+        """Auto-bootstraps TimescaleDB hypertable and indices if they do not exist."""
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS sensor_readings (
+                        time TIMESTAMPTZ NOT NULL,
+                        station_id VARCHAR(32) NOT NULL,
+                        temperature_c DOUBLE PRECISION,
+                        pressure_hpa DOUBLE PRECISION,
+                        humidity_pct DOUBLE PRECISION,
+                        is_anomaly BOOLEAN DEFAULT FALSE,
+                        fault_type VARCHAR(64),
+                        severity VARCHAR(32),
+                        anomaly_score_pct DOUBLE PRECISION,
+                        suggested_temperature_c DOUBLE PRECISION,
+                        suggested_pressure_hpa DOUBLE PRECISION,
+                        suggested_humidity_pct DOUBLE PRECISION,
+                        health_status VARCHAR(32),
+                        source VARCHAR(32) DEFAULT 'live',
+                        decision_basis VARCHAR(64),
+                        model_confidence_pct DOUBLE PRECISION,
+                        rule_confidence_pct DOUBLE PRECISION,
+                        PRIMARY KEY (station_id, time)
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS station_health_events (
+                        time TIMESTAMPTZ NOT NULL,
+                        station_id VARCHAR(32) NOT NULL,
+                        old_state VARCHAR(32),
+                        new_state VARCHAR(32),
+                        reason TEXT
+                    );
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_sensor_readings_station_source_time
+                    ON sensor_readings (station_id, source, time DESC);
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_station_health_events_station_time
+                    ON station_health_events (station_id, time DESC);
+                """)
+                try:
+                    cur.execute("SELECT create_hypertable('sensor_readings', 'time', if_not_exists => TRUE, migrate_data => TRUE);")
+                except Exception:
+                    pass
+            conn.commit()
+        except Exception as e:
+            print(f"[HistoryStore] Schema bootstrap note: {e!r}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     @contextmanager
     def _get_db_conn(self):
@@ -105,6 +158,7 @@ class HistoryStore:
             return
 
         conn = None
+        should_close = False
         try:
             conn = self._db_pool.getconn()
         except Exception as e:
@@ -125,10 +179,12 @@ class HistoryStore:
             err_str = str(e).lower()
             if any(k in err_str for k in ("closed", "connection", "terminat", "timeout", "broken", "network", "operationalerror", "canceling")):
                 self.use_db = False
+                should_close = True
         finally:
             if conn and self._db_pool:
                 try:
-                    self._db_pool.putconn(conn)
+                    is_dead = should_close or (hasattr(conn, "closed") and conn.closed != 0)
+                    self._db_pool.putconn(conn, close=is_dead)
                 except Exception:
                     pass
 
@@ -227,7 +283,11 @@ class HistoryStore:
                                 )
                                 row = cur.fetchone()
                                 if row and row[0]:
-                                    latest_db_time = pd.Timestamp(row[0]).tz_convert("UTC")
+                                    t_val = pd.Timestamp(row[0])
+                                    if t_val.tzinfo is None:
+                                        latest_db_time = t_val.tz_localize("UTC")
+                                    else:
+                                        latest_db_time = t_val.tz_convert("UTC")
                 except Exception as e:
                     print(f"[HistoryStore] Could not query MAX(time) for {sid}: {e!r}")
                     continue
@@ -338,7 +398,7 @@ class HistoryStore:
         for str_col in ["fault_type", "severity", "health_status", "source", "decision_basis"]:
             if str_col in df.columns:
                 df[str_col] = df[str_col].astype(object)
-        parsed = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
+        parsed = pd.to_datetime(df["timestamp"], utc=True, format="mixed", errors="coerce")
         if parsed.isna().any():
             df = df.loc[parsed.notna()].copy()
             parsed = parsed.loc[parsed.notna()]
@@ -542,10 +602,18 @@ class HistoryStore:
         if ts_obj.tzinfo is None:
             ts_obj = ts_obj.tz_localize("UTC")
 
-        # Database update
-        if self.use_db and parameter in RAW_PARAMS:
+        # Database update with parameter normalization
+        norm_param = parameter
+        if norm_param in ("temp", "temperature"):
+            norm_param = "temperature_c"
+        elif norm_param in ("pressure", "baro"):
+            norm_param = "pressure_hpa"
+        elif norm_param in ("humidity", "humid", "rh"):
+            norm_param = "humidity_pct"
+
+        if self.use_db and norm_param in RAW_PARAMS:
             try:
-                col_name = f"suggested_{parameter}"
+                col_name = f"suggested_{norm_param}"
                 with self._get_db_conn() as conn:
                     if conn:
                         with conn.cursor() as cur:
@@ -772,6 +840,12 @@ class HistoryStore:
 
     def clear_all(self, source: str = None):
         """Purges source rows or truncates the store across all stations."""
+        if hasattr(self, "_last_appended"):
+            if source is None:
+                self._last_appended.clear()
+            else:
+                self._last_appended = {k: v for k, v in self._last_appended.items() if v[1] != source}
+
         if self.use_db and source != "replay":
             try:
                 with self._get_db_conn() as conn:
@@ -779,6 +853,7 @@ class HistoryStore:
                         with conn.cursor() as cur:
                             if source is None:
                                 cur.execute("TRUNCATE TABLE sensor_readings;")
+                                cur.execute("TRUNCATE TABLE station_health_events;")
                             else:
                                 cur.execute("DELETE FROM sensor_readings WHERE source = %s;", (source,))
                         conn.commit()

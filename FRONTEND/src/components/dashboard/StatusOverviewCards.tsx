@@ -49,10 +49,18 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
   const hasScore = typeof score === 'number' && !isNaN(score);
   const scoreVal = hasScore ? Math.round(score) : 0;
 
+  // Semantic coherence guard: Ensure high anomaly scores are never labeled LOW RISK
+  let effectiveRiskLevel = riskLevel;
+  if (scoreVal >= 90 && (riskLevel === 'low' || riskLevel === 'medium')) {
+    effectiveRiskLevel = 'critical';
+  } else if (scoreVal >= 70 && riskLevel === 'low') {
+    effectiveRiskLevel = 'high';
+  }
+
   let riskBadgeType: 'low' | 'moderate' | 'high' | 'critical' = 'low';
-  if (riskLevel === 'critical') riskBadgeType = 'critical';
-  else if (riskLevel === 'high') riskBadgeType = 'high';
-  else if (riskLevel === 'medium') riskBadgeType = 'moderate';
+  if (effectiveRiskLevel === 'critical') riskBadgeType = 'critical';
+  else if (effectiveRiskLevel === 'high') riskBadgeType = 'high';
+  else if (effectiveRiskLevel === 'medium') riskBadgeType = 'moderate';
 
   return (
     <Card variant="glass" className="sg-status-overview-card">
@@ -60,7 +68,7 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
         <span className="sg-status-overview-card__title">Anomaly Score</span>
         <ShieldAlert
           size={18}
-          className={riskLevel === 'critical' || riskLevel === 'high' ? 'text-critical' : 'text-accent'}
+          className={effectiveRiskLevel === 'critical' || effectiveRiskLevel === 'high' ? 'text-critical' : 'text-accent'}
           aria-hidden="true"
         />
       </div>
@@ -69,7 +77,7 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
         <div className="sg-status-overview-card__number-row">
           <span className="sg-status-overview-card__number">{hasScore ? `${scoreVal}%` : '—'}</span>
           <div className="sg-status-overview-card__badges">
-            <StatusBadge status={riskBadgeType} label={`${riskLevel.toUpperCase()} RISK`} size="sm" />
+            <StatusBadge status={riskBadgeType} label={`${effectiveRiskLevel.toUpperCase()} RISK`} size="sm" />
             {modelStatus && (
               <span className={`sg-model-badge sg-model-badge--${modelStatus.toLowerCase()}`}>
                 MODEL: {modelStatus}
@@ -96,7 +104,7 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
           aria-label="Anomaly risk score meter"
         >
           <div
-            className={`sg-score-meter__fill sg-score-meter__fill--${riskLevel}`}
+            className={`sg-score-meter__fill sg-score-meter__fill--${effectiveRiskLevel}`}
             style={{ width: `${scoreVal}%` }}
           />
         </div>

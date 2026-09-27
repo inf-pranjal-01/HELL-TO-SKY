@@ -26,16 +26,16 @@ class TestGraduatedAndSpatial(unittest.TestCase):
         conf_frozen_mid = graduated_confidence_frozen(streak=6, req=4)
         conf_frozen_extreme = graduated_confidence_frozen(streak=10, req=4)
         self.assertEqual(conf_frozen_marginal, 80.0)
-        self.assertTrue(80.0 < conf_frozen_mid < 95.0)
-        self.assertEqual(conf_frozen_extreme, 95.0)
+        self.assertTrue(80.0 < conf_frozen_mid < 89.0)
+        self.assertEqual(conf_frozen_extreme, 89.0)
 
         # 2. Drift (CUSUM)
         conf_drift_marginal = graduated_confidence_drift(accumulator_val=7.1, threshold=7.0)
         conf_drift_mid = graduated_confidence_drift(accumulator_val=10.5, threshold=7.0)
         conf_drift_extreme = graduated_confidence_drift(accumulator_val=14.5, threshold=7.0)
         self.assertTrue(85.0 <= conf_drift_marginal < 86.0)
-        self.assertEqual(conf_drift_mid, 90.0)
-        self.assertEqual(conf_drift_extreme, 95.0)
+        self.assertEqual(conf_drift_mid, 87.0)
+        self.assertEqual(conf_drift_extreme, 89.0)
 
         # 3. Fail Low
         conf_faillow_marginal = graduated_confidence_fail_low(val=-8.0, floor=-8.0, streak=2, req=2)

@@ -201,9 +201,6 @@ class SimulatorState:
         self.recent_anomalies: deque = deque(maxlen=RECENT_ANOMALIES_MAXLEN)
         self._anomaly_counter = 0
 
-        self._http_client = httpx.AsyncClient()
-        self._seed_live_cache_from_local_data()
-
     async def _broadcast_event(self, payload: dict):
         """Asynchronously dispatch real-time events to connected WebSocket clients."""
         if self.broadcast_callback:
@@ -214,48 +211,13 @@ class SimulatorState:
             except Exception as e:
                 print(f"[simulator] broadcast exception: {e!r}")
 
-    def _seed_live_cache_from_local_data(self) -> None:
-        """Keep the API usable while the optional weather provider is down.
-
-        The repository already contains the most recent retained reading for
-        every station.  Seeding the normal live cache with that value gives
-        the existing ``tick()``/``ingest_reading()`` path a safe starting
-        point when Open-Meteo is temporarily unavailable.  A successful
-        provider response always replaces the seed immediately.  This is
-        data-source resilience only; no detection or scoring logic changes.
-        """
-        required_columns = ["timestamp", "temperature_c", "pressure_hpa", "humidity_pct"]
-        for station_id in self.metadata["station_id"]:
-            path = DATA_DIR / f"{station_id}.csv"
-            try:
-                frame = pd.read_csv(path, usecols=required_columns).dropna(subset=required_columns)
-                if frame.empty:
-                    continue
-                row = frame.iloc[-1]
-                self._live_cache[station_id] = {
-                    "temperature_c": float(row["temperature_c"]),
-                    "pressure_hpa": float(row["pressure_hpa"]),
-                    "humidity_pct": float(row["humidity_pct"]),
-                }
-                self._live_observed_at[station_id] = datetime.now(timezone.utc)
-            except (FileNotFoundError, ValueError, KeyError, pd.errors.ParserError):
-                # The provider remains the primary source. Missing/corrupt
-                # local seed data should not prevent server startup.
-                continue
-
     @property
     def mode(self) -> str:
-        """
-        Read-only proxy to StateManager.mode -- see module docstring
-        PATCH note for why this is no longer tracked as a separate
-        field. Anything that used to read sim_state.mode (e.g. a status
-        endpoint in main.py) keeps working unchanged.
-        """
         return self.manager.mode
 
     async def close(self):
-        """Release the shared live-data client during FastAPI shutdown."""
-        await self._http_client.aclose()
+        """Clean shutdown handler."""
+        pass
 
     # ---------------- mode control ----------------
 
@@ -325,6 +287,18 @@ class SimulatorState:
             }))
         except RuntimeError:
             pass
+    def inject_fault_dynamic(self, station_id: str, fault_type: str | None = None) -> str:
+        """
+        Dynamically positions or injects a fault into active replay for the targeted station.
+        If replay is running, locates the next labeled episode or resets to the fault start.
+        """
+        if self._replay_frames and station_id in self._replay_frames:
+            df = self._replay_frames[station_id]
+            if "fault_type" in df.columns and fault_type:
+                matches = df[df["fault_type"] == fault_type]
+                if not matches.empty:
+                    self._replay_cursor_idx = max(0, int(matches.index[0]) - 2)
+        self._anomaly_counter += 1
         return f"anom_{self._anomaly_counter:05d}"
 
     def _stop_replay(self):
@@ -360,6 +334,7 @@ class SimulatorState:
                 "mode": "live",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
+            loop.create_task(self.refresh_live_now())
         except RuntimeError:
             pass
 
@@ -371,8 +346,8 @@ class SimulatorState:
     async def refresh_live_now(self) -> None:
         """Fetch the current provider observation outside the 30-min cadence.
 
-        Used only on an explicit UI context change (station selection or
-        replay->live), or when the user clicks Refresh on the dashboard.
+        Used on explicit UI refresh or station switch. Executes concurrent
+        Open-Meteo current condition requests via Semaphore(10).
         """
         if self.mode != "live":
             return
@@ -393,16 +368,15 @@ class SimulatorState:
             and (now - self._live_last_fetch).total_seconds() < LIVE_FETCH_INTERVAL_SECONDS
         ):
             return
-        self._live_last_fetch = now
-
-        station_requests = [
-            (row["station_id"], _fetch_live_reading(self._http_client, row["lat"], row["lon"]))
-            for _, row in self.metadata.iterrows()
-        ]
-        readings = await asyncio.gather(
-            *(request for _, request in station_requests),
-            return_exceptions=True,
-        )
+        async with httpx.AsyncClient() as client:
+            station_requests = [
+                (row["station_id"], _fetch_live_reading(client, row["lat"], row["lon"]))
+                for _, row in self.metadata.iterrows()
+            ]
+            readings = await asyncio.gather(
+                *(request for _, request in station_requests),
+                return_exceptions=True,
+            )
         for (sid, _), reading in zip(station_requests, readings):
             if isinstance(reading, Exception):
                 print(f"[simulator] live fetch failed for {sid}: {reading!r}")
@@ -418,7 +392,7 @@ class SimulatorState:
             # else: keep whatever was cached before -- degrade gracefully
 
     def _next_live_row(self, station_id: str) -> dict | None:
-        return self._live_cache.get(station_id)  # None until first successful fetch
+        return self._live_cache.get(station_id)
 
     def _next_replay_row(self, station_id: str) -> dict:
         df = self._replay_frames[station_id]
@@ -470,16 +444,12 @@ class SimulatorState:
             if r_reading is not None:
                 network_snapshot[sid] = (r_reading, r_ts)
 
-        # Phase 2: Ingest with complete symmetric peer consensus
-        for station_id in self.metadata["station_id"]:
+        # Phase 2: Ingest with complete symmetric peer consensus (Concurrent across all stations)
+        async def _ingest_station(station_id):
             if station_id not in network_snapshot:
-                continue
+                return None
             raw_reading, reading_timestamp = network_snapshot[station_id]
 
-            # Replay: every CSV row is a genuine new reading.
-            #
-            # Live: only ingest when Open-Meteo gives us a genuinely
-            # different reading or when an explicit Refresh was clicked.
             should_ingest = (
                 current_mode == "replay"
                 or getattr(self, "_force_live_ingest", False)
@@ -499,8 +469,23 @@ class SimulatorState:
             else:
                 cached = self.latest.get(station_id)
                 if cached is None:
-                    continue
+                    return None
                 verdict = cached["verdict"]
+
+            return station_id, raw_reading, reading_timestamp, verdict, should_ingest
+
+        ingest_semaphore = asyncio.Semaphore(5)
+
+        async def _bounded_ingest(sid):
+            async with ingest_semaphore:
+                return await _ingest_station(sid)
+
+        results = await asyncio.gather(*[_bounded_ingest(sid) for sid in self.metadata["station_id"]], return_exceptions=True)
+
+        for res in results:
+            if res is None or isinstance(res, Exception):
+                continue
+            station_id, raw_reading, reading_timestamp, verdict, should_ingest = res
 
             self.latest[station_id] = {
                 "raw_reading": raw_reading,
@@ -508,15 +493,23 @@ class SimulatorState:
                 "timestamp": reading_timestamp,
                 "source": current_mode,
             }
+            if current_mode == "live":
+                self._last_live_latest[station_id] = dict(self.latest[station_id])
 
-            # UI receives replay points at stream cadence, but plots
-            # these original timestamps on its x-axis.
+            suggested = verdict.get("suggested_values") or {}
             self.trend_history[station_id].append({
                 "timestamp": reading_timestamp,
                 "temperature_c": raw_reading.get("temperature_c"),
                 "pressure_hpa": raw_reading.get("pressure_hpa"),
                 "humidity_pct": raw_reading.get("humidity_pct"),
-                "is_anomaly": verdict["is_anomaly"],
+                "is_anomaly": bool(verdict.get("is_anomaly", False)),
+                "fault_type": verdict.get("fault_type"),
+                "severity": verdict.get("severity"),
+                "anomaly_score_pct": verdict.get("anomaly_score_pct"),
+                "suggested_temperature_c": suggested.get("temperature_c"),
+                "suggested_pressure_hpa": suggested.get("pressure_hpa"),
+                "suggested_humidity_pct": suggested.get("humidity_pct"),
+                "affected_parameters": verdict.get("affected_parameters") or verdict.get("likely_faulty_sensors") or [],
                 "health_status": verdict.get("health_status"),
                 "source": current_mode,
             })
@@ -584,9 +577,6 @@ class SimulatorState:
             # Only create a new anomaly event when a new reading
             # was actually processed.
             if should_ingest and verdict["is_anomaly"]:
-                # Preserve the actual evidence with each incident.  Reports
-                # must say which parameter was abnormal and what it read,
-                # not merely name a fault category.
                 affected_parameters = list(dict.fromkeys(
                     verdict.get("likely_faulty_sensors", [])
                     or [
@@ -646,12 +636,13 @@ async def run_simulation_loop(sim_state: SimulatorState):
     """Replay steps every 2s; live fetch/ingest runs every 30 minutes."""
     next_live_tick = 0.0
     while True:
+        tick_start = asyncio.get_running_loop().time()
         try:
-            now = asyncio.get_running_loop().time()
+            now = tick_start
             if sim_state.mode == "replay" or now >= next_live_tick:
                 await sim_state.tick()
                 if sim_state.mode == "live":
-                    # A replay can end inside tick().  Honour the requested
+                    # A replay can end inside tick(). Honour the requested
                     # immediate live refresh on the very next loop rather
                     # than scheduling the first live sample 30 minutes away.
                     if sim_state._live_refresh_requested:
@@ -663,9 +654,10 @@ async def run_simulation_loop(sim_state: SimulatorState):
             # Preserve the actual file/line in server logs. A one-line error
             # hides whether an upstream record or detector rule failed.
             print(f"[simulator] tick failed: {e!r}\n{traceback.format_exc()}")
-        # The short live wait notices a mode switch promptly. It does
-        # not fetch or ingest live weather until next_live_tick.
-        await asyncio.sleep(REPLAY_STEP_SECONDS if sim_state.mode == "replay" else 1)
+        
+        tick_elapsed = asyncio.get_running_loop().time() - tick_start
+        wait_seconds = max(0.05, REPLAY_STEP_SECONDS - tick_elapsed) if sim_state.mode == "replay" else 1.0
+        await asyncio.sleep(wait_seconds)
 
 
 def create_simulator_state(broadcast_callback=None) -> SimulatorState:

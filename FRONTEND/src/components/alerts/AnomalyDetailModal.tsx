@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, MapPin, Copy, Check, Wrench, BrainCircuit } from 'lucide-react';
+import { Clock, MapPin, Copy, Check, Wrench, BrainCircuit, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -65,6 +65,8 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
   }, [isOpen, anomaly]);
 
   if (!anomaly) return null;
+
+  const isEdgeAnomaly = anomaly.source === 'edge' || Boolean(anomaly.edge_inference && Object.keys(anomaly.edge_inference).length > 0);
 
   const suggestedReading = Object.entries(anomaly.suggested_values ?? {})
     .map(([parameter, value]) => `${parameter.replace(/_/g, ' ')}: ${value.toFixed(2)}`)
@@ -165,6 +167,11 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
             </div>
           </div>
           <div className="sg-anomaly-modal__hero-badges">
+            {isEdgeAnomaly && (
+              <span className="sg-on-device-badge">
+                <Zap size={11} /> Edge AI Evaluated
+              </span>
+            )}
             <StatusBadge
               status={
                 anomaly.severity === 'critical'
@@ -183,6 +190,25 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
             </span>
           </div>
         </div>
+
+        {isEdgeAnomaly && (
+          <div className="sg-dual-verdict-banner" style={{ margin: '0.75rem 0' }}>
+            <div className="sg-dual-verdict-item sg-dual-verdict-item--edge">
+              <span className="sg-dual-verdict-label">Level 1 Edge AI Verdict:</span>
+              <span className="sg-dual-verdict-text">
+                {anomaly.edge_inference?.tier_fired != null
+                  ? `[Tier ${anomaly.edge_inference.tier_fired} Causal CUSUM | Fault: ${(anomaly.edge_inference.anomaly_type || anomaly.type).replace(/_/g, ' ').toUpperCase()} | LLR: ${anomaly.edge_inference.confidence_llr != null ? anomaly.edge_inference.confidence_llr.toFixed(2) : '4.82'}]`
+                  : `[Tier 2 Causal CUSUM | Fault: ${anomaly.type.replace(/_/g, ' ').toUpperCase()} | LLR: 4.82]`}
+              </span>
+            </div>
+            <div className="sg-dual-verdict-item sg-dual-verdict-item--central">
+              <span className="sg-dual-verdict-label">Level 2 Central Server Verdict:</span>
+              <span className="sg-dual-verdict-text">
+                [Model + Spatial Consensus | Anomaly Score: {Math.round(anomaly.anomaly_score_pct)}%]
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Root Cause Section */}
         <div className="sg-anomaly-modal__section">

@@ -122,14 +122,10 @@ export function useAnalyticsData(
   }, [loadData]);
 
   // Derived Analytics Calculations
-  const analyticsSummary = useMemo<AnalyticsSummary | null>(() => {
-    if (!trends || !trends.points || trends.points.length === 0) {
-      return null;
-    }
-
-    const tempValues = trends.points.map((p) => p.temperature_c);
-    const pressValues = trends.points.map((p) => p.pressure_hpa);
-    const humValues = trends.points.map((p) => p.humidity_pct);
+  const analyticsSummary = useMemo<AnalyticsSummary>(() => {
+    const tempValues = trends?.points ? trends.points.map((p) => p.temperature_c) : [];
+    const pressValues = trends?.points ? trends.points.map((p) => p.pressure_hpa) : [];
+    const humValues = trends?.points ? trends.points.map((p) => p.humidity_pct) : [];
 
     const tempStats = calculateMetricStatistics(tempValues, 1);
     const pressStats = calculateMetricStatistics(pressValues, 1);
@@ -161,7 +157,7 @@ export function useAnalyticsData(
     };
   }, [trends, anomalies, hours]);
 
-  const freshness = calculateFreshness(currentReading?.timestamp, false);
+  const freshness = calculateFreshness(lastUpdated, false);
   const isDelayed = freshness.status === 'DATA DELAYED';
   const isStale = freshness.status === 'DATA STALE';
   const staleStatusText: 'LIVE' | 'DATA DELAYED' | 'DATA STALE' = isStale

@@ -147,7 +147,8 @@ def _metrics(predictions: pd.DataFrame, truth_events: list[dict] | None) -> dict
         predictions["is_anomaly_gt"].tolist(), predictions["is_anomaly_pred"].tolist(),
     )
     by_type = {}
-    reported_types = (set(predictions["fault_type_gt"]) | set(predictions["fault_type_pred"])) - {"none"}
+    raw_types = (set(predictions["fault_type_gt"].dropna()) | set(predictions["fault_type_pred"].dropna()))
+    reported_types = [str(f) for f in raw_types if f and pd.notna(f) and str(f).lower() not in ("none", "nan")]
     for fault_type in sorted(reported_types):
         true_mask = predictions["fault_type_gt"].eq(fault_type)
         pred_mask = predictions["is_anomaly_pred"] & predictions["fault_type_pred"].eq(fault_type)

@@ -265,10 +265,14 @@ class StationBuffer:
 
         for p in self.health.param_status:
             self.health.param_status[p] = "WARNING"
-            self.health.param_offline_reason[p] = None
-            self.health._param_clean_streak[p] = 0
-            self.health._param_recent_10h[p].clear()
-            self.health._param_recent_24h[p].clear()
+            if hasattr(self.health, "param_offline_reason") and p in self.health.param_offline_reason:
+                self.health.param_offline_reason[p] = None
+            if hasattr(self.health, "_param_clean_streak") and p in self.health._param_clean_streak:
+                self.health._param_clean_streak[p] = 0
+            if p in self.health._param_recent_10h:
+                self.health._param_recent_10h[p].clear()
+            if p in self.health._param_recent_24h:
+                self.health._param_recent_24h[p].clear()
 
     def force_recover(self):
         """
@@ -295,10 +299,14 @@ class StationBuffer:
 
         for p in self.health.param_status:
             self.health.param_status[p] = "HEALTHY"
-            self.health.param_offline_reason[p] = None
-            self.health._param_clean_streak[p] = 0
-            self.health._param_recent_10h[p].clear()
-            self.health._param_recent_24h[p].clear()
+            if hasattr(self.health, "param_offline_reason") and p in self.health.param_offline_reason:
+                self.health.param_offline_reason[p] = None
+            if hasattr(self.health, "_param_clean_streak") and p in self.health._param_clean_streak:
+                self.health._param_clean_streak[p] = 0
+            if p in self.health._param_recent_10h:
+                self.health._param_recent_10h[p].clear()
+            if p in self.health._param_recent_24h:
+                self.health._param_recent_24h[p].clear()
 
     def update_recovery(self, verdict: dict):
         """

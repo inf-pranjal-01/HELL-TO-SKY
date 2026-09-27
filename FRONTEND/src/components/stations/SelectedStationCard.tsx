@@ -104,7 +104,7 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
           <div className="sg-selected-station-card__telemetry-chip">
             <span className="sg-selected-station-card__chip-label">Temperature</span>
             <span className="sg-selected-station-card__chip-val sg-font-mono">
-              {currentReading.temperature_c.value.toFixed(1)}°C
+              {currentReading.temperature_c?.value != null ? `${currentReading.temperature_c.value.toFixed(1)}°C` : '—'}
             </span>
             <span className="sg-selected-station-card__chip-sub">
               Nominal: {currentReading.temperature_c.normal_min}–{currentReading.temperature_c.normal_max}°C
@@ -114,7 +114,7 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
           <div className="sg-selected-station-card__telemetry-chip">
             <span className="sg-selected-station-card__chip-label">Barometric Pressure</span>
             <span className="sg-selected-station-card__chip-val sg-font-mono">
-              {currentReading.pressure_hpa.value.toFixed(1)} hPa
+              {currentReading.pressure_hpa?.value != null ? `${currentReading.pressure_hpa.value.toFixed(1)} hPa` : '—'}
             </span>
             <span className="sg-selected-station-card__chip-sub">
               Nominal: {currentReading.pressure_hpa.normal_min}–{currentReading.pressure_hpa.normal_max} hPa
@@ -124,7 +124,7 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
           <div className="sg-selected-station-card__telemetry-chip">
             <span className="sg-selected-station-card__chip-label">Relative Humidity</span>
             <span className="sg-selected-station-card__chip-val sg-font-mono">
-              {currentReading.humidity_pct.value.toFixed(1)}%
+              {currentReading.humidity_pct?.value != null ? `${currentReading.humidity_pct.value.toFixed(1)}%` : '—'}
             </span>
             <span className="sg-selected-station-card__chip-sub">
               Nominal: {currentReading.humidity_pct.normal_min}–{currentReading.humidity_pct.normal_max}%

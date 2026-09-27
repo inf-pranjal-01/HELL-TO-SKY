@@ -178,6 +178,7 @@ export const DashboardPage: React.FC = () => {
 
   const stationName = selectedStation?.name || 'Observatory Telemetry';
   const stationId = selectedStation?.station_id || '';
+  const isEdgeStation = streamMode !== 'replay' && currentReading?.source === 'edge';
 
   return (
     <div className="page-container sg-dashboard-page">
@@ -189,6 +190,11 @@ export const DashboardPage: React.FC = () => {
             <span className="sg-station-title-id">{stationId}</span>
             <span className="sg-station-title-sep">•</span>
             <h2 className="sg-station-title-name">{stationName}</h2>
+            {isEdgeStation && (
+              <span className="sg-edge-hardware-tag" title="Connected to Physical ESP32 Microcontroller Node">
+                [Hardware Source: ESP32 DevKit V1 (N4)]
+              </span>
+            )}
           </div>
           <p className="sg-page-sub">
             Real-time AWS sensor telemetry, anomaly risk index, and ML detection overview
@@ -208,7 +214,7 @@ export const DashboardPage: React.FC = () => {
                 <button
                   type="button"
                   className="sg-badge-info-btn"
-                  aria-label="HTTP Polling details"
+                  aria-label="Replay stream mode details"
                 >
                   <Info size={11} />
                 </button>
@@ -221,12 +227,12 @@ export const DashboardPage: React.FC = () => {
               <span className="sg-latency-dot" aria-hidden="true" />
               <span className="sg-latency-label">
                 {isWsConnected
-                  ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '<25ms'} Live WS (TimescaleDB)`
+                  ? `⚡ ${wsLatencyMs !== null ? `${wsLatencyMs}ms` : '<25ms'} Live WS`
                   : '⚡ Polling Fallback'}
               </span>
               <Tooltip
                 position="bottom"
-                content="Live: WebSocket & TimescaleDB ingestion"
+                content={isWsConnected ? "Live WebSocket telemetry feed" : "HTTP polling fallback stream"}
               >
                 <button
                   type="button"
@@ -320,9 +326,16 @@ export const DashboardPage: React.FC = () => {
       {/* ---------------------------------------------------- */}
       <section className="sg-dashboard-section" aria-label="Real-time sensor metrics overview">
         <div className="sg-section-title-row">
-          <h3 className="sg-section-title">Current Sensor Readings & Risk</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <h3 className="sg-section-title">Current Sensor Readings & Risk</h3>
+            {isEdgeStation && (
+              <span className="sg-edge-hardware-tag">
+                [Hardware Source: ESP32 DevKit V1 (N4)]
+              </span>
+            )}
+          </div>
           <span className="sg-endpoint-tag">
-            ● LIVE BACKEND
+            ● {isEdgeStation ? 'ESP32 HARDWARE INGEST' : 'LIVE BACKEND'}
           </span>
         </div>
 

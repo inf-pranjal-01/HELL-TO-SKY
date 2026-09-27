@@ -170,3 +170,151 @@
   font-family: var(--font-mono, monospace);
 }
 
+/* Level 1 Hardware Edge AI Diagnostics Card */
+.sg-edge-diagnostics-card {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 10px;
+  padding: 1.15rem;
+  margin-top: 1rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.sg-edge-diagnostics-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.sg-edge-diagnostics-card__title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sg-edge-diagnostics-card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #10b981;
+  text-transform: uppercase;
+  font-family: var(--font-mono, monospace);
+}
+
+.sg-edge-diagnostics-card__title-box h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.sg-edge-diagnostics-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sg-edge-status-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+}
+
+.sg-edge-status-pill--alert {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.15);
+}
+
+.sg-edge-status-pill--nominal {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.sg-edge-station-pill {
+  font-size: 0.72rem;
+  font-family: var(--font-mono, monospace);
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.sg-edge-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+@media (max-width: 650px) {
+  .sg-edge-diagnostics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sg-edge-diag-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sg-edge-diag-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.sg-edge-diag-item strong {
+  font-size: 0.82rem;
+  color: #e2e8f0;
+  font-family: var(--font-mono, monospace);
+}
+
+/* Informational Notice Banner for Virtual Non-Edge Stations */
+.sg-edge-notice-banner {
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sg-edge-notice-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.sg-edge-notice-icon {
+  font-size: 0.95rem;
+}
+
+.sg-edge-notice-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+

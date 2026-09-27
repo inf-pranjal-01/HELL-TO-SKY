@@ -170,18 +170,14 @@ RULE_BASE_CONFIDENCE = {
 def graduated_confidence_frozen(streak: int, req: int) -> float:
     base = RULE_BASE_CONFIDENCE["frozen_value"]
     if req <= 0: return base
-    ratio = max(0.0, min(1.0, (streak - req) / req))
-    # Keep local persistence evidence below the bypass. Regional peer
-    # divergence may raise it above the bypass later in the fusion path.
-    return round(base + (89.5 - base) * ratio, 1)
+    ratio = max(0.0, min(1.0, (streak - req) / (req * 1.5) if req > 0 else 1.0))
+    return round(base + (89.0 - base) * ratio, 1)
 
 def graduated_confidence_drift(accumulator_val: float, threshold: float, is_ewma: bool = False) -> float:
     base = RULE_BASE_CONFIDENCE["drift"]
     if threshold <= 0: return base
     ratio = max(0.0, min(1.0, (abs(accumulator_val) - threshold) / threshold))
-    # CUSUM persistence is evidence, not a standalone fault verdict.
-    # Reserve the high-confidence bypass for peer-confirmed divergence.
-    return round(base + (89.5 - base) * ratio, 1)
+    return round(base + (89.0 - base) * ratio, 1)
 
 def graduated_confidence_spike(abs_dev: float, spike_threshold: float, reversion_cleanliness: float = 1.0) -> float:
     if spike_threshold <= 0: return 92.0

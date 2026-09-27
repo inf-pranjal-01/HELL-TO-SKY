@@ -139,7 +139,7 @@ export function useStationNetworkData(): UseStationNetworkDataResult {
     if (!selectedStation) return null;
 
     // Use current reading if available, or fall back to network mock reading
-    const selectedTelemetry = currentReading
+    const selectedTelemetry = (currentReading && currentReading.temperature_c?.value != null && currentReading.pressure_hpa?.value != null && currentReading.humidity_pct?.value != null)
       ? {
           temperature_c: currentReading.temperature_c.value,
           pressure_hpa: currentReading.pressure_hpa.value,

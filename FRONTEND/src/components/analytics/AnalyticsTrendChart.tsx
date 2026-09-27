@@ -19,16 +19,56 @@ export interface AnalyticsTrendChartProps {
 }
 
 const isMetricAnomalous = (pt: TrendPoint, metric: 'temperature_c' | 'pressure_hpa' | 'humidity_pct'): boolean => {
-  const isOverall = (pt.anomaly_score_pct || 0) > 75 || pt.is_anomaly === true;
+  const isOverall = (pt.anomaly_score_pct || 0) >= 40 || pt.is_anomaly === true || Boolean(pt.fault_type);
   if (!isOverall) return false;
-  if (metric === 'temperature_c' && pt.suggested_temperature_c != null) return true;
-  if (metric === 'pressure_hpa' && pt.suggested_pressure_hpa != null) return true;
-  if (metric === 'humidity_pct' && pt.suggested_humidity_pct != null) return true;
 
+  const metricKeyMap: Record<string, string> = {
+    temperature_c: 'temperature',
+    pressure_hpa: 'pressure',
+    humidity_pct: 'humidity',
+  };
+  const shortName = metricKeyMap[metric] || metric.split('_')[0];
+
+  // 1. If explicit affected_parameters list exists, check exact channel
+  if (pt.affected_parameters && pt.affected_parameters.length > 0) {
+    const isExplicitlyInList = pt.affected_parameters.some(
+      (p) => {
+        const lower = p.toLowerCase();
+        return lower.includes(shortName) || lower === metric || (shortName === 'humidity' && lower.includes('relative_humidity'));
+      }
+    );
+    if (isExplicitlyInList) return true;
+
+    const isAnotherExplicitParam = pt.affected_parameters.some(
+      (p) => {
+        const lower = p.toLowerCase();
+        return (lower.includes('temp') || lower.includes('press') || lower.includes('humid') || lower.includes('relative_humidity')) &&
+               !lower.includes(shortName);
+      }
+    );
+    if (isAnotherExplicitParam) return false;
+  }
+
+  // 2. If suggested values exist, mark the channel that has a reconstruction
+  const hasAnySuggested = (
+    pt.suggested_temperature_c != null ||
+    pt.suggested_pressure_hpa != null ||
+    pt.suggested_humidity_pct != null
+  );
+
+  if (hasAnySuggested) {
+    if (metric === 'temperature_c') return pt.suggested_temperature_c != null;
+    if (metric === 'pressure_hpa') return pt.suggested_pressure_hpa != null;
+    if (metric === 'humidity_pct') return pt.suggested_humidity_pct != null;
+  }
+
+  // 3. If fault_type names a parameter explicitly
   const ft = (pt.fault_type || '').toLowerCase();
   if (ft.includes('temp')) return metric === 'temperature_c';
   if (ft.includes('press')) return metric === 'pressure_hpa';
   if (ft.includes('humid') || ft.includes('dew')) return metric === 'humidity_pct';
+
+  // 4. Default fallback: point is verified anomalous and not restricted to another channel
   return true;
 };
 
@@ -115,12 +155,17 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
     );
   }
 
-  if (windowedPoints.length === 0) {
+  const validPoints = windowedPoints.filter((pt) => {
+    const val = metricConfig.valueAccessor(pt);
+    return typeof val === 'number' && !Number.isNaN(val);
+  });
+
+  if (validPoints.length === 0) {
     return (
       <Card variant="glass" className={`sg-analytics-chart-card ${className}`}>
         <EmptyState
           title="No Historical Telemetry"
-          description={`No telemetry trend points were recorded for this station during the last ${hours} hours.`}
+          description={`No valid ${metricConfig.title.toLowerCase()} points were recorded for this station during the last ${hours} hours.`}
         />
       </Card>
     );
@@ -133,18 +178,16 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
   const chartWidth = svgWidth - padding.left - padding.right;
   const chartHeight = svgHeight - padding.top - padding.bottom;
 
-  const rawValues = windowedPoints
-    .map(metricConfig.valueAccessor)
-    .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
-  const dataMin = rawValues.length > 0 ? Math.min(...rawValues, metricConfig.normalMin) : metricConfig.normalMin;
-  const dataMax = rawValues.length > 0 ? Math.max(...rawValues, metricConfig.normalMax) : metricConfig.normalMax;
+  const rawValues = validPoints.map(metricConfig.valueAccessor);
+  const dataMin = Math.min(...rawValues, metricConfig.normalMin);
+  const dataMax = Math.max(...rawValues, metricConfig.normalMax);
   const buffer = (dataMax - dataMin) * 0.1 || 2;
   const scaleMin = Math.floor(dataMin - buffer);
   const scaleMax = Math.ceil(dataMax + buffer);
   const scaleRange = scaleMax - scaleMin || 1;
 
   const span = windowEnd - windowStart || 1;
-  const coordinates = windowedPoints.map((pt) => {
+  const coordinates = validPoints.map((pt) => {
     const val = metricConfig.valueAccessor(pt);
     const timestamp = new Date(pt.timestamp).getTime();
     const x = padding.left + Math.max(0, Math.min(1, (timestamp - windowStart) / span)) * chartWidth;

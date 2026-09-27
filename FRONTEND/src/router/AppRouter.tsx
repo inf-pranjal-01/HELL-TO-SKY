@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import { StationProvider } from '../context/StationContext';
+import { AlertNotificationProvider } from '../context/AlertNotificationContext';
+import { EdgeStatusProvider } from '../context/EdgeStatusContext';
 import { ProtectedRoute } from './ProtectedRoute';
 import { AppShell } from '../components/layout/AppShell';
 
@@ -36,7 +38,11 @@ export const AppRouter: React.FC = () => {
             <Route
               element={
                 <StationProvider>
-                  <AppShell />
+                  <AlertNotificationProvider>
+                    <EdgeStatusProvider>
+                      <AppShell />
+                    </EdgeStatusProvider>
+                  </AlertNotificationProvider>
                 </StationProvider>
               }
             >

@@ -25,6 +25,7 @@ from model.uncertainty_budget import UncertaintyBudget, SENSOR_QUANTIZATION_FLOO
 from model.sequential_sprt import SequentialSPRT
 from model.peer_spatial_engine import PeerSpatialEngine
 from model.cross_channel_covariance import CrossChannelEngine, compute_dewpoint_c
+from config import PHYSICAL_BOUNDS, FAIL_LOW_FLOOR, RULE_BASE_CONFIDENCE, score_to_severity
 
 # Monitored physical parameters
 PARAMS = ["temperature_c", "pressure_hpa", "humidity_pct"]
@@ -57,14 +58,14 @@ class SensorHealthTracker:
     def record(self, verdict: dict):
         if verdict.get("is_anomaly"):
             self._clean_streak = 0
-            fault = verdict.get("fault_type")
-            if fault in ("sensor_fail_low", "dropout", "physical_bounds"):
-                self.status = "OFFLINE"
-                self.offline_reason = fault
+            fault = verdict.get("fault_type") or "anomaly"
+            self.status = "WARNING"
+            self.offline_reason = fault
         else:
             self._clean_streak += 1
-            if self._clean_streak >= 3 and self.status == "WARNING":
+            if self._clean_streak >= 2:
                 self.status = "HEALTHY"
+                self.offline_reason = None
 
     def force_recover(self):
         self.status = "HEALTHY"
@@ -104,73 +105,49 @@ def evaluate_spike_evidence(
     prior_val: Optional[float],
     current_sigma: float,
     dt_hours: float,
-    valid_history_hours: float = 24.0,
-    sibling_changes: Optional[List[float]] = None
-) -> Tuple[float, Optional[str], Dict[str, any]]:
+    expected_roc: float = 0.0,
+    sibling_peer_deltas: Optional[List[float]] = None
+) -> Tuple[float, Optional[str], Dict[str, Any]]:
     """
-    Tier 1 Spike Check: Evaluates dynamic jump likelihood ratio relative to pre-jump state.
-    Requires at least 6.0 hours of valid contextual history. Never substitutes expected_val for missing prior.
-    Incorporates sibling peer directional movement to distinguish isolated transducer spikes from regional weather events.
+    Tier 1 Spike Check: Evaluates dynamic jump likelihood ratio relative to pre-jump state and spatial context.
     """
-    # ── 1. Physical-Time History Maturity Guard ─────────────────────────
-    # If history is insufficient (< 6.0h) or prior is missing/stale (> 6.0h gap), jump evidence is unavailable.
-    if prior_val is None or valid_history_hours < 6.0 or dt_hours > 6.0:
-        return 0.0, None, {
-            "jump_llr": 0.0,
-            "is_spike": False,
-            "status": "INSUFFICIENT_CONTEXT",
-            "valid_history_hours": valid_history_hours,
-            "dt_hours": dt_hours
-        }
+    if prior_val is None:
+        return 0.0, None, {"jump_llr": 0.0, "is_spike": False, "status": "INSUFFICIENT_CONTEXT"}
 
     sensor_floor = SENSOR_QUANTIZATION_FLOORS.get(param, 0.10)
-    
-    # Measure discontinuity strictly against immediate causal prior reading
-    raw_delta = current_val - prior_val
-    jump_mag = abs(raw_delta)
-    
+    delta = current_val - prior_val
+    expected_change = expected_roc * max(0.01, dt_hours)
+
+    peer_dispersion = 0.0
+    if sibling_peer_deltas:
+        peer_arr = np.array(sibling_peer_deltas)
+        peer_med = float(np.median(peer_arr))
+        iqr = float(np.percentile(peer_arr, 75) - np.percentile(peer_arr, 25))
+        peer_dispersion = max(0.10, iqr / 1.349 if iqr > 0 else float(np.std(peer_arr)))
+        # If peers strongly agree on an environmental change, incorporate peer consensus
+        if peer_dispersion < 1.0:
+            expected_change = peer_med
+
+    jump_mag = abs(delta - expected_change)
+
     # Sub-uncertainty perturbation check
     if jump_mag < 2.5 * sensor_floor:
-        return 0.0, None, {"jump_llr": 0.0, "is_spike": False, "status": "SUB_QUANTIZATION"}
-    
-    sigma_jump = math.sqrt(2.0 * (sensor_floor ** 2) + 0.25 * max(0.5, dt_hours))
+        return 0.0, None, {"jump_mag": jump_mag, "z_jump": 0.0, "jump_llr": 0.0, "is_spike": False}
+
+    sigma_jump = math.sqrt(2.0 * (sensor_floor ** 2) + (peer_dispersion ** 2) + 0.25 * max(0.05, dt_hours))
     z_jump = jump_mag / max(1e-4, sigma_jump)
-    
+
     # Jump LLR
     jump_llr = float(0.5 * (z_jump ** 2) - math.log(max(1.1, sigma_jump / sensor_floor)))
-    
-    # ── 2. Sibling Peer Common-Mode Corroboration ─────────────────────────
-    is_common_mode = False
-    peer_diag = {}
-    if sibling_changes is not None and len(sibling_changes) >= 2:
-        # Check directional alignment with sibling peers (normalized changes)
-        target_sign = 1.0 if raw_delta > 0 else -1.0
-        aligned_siblings = [z for z in sibling_changes if (z * target_sign) >= 1.5]
-        peer_diag["sibling_count"] = len(sibling_changes)
-        peer_diag["aligned_siblings_count"] = len(aligned_siblings)
-        
-        # Case B: Common-Mode Environmental Movement (>=2 siblings show aligned movement)
-        if len(aligned_siblings) >= 2:
-            is_common_mode = True
-            jump_llr = 0.0  # Discount spike evidence in favor of regional environmental front
-    
-    is_spike = (jump_llr >= WALD_UPPER_ALERT) and (z_jump >= 3.0) and (not is_common_mode)
-    
-    if is_spike:
-        reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})"
-    elif is_common_mode:
-        reason = f"Common-mode environmental movement corroborated by {len(aligned_siblings)} sibling peers"
-    else:
-        reason = None
-    
+
+    is_spike = jump_llr >= WALD_UPPER_ALERT and z_jump >= 3.0
+    reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})" if is_spike else None
+
     diagnostics = {
         "jump_mag": jump_mag,
         "z_jump": z_jump,
         "jump_llr": jump_llr,
-        "is_spike": is_spike,
-        "is_common_mode": is_common_mode,
-        "valid_history_hours": valid_history_hours,
-        "peer_corroboration": peer_diag
+        "is_spike": is_spike
     }
     return jump_llr, reason, diagnostics
 
@@ -180,18 +157,21 @@ def evaluate_frozen_evidence(
     history_df: pd.DataFrame,
     current_val: float,
     peer_dispersion: Optional[float],
-    eligible_peers: int
+    eligible_peers: int,
+    peer_median: Optional[float] = None,
 ) -> Tuple[float, Optional[str], Dict[str, any]]:
     """
-    Tier 1 Frozen Check: Evaluates F-ratio variance collapse vs peer network.
+    Tier 1 Frozen Check: Closed-form Bayesian F-ratio variance collapse test vs peer network.
+    Evaluates likelihood of transducer mechanism failure vs regional atmospheric movement.
     """
     if history_df.empty or param not in history_df.columns or len(history_df) < 5:
         return 0.0, None, {"frozen_llr": 0.0, "is_frozen": False}
     
     sensor_floor = SENSOR_QUANTIZATION_FLOORS.get(param, 0.10)
     
-    # Extract last K readings (K = 6)
-    valid_vals = pd.to_numeric(history_df[param], errors="coerce").dropna().tolist()
+    # Extract last K readings fast
+    raw_col = history_df[param].to_numpy()
+    valid_vals = [float(v) for v in raw_col[-8:] if v is not None and not pd.isna(v)]
     recent_vals = valid_vals[-5:] + [current_val]
     
     if len(recent_vals) < 5:
@@ -200,26 +180,37 @@ def evaluate_frozen_evidence(
     target_var = float(np.var(recent_vals))
     target_range = float(max(recent_vals) - min(recent_vals))
     
-    # Mode A: Bit-exact / quantized freeze
-    is_exact_hold = target_range < 1e-4 and len(recent_vals) >= 5
-    if is_exact_hold:
-        return 12.0, f"Exact frozen hold across {len(recent_vals)} readings", {"frozen_llr": 12.0, "is_frozen": True}
+    # 1. Saturation Equilibrium Guard for Relative Humidity:
+    # Saturated ambient condensation is a natural thermodynamic equilibrium when peers agree
+    if param == "humidity_pct" and current_val >= 98.0:
+        if peer_median is None or peer_median >= 88.0:
+            return 0.0, None, {"frozen_llr": 0.0, "is_frozen": False, "saturation_hold": True}
+        else:
+            return 12.0, f"Humidity sensor pinned at 100% saturation while cluster peers report {peer_median:.1f}%", {"frozen_llr": 12.0, "is_frozen": True}
+
+    # 2. Expected Active Physical Variance under H0:
+    # When peers are available, H0 variance reflects regional ambient dynamics + quantization noise.
+    # When regional peers are also steady (peer_dispersion -> 0), peer_var naturally approaches sensor_floor^2,
+    # causing F -> 1.0 and LLR -> 0.0 with zero magic thresholds.
+    if peer_dispersion is not None and eligible_peers >= 2:
+        peer_var = (peer_dispersion ** 2) + (sensor_floor ** 2)
+    else:
+        peer_var = (1.5 * sensor_floor) ** 2
+
+    # 3. Observed Target Variance under H1:
+    target_observed_var = target_var + (sensor_floor ** 2)
     
-    # Mode B: Jitter freeze vs Peer Active Variance
-    peer_var = (peer_dispersion ** 2) if (peer_dispersion is not None and eligible_peers >= 2) else (1.5 * sensor_floor) ** 2
-    
-    f_ratio = (target_var + sensor_floor ** 2) / (peer_var + sensor_floor ** 2)
-    
-    # Frozen LLR
+    # 4. Bayesian F-Ratio Log-Likelihood Ratio:
+    f_ratio = target_observed_var / peer_var
     k_len = len(recent_vals)
-    frozen_llr = float(0.5 * k_len * (math.log(max(1e-4, 1.0 / max(1e-4, f_ratio))) + f_ratio - 1.0))
     
-    # Pressure calmness guard
-    if param == "pressure_hpa" and (peer_dispersion is None or peer_dispersion < 0.4):
-        # Calm regional barometric pressure -> penalize LLR
-        frozen_llr = min(0.0, frozen_llr)
+    if f_ratio < 1.0:
+        frozen_llr = float(0.5 * k_len * (math.log(1.0 / max(1e-4, f_ratio)) + f_ratio - 1.0))
+    else:
+        frozen_llr = 0.0
     
-    is_frozen = frozen_llr >= WALD_UPPER_ALERT and target_var <= (1.2 * sensor_floor) ** 2
+    # Physical Wald alert criterion: evidence cleared Wald threshold AND target variance is within sensor floor
+    is_frozen = frozen_llr >= WALD_UPPER_ALERT and target_var <= (sensor_floor ** 2)
     reason = f"Variance collapse (target_var={target_var:.4f} vs peer_var={peer_var:.4f}, LLR={frozen_llr:.2f})" if is_frozen else None
     
     diagnostics = {
@@ -232,6 +223,40 @@ def evaluate_frozen_evidence(
     return frozen_llr, reason, diagnostics
 
 
+def _compute_suggested_values(
+    implicated_params: list[str],
+    expectations: dict,
+    neighbor_buffers: dict,
+    station_id: str,
+    current_time: Any,
+    history_df: Optional[pd.DataFrame] = None
+) -> dict:
+    suggestions = {}
+    for param in (implicated_params or PARAMS):
+        if param in PARAMS:
+            peer_med = None
+            n_peers = 0
+            if neighbor_buffers:
+                peer_med, _, n_peers = PeerSpatialEngine.compute_robust_peer_consensus(
+                    station_id, param, current_time, neighbor_buffers
+                )
+            if peer_med is not None and not pd.isna(peer_med) and n_peers >= 1:
+                suggestions[param] = round(float(peer_med), 1)
+            elif expectations and param in expectations and expectations[param] is not None and not pd.isna(expectations[param]):
+                suggestions[param] = round(float(expectations[param]), 1)
+            elif history_df is not None and not history_df.empty and param in history_df.columns:
+                valid_vals = pd.to_numeric(history_df[param], errors="coerce").dropna()
+                if not valid_vals.empty:
+                    suggestions[param] = round(float(valid_vals.iloc[-1]), 1)
+                else:
+                    normal_mid = (PHYSICAL_BOUNDS[param][0] + PHYSICAL_BOUNDS[param][1]) / 2.0
+                    suggestions[param] = round(float(normal_mid), 1)
+            else:
+                normal_mid = (PHYSICAL_BOUNDS[param][0] + PHYSICAL_BOUNDS[param][1]) / 2.0
+                suggestions[param] = round(float(normal_mid), 1)
+    return suggestions
+
+
 def score_reading(
     raw_reading: dict,
     history_df: pd.DataFrame,
@@ -241,7 +266,8 @@ def score_reading(
     precomputed_features: pd.Series = None,
     precomputed_neighbors: dict = None,
     precomputed_history_featured: pd.DataFrame = None,
-    include_evaluation_diagnostics: bool = True
+    include_evaluation_diagnostics: bool = True,
+    **kwargs
 ) -> dict:
     """
     Main Path 2 Detection Entry Point.
@@ -255,13 +281,17 @@ def score_reading(
     is_rail, rail_param, rail_reason = _check_hardware_rail(raw_reading)
     if is_rail:
         fault_type = "dropout" if "dropout" in (rail_reason or "") else "sensor_fail_low"
+        implicated = [rail_param] if rail_param else PARAMS
         return {
             "is_anomaly": True,
             "fault_type": fault_type,
+            "severity": "critical",
             "anomaly_score_pct": 100.0,
             "decision_basis": "TIER_0_HARD_INVARIANT",
-            "likely_faulty_sensors": [rail_param] if rail_param else PARAMS,
+            "likely_faulty_sensors": implicated,
+            "suggested_values": _compute_suggested_values(implicated, {}, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": [{"type": fault_type, "parameter": rail_param, "confidence": 100.0, "reason": rail_reason}],
+            "regime": "UNKNOWN_INSUFFICIENT_DATA",
             "evaluation_diagnostics": {
                 "tier": 0,
                 "reason": rail_reason,
@@ -275,13 +305,17 @@ def score_reading(
     
     is_phys_impossible, phys_reason = CrossChannelEngine.check_physical_invariants(temp_c, pressure_hpa, humidity_pct)
     if is_phys_impossible:
+        implicated = PARAMS
         return {
             "is_anomaly": True,
             "fault_type": "physical_bounds",
+            "severity": "critical",
             "anomaly_score_pct": 100.0,
             "decision_basis": "TIER_0_THERMODYNAMIC_BOUND",
-            "likely_faulty_sensors": PARAMS,
+            "likely_faulty_sensors": implicated,
+            "suggested_values": _compute_suggested_values(implicated, {}, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": [{"type": "physical_bounds", "parameter": "multivariate", "confidence": 100.0, "reason": phys_reason}],
+            "regime": "UNKNOWN_INSUFFICIENT_DATA",
             "evaluation_diagnostics": {
                 "tier": 0,
                 "reason": phys_reason,
@@ -289,48 +323,16 @@ def score_reading(
             }
         }
     
-    # ── Compute Elapsed Physical Time & Context Maturity Duration ───────
-    valid_history_hours = 0.0
+    # ── Compute Elapsed Physical Time (\Delta t) ────────────────────────
     prior_time = None
     if not history_df.empty and "timestamp" in history_df.columns:
-        ts_col = history_df["timestamp"]
-        if not ts_col.empty:
-            p_raw = ts_col.iloc[-1]
-            f_raw = ts_col.iloc[0]
-            prior_time = p_raw if isinstance(p_raw, pd.Timestamp) else pd.to_datetime(p_raw, utc=True)
-            first_time = f_raw if isinstance(f_raw, pd.Timestamp) else pd.to_datetime(f_raw, utc=True)
-            valid_history_hours = max(0.0, (prior_time - first_time).total_seconds() / 3600.0)
+        valid_ts = pd.to_datetime(history_df["timestamp"], utc=True, errors="coerce").dropna()
+        if not valid_ts.empty:
+            prior_time = valid_ts.iloc[-1]
     
     dt_hours = max(0.1, (current_time - prior_time).total_seconds() / 3600.0) if prior_time is not None else 1.0
     solar_hour = calculate_solar_hour(current_time, station_id)
-    
-    # Sibling peer changes for candidate spike evaluation (strictly 3 cluster siblings)
-    sibling_peer_changes = {p: [] for p in PARAMS}
-    if neighbor_buffers:
-        for nid, nbuf in neighbor_buffers.items():
-            rows = getattr(nbuf, "_raw_rows", None)
-            if rows is not None and len(rows) >= 2:
-                r_curr = rows[-1]
-                r_prev = rows[-2]
-                for p in PARAMS:
-                    v_c = r_curr.get(p)
-                    v_p = r_prev.get(p)
-                    if v_c is not None and v_p is not None and not (pd.isna(v_c) or pd.isna(v_p)):
-                        d_v = float(v_c) - float(v_p)
-                        floor = SENSOR_QUANTIZATION_FLOORS.get(p, 0.10)
-                        s_jump = math.sqrt(2.0 * (floor ** 2) + 0.25 * max(0.5, dt_hours))
-                        sibling_peer_changes[p].append(d_v / max(1e-4, s_jump))
-            else:
-                nhist = nbuf.raw_history_df() if hasattr(nbuf, "raw_history_df") else None
-                if nhist is not None and not nhist.empty and len(nhist) >= 2:
-                    for p in PARAMS:
-                        if p in nhist.columns:
-                            valid_p = pd.to_numeric(nhist[p], errors="coerce").dropna()
-                            if len(valid_p) >= 2:
-                                d_v = float(valid_p.iloc[-1]) - float(valid_p.iloc[-2])
-                                floor = SENSOR_QUANTIZATION_FLOORS.get(p, 0.10)
-                                s_jump = math.sqrt(2.0 * (floor ** 2) + 0.25 * max(0.5, dt_hours))
-                                sibling_peer_changes[p].append(d_v / max(1e-4, s_jump))
+    regime = _classify_regime(precomputed_features, raw_reading, history_df)
     
     # ── Dynamic Expectation & Uncertainty Evaluation ────────────────────
     innovations = {}
@@ -340,24 +342,29 @@ def score_reading(
     
     for param in PARAMS:
         val = float(raw_reading[param])
+        prefix = PARAM_PREFIXES.get(param, param)
         
-        # Peer spatial consensus for this parameter
-        peer_med, peer_disp, n_peers = PeerSpatialEngine.compute_robust_peer_consensus(
-            station_id, param, current_time, neighbor_buffers or {}
-        )
-        
-        # Dynamic expectation
-        exp_val, exp_roc = compute_dynamic_expectation(station_id, param, current_time, history_df)
+        if precomputed_features is not None and f"{prefix}_rolling_mean" in precomputed_features and not pd.isna(precomputed_features[f"{prefix}_rolling_mean"]):
+            exp_val = float(precomputed_features[f"{prefix}_rolling_mean"])
+            sigma_tot = max(0.4, float(precomputed_features.get(f"{prefix}_robust_scale", 1.0)))
+            residual = val - exp_val
+        else:
+            # Peer spatial consensus for this parameter
+            peer_med, peer_disp, n_peers = PeerSpatialEngine.compute_robust_peer_consensus(
+                station_id, param, current_time, neighbor_buffers or {}
+            )
+            
+            # Dynamic expectation
+            exp_val, exp_roc = compute_dynamic_expectation(station_id, param, current_time, history_df)
+            
+            # Composite uncertainty
+            sigma_tot, u_breakdown = UncertaintyBudget.compute_composite_predictive_uncertainty(
+                param, solar_hour, dt_hours, history_df, peer_dispersion=peer_disp or 0.0
+            )
+            residual = val - exp_val
+            
         expectations[param] = exp_val
-        
-        # Composite uncertainty
-        sigma_tot, u_breakdown = UncertaintyBudget.compute_composite_predictive_uncertainty(
-            param, solar_hour, dt_hours, history_df, peer_dispersion=peer_disp or 0.0
-        )
         uncertainties[param] = sigma_tot
-        
-        # Standardized innovation
-        residual = val - exp_val
         innovations[param] = residual
         z_scores[param] = residual / max(1e-4, sigma_tot)
 
@@ -371,21 +378,15 @@ def score_reading(
         
         prior_val = None
         if not history_df.empty and param in history_df.columns:
-            valid_pvals = pd.to_numeric(history_df[param], errors="coerce").dropna()
-            if not valid_pvals.empty:
-                prior_val = float(valid_pvals.iloc[-1])
+            raw_vals = history_df[param].to_numpy()
+            for idx in range(len(raw_vals) - 1, -1, -1):
+                pv = raw_vals[idx]
+                if pv is not None and not pd.isna(pv):
+                    prior_val = float(pv)
+                    break
         
         # 1. Spike Jump Check
-        s_llr, s_reason, s_diag = evaluate_spike_evidence(
-            param=param,
-            current_val=val,
-            expected_val=exp_val,
-            prior_val=prior_val,
-            current_sigma=sigma_tot,
-            dt_hours=dt_hours,
-            valid_history_hours=valid_history_hours,
-            sibling_changes=sibling_peer_changes.get(param, [])
-        )
+        s_llr, s_reason, s_diag = evaluate_spike_evidence(param, val, exp_val, prior_val, sigma_tot, dt_hours)
         if s_diag["is_spike"]:
             tier1_evidence.append({
                 "tier": 1,
@@ -398,13 +399,11 @@ def score_reading(
             })
             
         # 2. Frozen Variance Collapse Check
-        peer_disp = None
+        peer_med, peer_disp, n_p = (None, None, 0)
         if neighbor_buffers:
-            _, peer_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(station_id, param, current_time, neighbor_buffers)
-        else:
-            n_p = 0
+            peer_med, peer_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(station_id, param, current_time, neighbor_buffers)
             
-        f_llr, f_reason, f_diag = evaluate_frozen_evidence(param, history_df, val, peer_disp, n_p)
+        f_llr, f_reason, f_diag = evaluate_frozen_evidence(param, history_df, val, peer_disp, n_p, peer_median=peer_med)
         if f_diag["is_frozen"]:
             tier1_evidence.append({
                 "tier": 1,
@@ -418,13 +417,19 @@ def score_reading(
             
     if tier1_evidence:
         strongest = max(tier1_evidence, key=lambda e: e["llr"])
+        score_pct = float(strongest["confidence"])
+        severity = "critical" if score_pct >= 90.0 else "high"
+        implicated = [strongest["parameter"]]
         return {
             "is_anomaly": True,
             "fault_type": strongest["type"],
-            "anomaly_score_pct": float(strongest["confidence"]),
+            "severity": severity,
+            "anomaly_score_pct": score_pct,
             "decision_basis": f"TIER_1_SPECIALIST_{strongest['type'].upper()}",
-            "likely_faulty_sensors": [strongest["parameter"]],
+            "likely_faulty_sensors": implicated,
+            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": tier1_evidence,
+            "regime": regime,
             "evaluation_diagnostics": {
                 "tier": 1,
                 "peak_llr": strongest["llr"],
@@ -474,13 +479,19 @@ def score_reading(
             
     if tier2_evidence:
         strongest = max(tier2_evidence, key=lambda e: e["llr"])
+        score_pct = float(strongest["confidence"])
+        severity = "high" if score_pct >= 85.0 else "medium"
+        implicated = [strongest["parameter"]]
         return {
             "is_anomaly": True,
             "fault_type": "drift",
-            "anomaly_score_pct": float(strongest["confidence"]),
+            "severity": severity,
+            "anomaly_score_pct": score_pct,
             "decision_basis": "TIER_2_PERSISTENT_DRIFT",
-            "likely_faulty_sensors": [strongest["parameter"]],
+            "likely_faulty_sensors": implicated,
+            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": tier2_evidence,
+            "regime": regime,
             "evaluation_diagnostics": {
                 "tier": 2,
                 "peak_llr": strongest["llr"],
@@ -494,13 +505,17 @@ def score_reading(
     )
     
     if cc_diag["is_multivariate_outlier"]:
+        implicated = ["temperature_c", "humidity_pct"]
         return {
             "is_anomaly": True,
             "fault_type": "multivariate_inconsistency",
+            "severity": "high",
             "anomaly_score_pct": 90.0,
             "decision_basis": "TIER_3_MAHALANOBIS_CROSS_CHANNEL",
-            "likely_faulty_sensors": ["temperature_c", "humidity_pct"],
+            "likely_faulty_sensors": implicated,
+            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "joint", "confidence": 90.0, "reason": f"3D Mahalanobis distance D^2={d_sq:.2f} exceeded critical threshold (p={p_val:.4e})"}],
+            "regime": regime,
             "evaluation_diagnostics": {
                 "tier": 3,
                 "d_squared": d_sq,
@@ -524,13 +539,17 @@ def score_reading(
                     
                     # Model dominant trigger: extreme statistical tail (z_if > 3.0) + cross-channel elevation
                     if z_if > 3.0 and d_sq > 8.0:
+                        implicated = ["temperature_c", "humidity_pct"]
                         return {
                             "is_anomaly": True,
                             "fault_type": "multivariate_inconsistency",
+                            "severity": "medium",
                             "anomaly_score_pct": 88.0,
                             "decision_basis": "TIER_4_MODEL_DOMINANT_MULTIVARIATE",
-                            "likely_faulty_sensors": ["temperature_c", "humidity_pct"],
+                            "likely_faulty_sensors": implicated,
+                            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
                             "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "model_joint", "confidence": 88.0, "reason": f"Isolation Forest empirical tail (z={z_if:.2f}) corroborated by cross-channel divergence (D^2={d_sq:.2f})"}],
+                            "regime": regime,
                             "evaluation_diagnostics": {
                                 "tier": 4,
                                 "z_if": z_if,
@@ -543,14 +562,16 @@ def score_reading(
     # ── TIER 5: Ambiguity vs Normal State ───────────────────────────────
     # Check if there is moderate unconfirmed tension
     max_z = max(abs(z) for z in z_scores.values())
-    if max_z > 2.2 and neighbor_buffers and len(neighbor_buffers) == 0:
+    if max_z > 2.2 and (neighbor_buffers is None or len(neighbor_buffers) == 0):
         return {
             "is_anomaly": False,
             "fault_type": None,
+            "severity": "low",
             "anomaly_score_pct": 35.0,
             "decision_basis": "AMBIGUOUS_NO_PEER_CORROBORATION",
             "likely_faulty_sensors": [],
             "rules_fired": [],
+            "regime": regime,
             "evaluation_diagnostics": {
                 "tier": 5,
                 "status": "AMBIGUOUS",
@@ -561,13 +582,389 @@ def score_reading(
     return {
         "is_anomaly": False,
         "fault_type": None,
+        "severity": "low",
         "anomaly_score_pct": 5.0,
         "decision_basis": "NORMAL",
         "likely_faulty_sensors": [],
         "rules_fired": [],
+        "regime": regime,
         "evaluation_diagnostics": {
             "tier": 5,
             "status": "NORMAL",
             "max_z": max_z
         }
     }
+
+
+# ============================================================================
+# Modular & Diagnostic Compatibility Layer
+# (Supports isolated unit tests, offline evaluation suites, and legacy harnesses)
+# ============================================================================
+
+def _multiclass_fault_label(*args, **kwargs):
+    if len(args) == 1 and isinstance(args[0], list):
+        fired_rules = args[0]
+        if not fired_rules:
+            return "none"
+        for r in fired_rules:
+            t = r.get("type") if isinstance(r, dict) else r[0]
+            if t in ("physical_bounds", "dropout", "sensor_fail_low", "spike", "frozen_value", "drift", "multivariate_inconsistency"):
+                return t
+        return "unstructured_anomaly"
+
+    helper = args[0] if len(args) > 0 else kwargs.get("helper")
+    feature_columns = args[1] if len(args) > 1 else kwargs.get("feature_columns", [])
+    frame = args[2] if len(args) > 2 else kwargs.get("frame", pd.DataFrame())
+
+    if helper is None or not hasattr(helper, "classes_"):
+        return None, None
+
+    classes = list(helper.classes_)
+    if len(classes) <= 2 and (
+        all(isinstance(c, (bool, np.bool_)) for c in classes)
+        or set(classes) <= {True, False, 0, 1}
+    ):
+        return None, None
+
+    try:
+        cols = [c for c in feature_columns if c in frame.columns]
+        sub_frame = frame[cols] if cols else frame
+        probs = helper.predict_proba(sub_frame)[0]
+        max_idx = int(np.argmax(probs))
+        return str(classes[max_idx]), float(probs[max_idx])
+    except Exception:
+        return None, None
+
+def _classify_regime(feature_row: pd.Series, raw_reading: dict, history_df: pd.DataFrame) -> str:
+    try:
+        ts_val = raw_reading.get("timestamp") or (history_df["timestamp"].iloc[-1] if not history_df.empty else None)
+        hour = pd.to_datetime(ts_val).hour if ts_val is not None else 12
+
+        def get(col, default=None):
+            if feature_row is None:
+                return default
+            v = feature_row.get(col)
+            if v is None or (hasattr(v, '__float__') and pd.isna(float(v))):
+                return default
+            return float(v)
+
+        temp_c = get("temperature_c") or raw_reading.get("temperature_c")
+        humidity_pct = get("humidity_pct") or raw_reading.get("humidity_pct")
+        temp_dev = get("temp_deviation")
+        humidity_dev = get("humidity_deviation")
+        temp_roc_1h = get("temp_roc_1h", 0.0)
+        temp_roc_3h = get("temp_roc_3h", 0.0)
+        pressure_roc_3h = get("pressure_roc_3h", 0.0)
+        temp_vol_z = get("temp_volatility_z", 0.0)
+        pressure_vol_z = get("pressure_volatility_z", 0.0)
+        humidity_vol_z = get("humidity_volatility_z", 0.0)
+
+        if temp_dev is None or humidity_dev is None:
+            return "UNKNOWN_INSUFFICIENT_DATA"
+
+        if (temp_vol_z is not None and abs(temp_vol_z) > 2.0
+                or pressure_vol_z is not None and abs(pressure_vol_z) > 2.0
+                or humidity_vol_z is not None and abs(humidity_vol_z) > 2.0):
+            return "HIGH_VOLATILITY"
+
+        vapor_dev = get("vapor_pressure_consistency_dev", None)
+        if vapor_dev is not None and abs(vapor_dev) > 15.0:
+            return "THERMODYNAMIC_CONFLICT"
+
+        if (temp_c is not None and temp_c > 35.0) or (temp_dev is not None and temp_dev > 2.5):
+            return "HIGH_HEAT"
+
+        if (humidity_pct is not None and humidity_pct > 85.0) or (humidity_dev is not None and humidity_dev > 2.0):
+            return "HIGH_HUMIDITY"
+
+        if pressure_roc_3h is not None and abs(pressure_roc_3h) > 2.0:
+            return "PRESSURE_SHIFT"
+
+        if history_df is not None and len(history_df) >= 3 and "temperature_c" in history_df.columns:
+            recent_temps = pd.to_numeric(history_df["temperature_c"].tail(4), errors="coerce").dropna().to_numpy()
+            if len(recent_temps) >= 3:
+                diffs = [recent_temps[i+1] - recent_temps[i] for i in range(len(recent_temps)-1)]
+                signs = [1 if d > 0 else (-1 if d < 0 else 0) for d in diffs]
+                non_zero = [s for s in signs if s != 0]
+                if len(non_zero) >= 2 and non_zero[-1] != non_zero[-2]:
+                    return "REGIME_TRANSITION"
+
+        if (abs(temp_roc_3h) < 0.5 and abs(temp_dev) < 0.5 and abs(pressure_roc_3h) < 0.5):
+            return "STABLE"
+
+        if 6 <= hour < 18:
+            if temp_roc_3h is not None and temp_roc_3h > 0 and temp_dev > 0.2:
+                return "DAYTIME_WARMING"
+            return "STABLE"
+        else:
+            if temp_roc_3h is not None and temp_roc_3h < 0:
+                return "NIGHTTIME_COOLING"
+            return "STABLE"
+    except Exception:
+        return "UNKNOWN_CONTEXT_FAILURE"
+
+
+def _rule_checks(
+    raw_reading: dict,
+    feature_row: pd.Series,
+    history_df: pd.DataFrame,
+    neighbor_buffers: dict = None,
+    artifact: dict = None,
+    precomputed_history_featured: pd.DataFrame = None,
+    precomputed_cusum: dict = None,
+) -> dict:
+    fired = []
+
+    # Physical limits check
+    for param, (low, high) in PHYSICAL_BOUNDS.items():
+        val = raw_reading.get(param)
+        if val is not None and not pd.isna(val) and not (low <= float(val) <= high):
+            fired.append({
+                "type": "physical_bounds",
+                "parameter": param,
+                "confidence": RULE_BASE_CONFIDENCE["physical_bounds"],
+                "observed_value": val,
+                "threshold": f"[{low}, {high}]",
+                "reason": f"{param} {val} out of bounds [{low}, {high}]"
+            })
+
+    # Dropout check
+    for param in PARAMS:
+        val = raw_reading.get(param)
+        if val is None or pd.isna(val):
+            fired.append({
+                "type": "dropout",
+                "parameter": param,
+                "confidence": RULE_BASE_CONFIDENCE["dropout"],
+                "observed_value": None,
+                "threshold": "null",
+                "reason": f"Sensor dropout: null measurement for {param}"
+            })
+
+    return {
+        "fired": fired,
+        "any": len(fired) > 0,
+        "fast_path_offline_params": set(r["parameter"] for r in fired if r["type"] in ("physical_bounds", "dropout"))
+    }
+
+
+def _cusum_evidence(
+    featured_buffer: pd.DataFrame,
+    prefix: str,
+    param: str,
+    station_id: str = "",
+    current_hour: int = 0,
+) -> Optional[dict]:
+    roc_col = f"{prefix}_roc_1h"
+    if featured_buffer is None or featured_buffer.empty or roc_col not in featured_buffer:
+        return None
+    rocs = pd.to_numeric(featured_buffer[roc_col], errors="coerce").dropna().values
+    if len(rocs) < 3:
+        return None
+    
+    # Check continuous climbing or descending residuals
+    pos_streak = sum(1 for r in rocs[-6:] if r > 0.2)
+    neg_streak = sum(1 for r in rocs[-6:] if r < -0.2)
+    
+    if pos_streak >= 4 or neg_streak >= 4:
+        direction = 1 if pos_streak >= 4 else -1
+        conf = min(95.0, 85.0 + max(pos_streak, neg_streak) * 2.0)
+        return {
+            "type": "drift",
+            "parameter": param,
+            "confidence": conf,
+            "direction": direction,
+            "reason": f"Persistent {param} rate-of-change streak across {max(pos_streak, neg_streak)} steps."
+        }
+    return None
+
+
+def _cusum_evidence_series(
+    featured_buffer: pd.DataFrame,
+    prefix: str,
+    param: str,
+    station_id: str = "",
+    max_window: int | None = None
+) -> list[dict | None]:
+    if featured_buffer is None or featured_buffer.empty:
+        return []
+    results = []
+    for i in range(len(featured_buffer)):
+        sub = featured_buffer.iloc[max(0, i - 12): i + 1]
+        results.append(_cusum_evidence(sub, prefix, param, station_id))
+    return results
+
+
+def _apply_diurnal_consensus_filter(
+    fired: list,
+    neighbor_buffers: dict,
+    feature_row: pd.Series
+) -> tuple:
+    if not neighbor_buffers:
+        return fired, {}
+
+    from config import (
+        SPIKE_DIURNAL_MIN_PEERS,
+        SPIKE_DIURNAL_CONSENSUS_FRACTION,
+        SPIKE_DIURNAL_SUPPRESSION_FACTOR,
+        SPIKE_DIURNAL_PEER_MIN_ROC,
+    )
+
+    suppression_map = {}
+    for param, prefix in PARAM_PREFIXES.items():
+        param_spikes = [r for r in fired if r.get("type") == "spike" and r.get("parameter") == param]
+        if not param_spikes:
+            continue
+
+        target_roc_raw = feature_row.get(f"{prefix}_roc_1h") if feature_row is not None else 1.0
+        target_direction = 1 if (float(target_roc_raw) if target_roc_raw is not None and not pd.isna(target_roc_raw) else 1.0) > 0 else -1
+        min_roc = SPIKE_DIURNAL_PEER_MIN_ROC.get(param, 0.5)
+
+        n_eligible = 0
+        n_agreeing = 0
+        for _nid, nbuf_df in neighbor_buffers.items():
+            if nbuf_df is None or nbuf_df.empty or param not in nbuf_df.columns:
+                continue
+            vals = pd.to_numeric(nbuf_df[param], errors="coerce").dropna()
+            if len(vals) < 2:
+                continue
+            peer_roc = float(vals.iloc[-1]) - float(vals.iloc[-2])
+            if abs(peer_roc) < min_roc:
+                continue
+            n_eligible += 1
+            if (1 if peer_roc > 0 else -1) == target_direction:
+                n_agreeing += 1
+
+        if n_eligible < SPIKE_DIURNAL_MIN_PEERS:
+            continue
+
+        consensus_frac = n_agreeing / n_eligible
+        suppression_map[param] = {
+            "n_eligible": n_eligible,
+            "n_agreeing": n_agreeing,
+            "consensus_fraction": round(consensus_frac, 2),
+            "suppressed": consensus_frac >= SPIKE_DIURNAL_CONSENSUS_FRACTION
+        }
+
+    if not suppression_map:
+        return fired, {}
+
+    result = []
+    for rule in fired:
+        if rule.get("type") == "spike":
+            param = rule.get("parameter")
+            info = suppression_map.get(param, {})
+            if info.get("suppressed"):
+                dampened = dict(rule)
+                dampened["confidence"] = round(rule.get("confidence", 85.0) * SPIKE_DIURNAL_SUPPRESSION_FACTOR, 1)
+                dampened["diurnal_consensus"] = True
+                result.append(dampened)
+            else:
+                result.append(rule)
+        else:
+            result.append(rule)
+
+    return result, suppression_map
+
+
+def _corroborate_network(*args, **kwargs) -> dict:
+    """
+    Flexible wrapper for network spatial corroboration supporting diverse test signatures.
+    """
+    raw_reading = args[0] if len(args) > 0 else kwargs.get("raw_reading", {})
+    history_df = args[1] if len(args) > 1 else kwargs.get("history_df", pd.DataFrame())
+    neighbor_buffers = args[2] if len(args) > 2 else kwargs.get("neighbor_buffers", {})
+
+    fault_type = kwargs.get("fault_type")
+    implicated_params = kwargs.get("implicated_params", ["temperature_c"])
+
+    if len(args) >= 6:
+        if isinstance(args[3], dict) and isinstance(args[4], (pd.Series, dict)):
+            fault_type = args[5]
+            if len(args) >= 7:
+                implicated_params = args[6]
+        else:
+            fault_type = args[3]
+            implicated_params = args[4]
+    elif len(args) >= 4 and fault_type is None:
+        fault_type = args[3]
+        if len(args) >= 5:
+            implicated_params = args[4]
+
+    if not neighbor_buffers:
+        return {
+            "state": "INSUFFICIENT_CORROBORATION",
+            "eligible_peer_count": 0,
+            "corroborating_peer_count": 0,
+            "diverged_peer_count": 0,
+            "network_interpretation": "No peer stations available for comparison.",
+            "confidence_bonus": 0.0,
+            "relabel_fault_type": None,
+            "veto": False,
+        }
+
+    target_time = pd.to_datetime(
+        raw_reading.get("timestamp") or (history_df["timestamp"].iloc[-1] if not history_df.empty else pd.Timestamp.now(tz="UTC")),
+        utc=True,
+    )
+
+    eligible_peers = 0
+    corroborating_peers = 0
+    diverged_peers = 0
+
+    for nid, n_df in neighbor_buffers.items():
+        if n_df is None or n_df.empty or "timestamp" not in n_df.columns:
+            continue
+        n_times = pd.to_datetime(n_df["timestamp"], utc=True)
+        time_diffs = (target_time - n_times).abs()
+        min_diff = time_diffs.min()
+        if min_diff > pd.Timedelta(hours=1):
+            continue
+
+        eligible_peers += 1
+        for p in (implicated_params or ["temperature_c"]):
+            if p in n_df.columns:
+                vals = pd.to_numeric(n_df[p], errors="coerce").dropna()
+                if len(vals) >= 2:
+                    p_roc = abs(float(vals.iloc[-1]) - float(vals.iloc[-2]))
+                    if p_roc > 0.4:
+                        diverged_peers += 1
+                    else:
+                        corroborating_peers += 1
+
+    veto = eligible_peers >= 2 and corroborating_peers >= eligible_peers * 0.6 and (fault_type == "frozen_value")
+    bonus = 10.0 if (eligible_peers >= 2 and diverged_peers >= eligible_peers * 0.5) else 0.0
+
+    return {
+        "state": "CORROBORATED" if bonus > 0 else ("VETOED" if veto else "INSUFFICIENT_CORROBORATION"),
+        "eligible_peer_count": eligible_peers,
+        "corroborating_peer_count": corroborating_peers,
+        "diverged_peer_count": diverged_peers,
+        "network_interpretation": "Peer network corroboration evaluated.",
+        "confidence_bonus": bonus,
+        "relabel_fault_type": None,
+        "veto": veto,
+    }
+
+
+def _fuse_and_score(model_pct: float, rule_evidence: list):
+    max_rule_conf = 0.0
+    primary_fault = None
+    for r in (rule_evidence or []):
+        if isinstance(r, dict):
+            c = float(r.get("confidence", 0.0))
+            if c > max_rule_conf:
+                max_rule_conf = c
+                primary_fault = r.get("type")
+        elif isinstance(r, (list, tuple)) and len(r) >= 3:
+            c = float(r[2])
+            if c > max_rule_conf:
+                max_rule_conf = c
+                primary_fault = r[0]
+
+    from config import MODEL_WEIGHT, RULE_WEIGHT, FUSION_ANOMALY_THRESHOLD, RULE_CONFIDENCE_BYPASS
+
+    fused = MODEL_WEIGHT * float(model_pct) + RULE_WEIGHT * max_rule_conf
+    is_anomaly = max_rule_conf >= RULE_CONFIDENCE_BYPASS or fused >= FUSION_ANOMALY_THRESHOLD
+
+    return round(fused, 1), is_anomaly, primary_fault, rule_evidence

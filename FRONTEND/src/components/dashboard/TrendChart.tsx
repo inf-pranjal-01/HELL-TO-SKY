@@ -46,6 +46,27 @@ const METRIC_CONFIG = {
 const isMetricAnomalous = (pt: TrendPoint, metric: MetricType): boolean => {
   if (!pt.is_anomaly) return false;
 
+  const metricKeyMap: Record<MetricType, string> = {
+    temperature: 'temperature_c',
+    pressure: 'pressure_hpa',
+    humidity: 'humidity_pct',
+  };
+  const targetKey = metricKeyMap[metric];
+
+  // 1. If explicit affected_parameters list exists, check exact channel
+  if (pt.affected_parameters && pt.affected_parameters.length > 0) {
+    const isExplicitlyInList = pt.affected_parameters.some(
+      (p) => p.toLowerCase().includes(metric) || p.toLowerCase() === targetKey
+    );
+    if (isExplicitlyInList) return true;
+
+    const isAnotherExplicitParam = pt.affected_parameters.some(
+      (p) => p.toLowerCase().includes('temp') || p.toLowerCase().includes('press') || p.toLowerCase().includes('humid')
+    );
+    if (isAnotherExplicitParam) return false;
+  }
+
+  // 2. If suggested values exist, mark the channel that has a reconstruction
   const hasAnySuggested = (
     pt.suggested_temperature_c != null ||
     pt.suggested_pressure_hpa != null ||
@@ -58,10 +79,18 @@ const isMetricAnomalous = (pt: TrendPoint, metric: MetricType): boolean => {
     if (metric === 'humidity') return pt.suggested_humidity_pct != null;
   }
 
+  // 3. If fault_type names a parameter explicitly
   const ft = (pt.fault_type || '').toLowerCase();
   if (ft.includes('temp')) return metric === 'temperature';
   if (ft.includes('press')) return metric === 'pressure';
   if (ft.includes('humid') || ft.includes('dew')) return metric === 'humidity';
+
+  // 4. Multivariate or coupled network faults affect all channels
+  if (ft.includes('multivariate') || ft.includes('network') || ft.includes('spatial')) {
+    return true;
+  }
+
+  // 5. Default fallback: point is verified anomalous and not restricted to another channel
   return true;
 };
 
@@ -172,7 +201,27 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     );
   }
 
-  const values = windowedPoints.map((p) => p[activeCfg.key]);
+  // Filter only points that have a valid numeric measurement for the selected metric
+  const validPoints = windowedPoints.filter(
+    (p) =>
+      p[activeCfg.key] !== null &&
+      p[activeCfg.key] !== undefined &&
+      typeof p[activeCfg.key] === 'number' &&
+      !Number.isNaN(p[activeCfg.key])
+  );
+
+  if (validPoints.length === 0) {
+    return (
+      <Card variant="glass" className={`sg-trend-card ${className}`}>
+        {renderToolbar()}
+        <div className="sg-trend-empty">
+          <p>No valid {activeCfg.label.toLowerCase()} readings in the selected {hours}h window.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  const values = validPoints.map((p) => p[activeCfg.key] as number);
   const minVal = Math.floor(Math.min(...values) - 0.5);
   const maxVal = Math.ceil(Math.max(...values) + 0.5);
   const valRange = maxVal - minVal || 1;
@@ -189,9 +238,6 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
   const span = Math.max(windowEnd - windowStart, 1000);
   const getX = (timestamp: string) => {
-    if (windowedPoints.length === 1) {
-      return padLeft + plotWidth / 2;
-    }
     const t = new Date(timestamp).getTime();
     const ratio = Math.max(0, Math.min(1, (t - windowStart) / span));
     return padLeft + ratio * plotWidth;
@@ -201,15 +247,15 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     return padTop + plotHeight - ((val - minVal) / valRange) * plotHeight;
   };
 
-  // Generate SVG path commands
-  const pathD = windowedPoints.reduce((acc, point, i) => {
+  // Generate SVG path commands strictly over valid points
+  const pathD = validPoints.reduce((acc, point, i) => {
     const x = getX(point.timestamp);
-    const y = getY(point[activeCfg.key]);
+    const y = getY(point[activeCfg.key] as number);
     return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
   }, '');
 
-  const areaD = windowedPoints.length > 1
-    ? `${pathD} L ${getX(windowedPoints[windowedPoints.length - 1].timestamp)} ${padTop + plotHeight} L ${getX(windowedPoints[0].timestamp)} ${padTop + plotHeight} Z`
+  const areaD = validPoints.length > 1
+    ? `${pathD} L ${getX(validPoints[validPoints.length - 1].timestamp)} ${padTop + plotHeight} L ${getX(validPoints[0].timestamp)} ${padTop + plotHeight} Z`
     : '';
 
   // Horizontal Grid Lines & Y Labels (4 steps)
@@ -305,9 +351,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           )}
 
           {/* Points & Interactive Tooltip Anchors */}
-          {windowedPoints.map((pt, i) => {
+          {validPoints.map((pt, i) => {
             const cx = getX(pt.timestamp);
-            const cy = getY(pt[activeCfg.key]);
+            const cy = getY(pt[activeCfg.key] as number);
             const isAnomaly = isMetricAnomalous(pt, selectedMetric);
 
             return (
@@ -366,7 +412,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             )}
             {hoveredPoint.point.is_anomaly && (
               <>
-                <div className="sg-tooltip-score">Fault: {hoveredPoint.point.fault_type?.replace(/_/g, ' ') || 'anomaly'}</div>
+                <div className="sg-tooltip-score">
+                  Fault: {hoveredPoint.point.fault_type ? hoveredPoint.point.fault_type.replace(/_/g, ' ') : 'Detected Anomaly'}
+                </div>
                 {hoveredPoint.point.severity && (
                   <div className="sg-tooltip-score">Severity: {hoveredPoint.point.severity}</div>
                 )}

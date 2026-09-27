@@ -28,9 +28,22 @@ export type NetworkCorroborationState = 'LOCALIZED' | 'REGIONAL' | 'INSUFFICIENT
  * Sub-object inside current-reading contract
  */
 export interface MetricValueRange {
-  value: number;
+  value: number | null;
   normal_min: number;
   normal_max: number;
+}
+
+export interface EdgeInference {
+  status?: 'ALERT' | 'NOMINAL' | string;
+  anomaly_flag?: boolean;
+  anomaly_type?: AnomalyType | string | null;
+  affected_parameter?: string | null;
+  confidence_llr?: number;
+  tier_fired?: number;
+  severity?: AnomalySeverity | string;
+  model_version?: string;
+  inference_method?: string;
+  latency_ms?: number;
 }
 
 /**
@@ -52,8 +65,10 @@ export interface CurrentSensorReading {
   fault_type?: AnomalyType | null;
   severity?: AnomalySeverity | null;
   suggested_values?: Record<string, number>;
-  source?: 'live' | 'replay';
+  source?: 'live' | 'replay' | 'edge' | string;
   model_status?: string;
+  edge_inference?: EdgeInference | null;
+  ingest_time_ms?: number;
 }
 
 /**
@@ -93,7 +108,9 @@ export interface TrendPoint {
   suggested_pressure_hpa?: number | null;
   suggested_humidity_pct?: number | null;
   health_status?: SensorHealthStatus;
-  source?: 'live' | 'replay';
+  affected_parameters?: string[];
+  source?: 'live' | 'replay' | 'edge' | string;
+  edge_inference?: EdgeInference | null;
 }
 
 /**
@@ -164,6 +181,8 @@ export interface LatestAnomaly {
   decision_basis?: string;
   /** ML model availability status per audit §8.2 */
   model_status?: string;
+  edge_inference?: EdgeInference | null;
+  source?: 'live' | 'replay' | 'edge' | string;
 }
 
 /**
@@ -190,6 +209,8 @@ export interface RecentAnomalyItem {
   decision_basis?: string;
   /** ML model availability status per audit §8.2 */
   model_status?: string;
+  edge_inference?: EdgeInference | null;
+  source?: 'live' | 'replay' | 'edge' | string;
 }
 
 /**
@@ -253,6 +274,7 @@ export interface AnomalyExplanation {
   decision_basis?: string;
   model_status?: string;
   spatial_context?: SpatialContext;
+  edge_inference?: EdgeInference | null;
 }
 
 /**
