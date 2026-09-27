@@ -93,6 +93,7 @@ export const StationProvider: React.FC<{ children: React.ReactNode }> = ({ child
         stations,
         selectedStation,
         setSelectedStation,
+        selectStationById,
         isLoading,
         error,
         refreshStations: () => fetchStations(false),

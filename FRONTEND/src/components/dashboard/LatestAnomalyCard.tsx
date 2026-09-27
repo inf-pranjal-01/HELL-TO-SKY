@@ -12,7 +12,7 @@ export interface LatestAnomalyCardProps {
   error?: string | null;
   onRetry?: () => void;
   className?: string;
-  streamMode?: 'live' | 'replay';
+  streamMode?: 'live' | 'replay' | 'edge';
 }
 
 export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
