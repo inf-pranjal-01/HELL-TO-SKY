@@ -537,50 +537,53 @@ export function useDashboardData(
       }
 
       // Immediate rendering path: add the freshly processed backend
-      // reading to the timestamped graph only if it is a valid numeric measurement.
+      // reading to the timestamped graph only if it is a valid numeric measurement and matches active mode.
       if (
         data.temperature_c?.value != null &&
         data.pressure_hpa?.value != null &&
         data.humidity_pct?.value != null
       ) {
-        const point = {
-          timestamp: data.timestamp,
-          temperature_c: data.temperature_c.value,
-          pressure_hpa: data.pressure_hpa.value,
-          humidity_pct: data.humidity_pct.value,
-          anomaly_score_pct: data.anomaly_score_pct,
-          is_anomaly: data.is_anomaly ?? false,
-          fault_type: data.fault_type,
-          suggested_temperature_c: data.suggested_values?.temperature_c,
-          suggested_pressure_hpa: data.suggested_values?.pressure_hpa,
-          suggested_humidity_pct: data.suggested_values?.humidity_pct,
-          health_status: data.sensor_health_status,
-          source: data.source,
-        };
+        const activeMode = priorStreamModeRef.current;
+        if (!activeMode || !data.source || data.source === activeMode) {
+          const point = {
+            timestamp: data.timestamp,
+            temperature_c: data.temperature_c.value,
+            pressure_hpa: data.pressure_hpa.value,
+            humidity_pct: data.humidity_pct.value,
+            anomaly_score_pct: data.anomaly_score_pct,
+            is_anomaly: data.is_anomaly ?? false,
+            fault_type: data.fault_type,
+            suggested_temperature_c: data.suggested_values?.temperature_c,
+            suggested_pressure_hpa: data.suggested_values?.pressure_hpa,
+            suggested_humidity_pct: data.suggested_values?.humidity_pct,
+            health_status: data.sensor_health_status,
+            source: data.source,
+          };
 
-        setTrends((previous) => {
-          const visibleHours = trendHoursRef.current;
-          if (!previous || previous.station_id !== data.station_id) {
-            const next = {
+          setTrends((previous) => {
+            const visibleHours = trendHoursRef.current;
+            if (!previous || previous.station_id !== data.station_id) {
+              const next = {
+                station_id: data.station_id,
+                hours: visibleHours,
+                points: [point],
+              };
+              trendRevisionRef.current += 1;
+              trendsRef.current = next;
+              return next;
+            }
+
+            const nextTrends = {
+              ...previous,
               station_id: data.station_id,
               hours: visibleHours,
-              points: [point],
+              points: mergeTrendPoints(previous.points || [], [point], visibleHours, activeMode),
             };
             trendRevisionRef.current += 1;
-            trendsRef.current = next;
-            return next;
-          }
-
-          const nextTrends = {
-            ...previous,
-            station_id: data.station_id,
-            hours: visibleHours,
-            points: mergeTrendPoints(previous.points || [], [point], visibleHours),
-          };
-          trendRevisionRef.current += 1;
-          trendsRef.current = nextTrends;
-          return nextTrends;
-        });
+            trendsRef.current = nextTrends;
+            return nextTrends;
+          });
+        }
 
         // Append to in-memory telemetry history (bounded to 150 entries)
         setTelemetryHistory((prev) => {
@@ -640,13 +643,19 @@ export function useDashboardData(
     try {
       const data = await trendsService.getTrends(targetStationId, hours);
       if (activeStationIdRef.current !== targetStationId) return;
+      const activeMode = priorStreamModeRef.current;
+      const filteredPoints = (data.points || []).filter(
+        (p) => !activeMode || !p.source || p.source === activeMode
+      );
+      const dataWithFiltered = { ...data, points: filteredPoints };
+
       const latestLocal = trendsRef.current;
       // A WebSocket/current-reading update can arrive while this request is
       // in flight. Merge it by recorded timestamp instead of letting an older
       // HTTP response make the graph jump backwards.
       const nextTrends = latestLocal?.station_id === targetStationId && trendRevisionRef.current !== requestRevision
-        ? { ...data, points: mergeTrendPoints(data.points, latestLocal.points, hours, priorStreamModeRef.current) }
-        : data;
+        ? { ...dataWithFiltered, points: mergeTrendPoints(dataWithFiltered.points, latestLocal.points, hours, activeMode) }
+        : dataWithFiltered;
       trendsRef.current = nextTrends;
       setTrends(nextTrends);
       setTrendsError(null);

@@ -36,6 +36,7 @@ export const DashboardPage: React.FC = () => {
   const [isInjecting, setIsInjecting] = useState<boolean>(false);
   const [isPurging, setIsPurging] = useState<boolean>(false);
   const [injectionNotice, setInjectionNotice] = useState<string | null>(null);
+  const [isProviderBannerDismissed, setIsProviderBannerDismissed] = useState<boolean>(false);
   const activeStationRef = useRef<string | undefined>(selectedStation?.station_id);
   const noticeTimerRef = useRef<number | null>(null);
 
@@ -72,7 +73,14 @@ export const DashboardPage: React.FC = () => {
     activeStationRef.current = selectedStation?.station_id;
     setInjectionNotice(null);
     setIsInjecting(false);
+    setIsProviderBannerDismissed(false);
   }, [selectedStation?.station_id]);
+
+  useEffect(() => {
+    if (providerStatus?.status === 'HEALTHY') {
+      setIsProviderBannerDismissed(false);
+    }
+  }, [providerStatus?.status]);
 
   useEffect(() => {
     return () => {
@@ -119,7 +127,15 @@ export const DashboardPage: React.FC = () => {
   };
 
   const handleRefresh = async () => {
+    if (streamMode === 'live') {
+      try {
+        await systemStatusService.refreshLive(selectedStation?.station_id);
+      } catch {
+        // non-blocking
+      }
+    }
     await refreshAll();
+    setIsProviderBannerDismissed(true);
   };
 
   const handleModeToggle = async () => {
@@ -203,7 +219,7 @@ export const DashboardPage: React.FC = () => {
 
   const stationName = selectedStation?.name || 'Observatory Telemetry';
   const stationId = selectedStation?.station_id || '';
-  const isEdgeStation = streamMode !== 'replay' && currentReading?.source === 'edge';
+  const isEdgeStation = streamMode === 'edge';
 
   return (
     <div className="page-container sg-dashboard-page">
@@ -419,7 +435,13 @@ export const DashboardPage: React.FC = () => {
       )}
 
       {/* Live Provider Health Warning Banner (Open-Meteo failure diagnosis) */}
-      {streamMode === 'live' && providerStatus && providerStatus.status !== 'HEALTHY' && (
+      {streamMode === 'live' &&
+        providerStatus &&
+        providerStatus.status !== 'HEALTHY' &&
+        !isProviderBannerDismissed &&
+        (providerStatus.status === 'FAILING' ||
+          (providerStatus.failing_stations &&
+            providerStatus.failing_stations.includes(stationId))) && (
         <div className="sg-provider-alert-banner" role="alert">
           <AlertTriangle size={18} className="sg-provider-alert-icon" aria-hidden="true" />
           <div className="sg-provider-alert-content">
@@ -430,6 +452,14 @@ export const DashboardPage: React.FC = () => {
               {' '}&bull; {providerStatus.consecutive_failures} consecutive poll failures. Diagnosed Cause: {providerStatus.diagnosed_cause || 'Provider network timeout'}. Telemetry stream is gracefully skipping missing ticks and holding last verified physical state.
             </span>
           </div>
+          <button
+            type="button"
+            className="sg-provider-alert-dismiss"
+            onClick={() => setIsProviderBannerDismissed(true)}
+            aria-label="Dismiss provider alert"
+          >
+            &times;
+          </button>
         </div>
       )}
 
@@ -447,7 +477,7 @@ export const DashboardPage: React.FC = () => {
             )}
           </div>
           <span className="sg-endpoint-tag">
-            ● {isEdgeStation ? 'ESP32 HARDWARE INGEST' : 'LIVE BACKEND'}
+            ● {streamMode === 'edge' ? 'ESP32 HARDWARE INGEST' : streamMode === 'replay' ? 'ANOMALY REPLAY' : 'LIVE BACKEND'}
           </span>
         </div>
 

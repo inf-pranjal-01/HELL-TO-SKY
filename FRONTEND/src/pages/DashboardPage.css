@@ -354,6 +354,26 @@
   color: var(--text-secondary, #cbd5e1);
 }
 
+.sg-provider-alert-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #fbbf24;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0.8;
+  transition: opacity 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.sg-provider-alert-dismiss:hover {
+  opacity: 1;
+  background: rgba(245, 158, 11, 0.2);
+}
+
 @keyframes bannerFadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
