@@ -25,7 +25,7 @@ from model.uncertainty_budget import UncertaintyBudget, SENSOR_QUANTIZATION_FLOO
 from model.sequential_sprt import SequentialSPRT
 from model.peer_spatial_engine import PeerSpatialEngine
 from model.cross_channel_covariance import CrossChannelEngine, compute_dewpoint_c
-from config import PHYSICAL_BOUNDS, FAIL_LOW_FLOOR, RULE_BASE_CONFIDENCE, score_to_severity
+from config import PHYSICAL_BOUNDS, FAIL_LOW_FLOOR, RULE_BASE_CONFIDENCE, score_to_severity, get_station_normal_ranges
 
 # Monitored physical parameters
 PARAMS = ["temperature_c", "pressure_hpa", "humidity_pct"]
@@ -278,6 +278,7 @@ def _compute_suggested_values(
     history_df: Optional[pd.DataFrame] = None
 ) -> dict:
     suggestions = {}
+    normal_ranges = get_station_normal_ranges(station_id)
     for param in (implicated_params or PARAMS):
         if param in PARAMS:
             peer_med = None
@@ -292,13 +293,18 @@ def _compute_suggested_values(
                 suggestions[param] = round(float(expectations[param]), 1)
             elif history_df is not None and not history_df.empty and param in history_df.columns:
                 valid_vals = pd.to_numeric(history_df[param], errors="coerce").dropna()
-                if not valid_vals.empty:
-                    suggestions[param] = round(float(valid_vals.iloc[-1]), 1)
+                # Exclude the current reading (last row) and filter for plausible normal range
+                p_bounds = normal_ranges.get(param, {"normal_min": PHYSICAL_BOUNDS[param][0], "normal_max": PHYSICAL_BOUNDS[param][1]})
+                clean_vals = valid_vals.iloc[:-1] if len(valid_vals) > 1 else valid_vals
+                clean_in_bounds = clean_vals[(clean_vals >= p_bounds["normal_min"]) & (clean_vals <= p_bounds["normal_max"])]
+                if not clean_in_bounds.empty:
+                    suggestions[param] = round(float(clean_in_bounds.iloc[-1]), 1)
                 else:
-                    normal_mid = (PHYSICAL_BOUNDS[param][0] + PHYSICAL_BOUNDS[param][1]) / 2.0
+                    normal_mid = (p_bounds["normal_min"] + p_bounds["normal_max"]) / 2.0
                     suggestions[param] = round(float(normal_mid), 1)
             else:
-                normal_mid = (PHYSICAL_BOUNDS[param][0] + PHYSICAL_BOUNDS[param][1]) / 2.0
+                p_bounds = normal_ranges.get(param, {"normal_min": 5.0, "normal_max": 45.0})
+                normal_mid = (p_bounds["normal_min"] + p_bounds["normal_max"]) / 2.0
                 suggestions[param] = round(float(normal_mid), 1)
     return suggestions
 

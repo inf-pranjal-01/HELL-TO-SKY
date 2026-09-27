@@ -228,6 +228,7 @@ async def get_system_status():
 
 
 @app.post("/api/system-mode")
+@app.post("/api/system/mode")
 async def set_system_mode(body: dict):
     """Switch mode safely: mode='live', mode='replay', or mode='edge'."""
     mode = body.get("mode")
@@ -441,6 +442,7 @@ async def ingest_edge_observation(payload: dict):
         station_id,
         raw_reading,
         ts,
+        source="edge",
     )
 
     # Update edge status
@@ -890,26 +892,25 @@ async def get_trends(station_id: str, hours: int = 6):
                 cutoff = latest_t - pd.Timedelta(hours=hours)
                 points = [
                     p for p in raw_points
-                    if p.get("source") == "replay" and pd.to_datetime(p["timestamp"]) >= cutoff
+                    if str(p.get("source", "")).lower() == "replay" and pd.to_datetime(p["timestamp"]) >= cutoff
                 ]
             except Exception:
-                points = [p for p in raw_points if p.get("source") == "replay"]
+                points = [p for p in raw_points if str(p.get("source", "")).lower() == "replay"]
         else:
             points = []
     elif sim.mode == "edge":
         raw_points = list(sim.trend_history.get(station_id, []))
-        if raw_points:
+        points = [p for p in raw_points if str(p.get("source", "")).lower() == "edge"]
+        if not points:
             try:
-                latest_t = pd.to_datetime(raw_points[-1]["timestamp"])
-                cutoff = latest_t - pd.Timedelta(hours=hours)
-                points = [
-                    p for p in raw_points
-                    if p.get("source") == "edge" and pd.to_datetime(p["timestamp"]) >= cutoff
-                ]
+                df_edge = sim.manager.history._read_csv(sim.manager.history._path(station_id))
+                if not df_edge.empty and "source" in df_edge.columns:
+                    df_edge = df_edge[df_edge["source"].astype(str).str.lower() == "edge"]
+                    if not df_edge.empty:
+                        cutoff = df_edge["timestamp"].max() - pd.Timedelta(hours=hours)
+                        points = df_edge[df_edge["timestamp"] >= cutoff].to_dict(orient="records")
             except Exception:
-                points = [p for p in raw_points if p.get("source") == "edge"]
-        else:
-            points = []
+                points = []
     else:  # sim.mode == "live"
         try:
             points = await asyncio.wait_for(
@@ -917,7 +918,7 @@ async def get_trends(station_id: str, hours: int = 6):
                 timeout=3.5,
             )
             # Strictly guarantee only source == 'live' rows are returned
-            points = [p for p in points if p.get("source", "live") == "live"]
+            points = [p for p in points if str(p.get("source", "")).lower() == "live"]
         except Exception as e:
             print(f"[/api/trends] TimescaleDB query timeout/error ({e!r}), falling back to local history.")
             err_str = str(e).lower()
@@ -931,7 +932,7 @@ async def get_trends(station_id: str, hours: int = 6):
                 df_fallback = sim.manager.history._read_csv(sim.manager.history._path(station_id))
                 if not df_fallback.empty and "timestamp" in df_fallback.columns:
                     if "source" in df_fallback.columns:
-                        df_fallback = df_fallback[df_fallback["source"] == "live"]
+                        df_fallback = df_fallback[df_fallback["source"].astype(str).str.lower() == "live"]
                     if not df_fallback.empty:
                         cutoff = df_fallback["timestamp"].max() - pd.Timedelta(hours=hours)
                         points = df_fallback[df_fallback["timestamp"] >= cutoff].to_dict(orient="records")
@@ -943,7 +944,11 @@ async def get_trends(station_id: str, hours: int = 6):
                 points = []
 
         if not points:
-            points = [p for p in list(sim.trend_history.get(station_id, [])) if p.get("source", "live") == "live"]
+            points = [p for p in list(sim.trend_history.get(station_id, [])) if str(p.get("source", "")).lower() == "live"]
+
+    # Final airtight pipeline isolation filter: strictly match active simulator mode
+    target_mode = sim.mode
+    points = [p for p in points if str(p.get("source", "")).lower() == target_mode]
 
     # Strictly guarantee monotonic timestamp ordering
     try:

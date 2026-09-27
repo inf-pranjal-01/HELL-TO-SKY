@@ -411,6 +411,7 @@ class StateManager:
         current_network_readings: Optional[dict] = None,
         include_evaluation_diagnostics: bool = False,
         persist_history: bool = True,
+        source: Optional[str] = None,
     ) -> dict:
         buf = self.buffers[station_id]
         history_df = buf.raw_history_df()
@@ -467,10 +468,12 @@ class StateManager:
         # point by one verdict and hide the actual OFFLINE transition.
         verdict["health_status"] = buf.health.status
 
+        actual_source = source if source is not None else self.mode
+
         for spike in verdict.get("confirmed_spikes", []):
             self.history.mark_spike(
                 station_id, spike["timestamp"], spike["parameter"],
-                spike["suggested_value"], self.mode,
+                spike["suggested_value"], actual_source,
             )
             # The candidate was previously admitted as normal because
             # confirmation was unavailable. Remove it before future
@@ -487,7 +490,7 @@ class StateManager:
         # the CURRENT mode so live vs replay stretches stay
         # distinguishable after the fact. See history_store.py.
         if persist_history:
-            self.history.append(station_id, timestamp, raw_reading, verdict, source=self.mode)
+            self.history.append(station_id, timestamp, raw_reading, verdict, source=actual_source)
 
         return verdict
 
