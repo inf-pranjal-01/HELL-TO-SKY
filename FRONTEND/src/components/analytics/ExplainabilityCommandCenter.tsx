@@ -124,13 +124,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
     return () => { active = false; };
   }, [selected?.anomaly_id]);
 
-  // Ensure current selected anomaly is available in the pill selectors
-  const selectorList = useMemo(() => {
-    if (selected && selected.timestamp && !effectiveAnomalies.some((a) => a.anomaly_id === selected.anomaly_id)) {
-      return [selected, ...effectiveAnomalies];
-    }
-    return effectiveAnomalies;
-  }, [effectiveAnomalies, selected]);
 
   const features = useMemo(() => {
     return [...(explanation?.features ?? [])]
@@ -180,26 +173,22 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
       </div>
 
       <div className="sg-explain-card__selector-wrapper">
-        <div className="sg-explain-card__selector" aria-label="Choose an anomaly to explain">
-          {selectorList.slice(0, 6).map((anomaly) => {
-            const d = new Date(anomaly.timestamp);
+        <div className="sg-explain-card__selector" aria-label="Active inspected anomaly">
+          {(() => {
+            const d = new Date(selected.timestamp);
             const dateStr = !isNaN(d.getTime()) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
             const timeStr = !isNaN(d.getTime()) ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-            const isActive = anomaly.anomaly_id === selected.anomaly_id;
             return (
-              <button
-                key={anomaly.anomaly_id}
-                type="button"
-                onClick={() => setSelectedId(anomaly.anomaly_id)}
-                className={isActive ? 'is-active' : ''}
-                title={`Station: ${anomaly.station_id || 'Network'} — Time: ${dateStr} ${timeStr}`}
+              <div
+                className="sg-explain-card__pill-active is-active"
+                title={`Active Inspected Incident — Station: ${selected.station_id || 'Network'} — Time: ${dateStr} ${timeStr}`}
               >
-                {anomaly.station_id && <span className="sg-explain-card__pill-station">[{anomaly.station_id}]</span>}
-                <span className="sg-explain-card__pill-type">{anomaly.type.replace(/_/g, ' ')}</span>
+                {selected.station_id && <span className="sg-explain-card__pill-station">[{selected.station_id}]</span>}
+                <span className="sg-explain-card__pill-type">{selected.type ? selected.type.replace(/_/g, ' ') : 'Anomaly Incident'}</span>
                 <span className="sg-explain-card__pill-time">{dateStr} {timeStr}</span>
-              </button>
+              </div>
             );
-          })}
+          })()}
         </div>
         <Link to="/alerts" className="sg-explain-card__view-all-link" title="View all anomalies network-wide on the Alerts page">
           <span>All Alerts</span>
