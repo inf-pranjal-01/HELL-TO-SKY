@@ -250,9 +250,7 @@ def stream_dataset(
                 print(f"\n[Completed] Finished streaming target of {max_packets} packets.")
                 break
 
-            now_ts = pd.Timestamp.now(tz="UTC").isoformat()
-
-            if use_dataset and df is not None and total_rows > 0:
+            if df is not None and total_rows > 0:
                 row = df.iloc[df_idx % total_rows]
                 df_idx += 1
                 t_val = None if pd.isna(row.get("temperature_c")) else float(row.get("temperature_c"))
@@ -260,9 +258,14 @@ def stream_dataset(
                 h_val = None if pd.isna(row.get("humidity_pct")) else float(row.get("humidity_pct"))
                 gt_anom = bool(row.get("is_anomaly", False)) if "is_anomaly" in row else False
                 gt_fault = str(row.get("fault_type", "nominal")) if pd.notna(row.get("fault_type")) else "nominal"
+                
+                # Use genuine meteorological observation timestamp from Open-Meteo dataset
+                if "timestamp" in row and pd.notna(row["timestamp"]):
+                    observed_ts = pd.to_datetime(row["timestamp"], utc=True).isoformat()
+                else:
+                    observed_ts = pd.Timestamp.now(tz="UTC").isoformat()
             else:
-                # Realistic physical high-frequency sensor signal with subtle micro-fluctuations (clean blue baseline)
-                # Sensor transducer Brownian micro-drift within +/- 0.05 degC per reading
+                # Real-time synthetic stream fallback
                 micro_t = (math.sin(count * 0.15) * 0.2) + ((count % 7) * 0.02 - 0.06)
                 micro_p = (math.cos(count * 0.12) * 0.1) + ((count % 5) * 0.02 - 0.04)
                 micro_h = (math.sin(count * 0.10) * 0.4) + ((count % 9) * 0.05 - 0.20)
@@ -272,6 +275,7 @@ def stream_dataset(
                 h_val = round(curr_hum + micro_h, 1)
                 gt_anom = False
                 gt_fault = "nominal"
+                observed_ts = pd.Timestamp.now(tz="UTC").isoformat()
 
             # Execute simulated Level 1 edge inference
             edge_l1 = evaluate_edge_l1(buf, t_val, p_val, h_val)
@@ -280,7 +284,7 @@ def stream_dataset(
                 "event_id": f"evt_{uuid.uuid4().hex[:12]}",
                 "station_id": station_id,
                 "device_id": "esp32-devkit-v1-virtual",
-                "observed_at": now_ts,
+                "observed_at": observed_ts,
                 "sequence_number": count,
                 "readings": {
                     "temperature_c": t_val,
@@ -306,7 +310,7 @@ def stream_dataset(
             h_disp = f"{h_val:.1f}%" if h_val is not None else "N/A"
 
             status_icon = "🟢" if not edge_l1["is_anomaly"] else "⚠️"
-            print(f"┌─ [Packet #{count:04d}] ── {station_id} @ {now_ts} ── {rtt_ms:.1f}ms RTT")
+            print(f"┌─ [Packet #{count:04d}] ── {station_id} @ {observed_ts} ── {rtt_ms:.1f}ms RTT")
             print(f"│  Readings  : Temp: {t_disp:<8} | Pres: {p_disp:<11} | RH: {h_disp:<7}")
             print(f"│  Edge L1   : {status_icon} {edge_l1['status']:<14} | Tier: {edge_l1['tier_fired']} | Fault: {edge_l1['anomaly_type']:<15} | LLR: {edge_l1['confidence_llr']:.2f}")
             if status_code == 200:
