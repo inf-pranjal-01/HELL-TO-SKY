@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from collections import deque
 
 from model.dynamic_expectation import compute_dynamic_expectation, calculate_solar_hour
-from model.uncertainty_budget import UncertaintyBudget, SENSOR_QUANTIZATION_FLOORS
+from model.uncertainty_budget import UncertaintyBudget, SENSOR_QUANTIZATION_FLOORS, DEFAULT_DIURNAL_SPREAD
 from model.sequential_sprt import SequentialSPRT
 from model.peer_spatial_engine import PeerSpatialEngine
 from model.cross_channel_covariance import CrossChannelEngine, compute_dewpoint_c
