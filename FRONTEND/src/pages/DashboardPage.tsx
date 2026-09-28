@@ -88,7 +88,7 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => {
     const handleEdgeTimeout = (e: Event) => {
       const customEvt = e as CustomEvent;
-      const msg = customEvt.detail?.message || 'ESP32 hardware link timed out (inactivity >330s). Auto-exited to Live Mode.';
+      const msg = customEvt.detail?.message || 'ESP32 hardware link timed out (inactivity >35s). Auto-exited to Live Mode.';
       setEdgeTimeoutNotice(msg);
       if (timeoutNoticeTimerRef.current !== null) {
         clearTimeout(timeoutNoticeTimerRef.current);
@@ -419,7 +419,7 @@ export const DashboardPage: React.FC = () => {
           <div className="sg-edge-timeout-banner__content">
             <Clock size={15} className="sg-edge-timeout-icon" aria-hidden="true" />
             <span className="sg-edge-timeout-text">
-              <strong>ESP32 Inactivity Timeout:</strong> No hardware packets received for &gt;330s (5.5m). Automatically returned to <strong>Live Mode</strong>.
+              <strong>ESP32 Inactivity Timeout:</strong> No hardware packets received for &gt;35s. Automatically returned to <strong>Live Mode (Open-Meteo API)</strong>.
             </span>
           </div>
           <button
@@ -468,6 +468,9 @@ export const DashboardPage: React.FC = () => {
                 </span>
                 <span className="sg-edge-connected-meta">
                   Packets Ingested: {edgeStatus.packet_count || 0} &bull; Turnaround Latency: {wsLatencyMs !== null ? `${wsLatencyMs}ms` : '18ms'} (Direct Stream)
+                </span>
+                <span className="sg-edge-connected-watchdog">
+                  ⚡ Auto-switch watchdog active: system will auto-switch to Open-Meteo API mode (Live Mode) if no incoming packets for &gt;35s.
                 </span>
               </div>
             </div>

@@ -559,6 +559,18 @@
   font-family: var(--font-mono, monospace);
 }
 
+.sg-edge-connected-watchdog {
+  font-size: 0.74rem;
+  color: #a7f3d0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+  font-family: var(--font-mono, monospace);
+  opacity: 0.95;
+  letter-spacing: 0.01em;
+}
+
 .sg-edge-start-btn {
   display: inline-flex !important;
   align-items: center !important;

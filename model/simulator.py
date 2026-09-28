@@ -114,7 +114,7 @@ ARTIFACTS_PATH = Path(__file__).parent.parent / "model_artifacts" / "isolation_f
 
 REPLAY_STEP_SECONDS = 2  # one historical hour is streamed every two wall-clock seconds
 LIVE_FETCH_INTERVAL_SECONDS = 15 * 60  # Open-Meteo current weather: poll every 15 minutes
-EDGE_INACTIVITY_TIMEOUT_SECONDS = 330  # Auto-exit ESP32 edge mode after 5.5 min of inactivity
+EDGE_INACTIVITY_TIMEOUT_SECONDS = 35  # Auto-exit ESP32 edge mode after 35s of inactivity
 TREND_HISTORY_MAXLEN = 2000
 RECENT_ANOMALIES_MAXLEN = 200
 
@@ -436,7 +436,7 @@ class SimulatorState:
         self._live_refresh_requested = True
 
         msg = (
-            "ESP32 hardware link timed out (no packets received for >330s). Auto-exited to Live Mode."
+            "ESP32 hardware link timed out (no packets received for >35s). Auto-exited to Live Mode."
             if reason == "timeout"
             else "ESP32 mode closed. Switched to Live Mode."
         )
