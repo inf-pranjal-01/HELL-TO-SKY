@@ -410,6 +410,7 @@ class SimulatorState:
         Purges edge scratch state, restores live buffers, and resumes live Open-Meteo updates.
         """
         self.manager.switch_to_live()
+        self.manager.history.clear_all(source="edge")
         self._replay_frames = {}
         self._last_ingested = {}
         self._last_ingested_timestamp = {}

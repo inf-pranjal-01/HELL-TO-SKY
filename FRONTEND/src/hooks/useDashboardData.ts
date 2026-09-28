@@ -467,12 +467,12 @@ export function useDashboardData(
               // Immediately wipe all local state so the chart goes blank without
               // needing a page refresh, then re-fetch so latest live readings
               // are shown right away.
-              trendsRef.current = null;
+              trendsRef.current = { station_id: activeStationIdRef.current || '', hours: trendHoursRef.current, points: [] };
               currentReadingRef.current = null;
               latestAnomalyRef.current = null;
               sensorHealthRef.current = null;
               setCurrentReading(null);
-              setTrends(null);
+              setTrends({ station_id: activeStationIdRef.current || '', hours: trendHoursRef.current, points: [] });
               setLatestAnomaly(null);
               setRecentAnomalies([]);
               setSensorHealth(null);
@@ -670,11 +670,7 @@ export function useDashboardData(
       );
       const dataWithFiltered = { ...data, points: filteredPoints };
 
-      const latestLocal = trendsRef.current;
-      // Merge HTTP response with any local/WebSocket points that arrived in the meantime
-      const nextTrends = (latestLocal?.station_id === targetStationId && latestLocal.points && latestLocal.points.length > 0)
-        ? { ...dataWithFiltered, points: mergeTrendPoints(dataWithFiltered.points, latestLocal.points, hours, activeMode) }
-        : dataWithFiltered;
+      const nextTrends = dataWithFiltered;
       trendsRef.current = nextTrends;
       setTrends(nextTrends);
       setTrendsError(null);
