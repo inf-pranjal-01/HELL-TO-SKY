@@ -1,4 +1,0 @@
-category,count,share_pct,explanation
-Within-Episode Contamination Cascade (Non-Onset),8118,96.20763214031761,Downstream points within the same episode recovered by keeping within-episode state clean
-Inter-Episode Contamination Cascade (Onset pos=0),320,3.7923678596823893,Onset points of subsequent episodes recovered because a PREVIOUS missed episode was prevented from poisoning history
-Total Clean History Oracle Recovered Points,8438,100.0,"All 8,438 lost TPs recovered when historical state is kept uncontaminated"

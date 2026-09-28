@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-[**Live Dashboard**](http://localhost:5173) • [**API Docs**](http://localhost:8000/docs) • [**Benchmark Script**](scratch/run_authoritative_benchmark.py) • [**Authoritative Results**](model_artifacts/authoritative_benchmark_results.json)
+[**Live Dashboard**](http://localhost:5173) • [**API Docs**](http://localhost:8000/docs) • [**Fast Benchmark (Judges)**](evaluation/fast_benchmark.py) • [**Benchmark Guide**](BENCHMARK_GUIDE.md)
 
 </div>
 
@@ -29,7 +29,7 @@
 - [Getting Started](#-getting-started)
   - [Option 1: Docker Compose (Recommended)](#option-1-docker-compose-recommended)
   - [Option 2: Local Development Setup](#option-2-local-development-setup)
-- [Running the Authoritative Benchmark](#-running-the-authoritative-benchmark)
+- [Running the Production Benchmark (Judges' Guide)](#-running-the-production-benchmark-judges-guide)
 - [API Reference](#-api-reference)
 - [Sensor Health State Machine](#-sensor-health-state-machine)
 - [License](#-license)
@@ -269,15 +269,28 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 🧪 Running the Authoritative Benchmark
+## 🧪 Running the Production Benchmark (Judges' Guide)
 
-To reproduce the authoritative 7-seed multi-station benchmark:
+For complete architectural details and confusion matrix definitions, please see the [**Benchmark & Architecture Guide**](BENCHMARK_GUIDE.md).
+
+### Primary Parallel Production Benchmark (Recommended for Judges)
+The primary benchmark shards evaluation across the **7 independent regional clusters** using multi-core parallel processing, reducing evaluation time from ~10–15 minutes down to **~1–2 minutes** with **zero mathematical divergence**:
 
 ```bash
-python scratch/run_authoritative_benchmark.py
+# Run the parallel production benchmark
+python evaluation/fast_benchmark.py
 ```
 
-The script will evaluate all 28 stations across the 7 locked seeds and save the full metrics summary to [`model_artifacts/authoritative_benchmark_results.json`](model_artifacts/authoritative_benchmark_results.json).
+- **Dynamic Hardware Calibration**: The script measures host CPU speed during the first $< 0.1\text{s}$ on a 100-sample micro-slice and displays an accurate expected completion time.
+- **Progress Tracking**: Real-time single-line in-place terminal updates with zero line-wrapping spam.
+- **Full Output Suite**: Outputs multi-class and single-class precision/recall/F1, the 7-fault row-level point-in-time confusion matrix, and episodic bipartite temporal matching contracts.
+
+### Canonical Sequential Baseline
+To run the single-threaded chronological reference loop streaming all 60,480 readings sequentially:
+
+```bash
+python evaluation/run_benchmark.py
+```
 
 ---
 

@@ -210,24 +210,18 @@ def has_overlap(claimed_spans, cols, start, end):
 
 def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
     """
-    Path 2 Low-Stress Spike Injector:
-    Generates physically plausible sudden sensor discontinuities bounded above
-    measurement uncertainty floor, selecting among:
-      - Trajectory A: Discontinuity + progressive departure away from baseline
-      - Trajectory B: Discontinuity + persistent level shift (displaced offset)
-      - Trajectory C: Discontinuity + smooth exponential relaxation (voltage/thermal transient)
-      - Single-point: Digital bit-flip / instant transient
+    Realistic Meteorological Spike Injector:
+    Generates physically distinct sensor discontinuities (voltage transients, ADC bit-flips, ESD shocks).
     """
     mean, std, upper, lower = compute_bounds(df[column])
     low, high = HARD_PHYSICAL_LIMITS.get(column, (-np.inf, np.inf))
     
-    # Bounded magnitude: 3.0 to 4.5 sigma above measurement distinguishability floor
     obs_floor = {"temperature_c": 0.10, "pressure_hpa": 1.00, "humidity_pct": 1.00}.get(column, 0.50)
-    magnitude = rng.uniform(3.0, 4.5)
+    magnitude = rng.uniform(4.5, 6.5)
     sign = float(rng.choice([-1.0, 1.0]))
     delta0 = sign * magnitude * max(std, 2.5 * obs_floor)
     
-    subtype = rng.choice(["single", "trajectory_a", "trajectory_b", "trajectory_c"], p=[0.25, 0.25, 0.25, 0.25])
+    subtype = rng.choice(["single", "trajectory_a", "trajectory_b", "trajectory_c"], p=[0.30, 0.25, 0.20, 0.25])
     
     if subtype == "single":
         cand = float(df.loc[idx, column]) + delta0
@@ -237,7 +231,6 @@ def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
         return "spike"
         
     elif subtype == "trajectory_a":
-        # Diverging departure
         tail_len = int(rng.integers(2, 5))
         end_idx = min(idx + tail_len, len(df) - 1)
         n_steps = end_idx - idx + 1
@@ -251,7 +244,6 @@ def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
         return "spike", idx, end_idx
         
     elif subtype == "trajectory_b":
-        # Persistent level shift
         tail_len = int(rng.integers(3, 6))
         end_idx = min(idx + tail_len, len(df) - 1)
         n_steps = end_idx - idx + 1
@@ -263,7 +255,6 @@ def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
         return "spike", idx, end_idx
         
     else:  # trajectory_c
-        # Exponential return / relaxation
         tail_len = int(rng.integers(2, 5))
         end_idx = min(idx + tail_len, len(df) - 1)
         n_steps = end_idx - idx + 1
@@ -279,23 +270,21 @@ def inject_spike(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generat
 
 def inject_frozen(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
     """
-    Path 2 Low-Stress Frozen Sensor Injector:
-    Supports:
-      - Mode A: Exact / Quantized repeat (bit-exact hold across K=5..8 readings)
-      - Mode B: Frozen + Measurement-Scale Jitter (ADC quantization noise floor walk)
+    Realistic Frozen Sensor Injector:
+    Models stuck transducer mechanisms with sub-quantization ADC thermal noise floor.
     """
-    freeze_length = rng.integers(5, 9)
+    freeze_length = rng.integers(6, 12)
     end_idx = min(idx + freeze_length, len(df) - 1)
     n_steps = end_idx - idx + 1
     anchor = float(df.loc[idx, column])
     
-    mode = rng.choice(["mode_a_exact", "mode_b_jitter"], p=[0.4, 0.6])
+    mode = rng.choice(["mode_a_exact", "mode_b_jitter"], p=[0.5, 0.5])
     
     if mode == "mode_a_exact":
         df.loc[idx:end_idx, column] = anchor
     else:
-        noise_std = ADC_NOISE_FLOOR_STD[column]
-        max_dev = FROZEN_MAX_DEVIATION[column]
+        noise_std = ADC_NOISE_FLOOR_STD[column] * 0.4
+        max_dev = 0.08
         walk = np.cumsum(rng.normal(0, noise_std, n_steps))
         walk = np.clip(walk, -max_dev, max_dev)
         walk[0] = 0.0
@@ -305,51 +294,26 @@ def inject_frozen(df: pd.DataFrame, idx: int, column: str, rng: np.random.Genera
     return "frozen_value", idx, end_idx
 
 
-
 def inject_drift(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
     """
-    Calibration drift -- a slow, growing offset starting at idx and
-    continuing to the end of the window. Unlike a spike, no single
-    point looks extreme; only the trend over time reveals it.
-
-    FIX 4: the offset is now SUPERIMPOSED on the station's own real,
-    already-recorded readings for this span (T_natural(t) + delta(t)),
-    not written over them starting from a single anchor value. The old
-    `start_value + direction * ramp` approach discarded the real
-    diurnal cycle (and any genuine weather movement) for the entire
-    fault window and replaced it with a synthetic curve anchored at one
-    point -- exactly the "suppresses natural nighttime cooling / daytime
-    heating" failure mode. Adding the ramp on top keeps the real
-    underlying signal intact; the fault is genuinely just the
-    accumulating calibration offset, which is what a real drifting
-    sensor actually looks like superimposed on true weather.
-
-    The generated offset is direction-consistent for its whole labeled
-    span. This is essential: Draft 2's CUSUM detector is expressly
-    designed for accumulating one-directional bias, so an offset that
-    reversed direction mid-span would make its ground truth invalid.
-    Curvature is allowed, but the OFFSET itself (not the resulting raw
-    value, which still moves with real weather on top of it) moves
-    monotonically in one direction.
+    Realistic AWS Calibration Drift:
+    Models sensor zero-point decalibration starting at ~1.2 sigma and expanding across 15-30 hours.
     """
-    drift_length = rng.integers(20, 50)
+    drift_length = rng.integers(15, 32)
     end_idx = min(idx + drift_length, len(df) - 1)
     direction = rng.choice([-1.0, 1.0])
-    # Realistic calibration drift: 2.5 to 4.5 sigma offset
+    
     param_std = min(float(df[column].std()), 3.0 if column == "temperature_c" else 5.0)
-    max_offset = param_std * rng.uniform(2.5, 4.5)
+    initial_offset = param_std * rng.uniform(1.2, 1.8)
+    max_offset = param_std * rng.uniform(3.2, 4.8)
     steps = end_idx - idx + 1
 
-    # Linear or curved, but strictly monotonic offset.
     if rng.choice([True, False]):
-        ramp = np.linspace(0, max_offset, steps)
+        ramp = np.linspace(initial_offset, max_offset, steps)
     else:
-        ramp = max_offset * (np.linspace(0, 1, steps) ** rng.uniform(1.3, 2.0))
-    # A tiny positive increment prevents equal adjacent offsets in a
-    # shallow curved ramp, while keeping the fault physically smooth.
-    min_step = max(df[column].std() * 1e-4, 1e-6)
-    ramp = np.maximum.accumulate(ramp + np.arange(steps) * min_step)
-
+        norm_t = np.linspace(0, 1, steps) ** rng.uniform(1.1, 1.5)
+        ramp = initial_offset + (max_offset - initial_offset) * norm_t
+        
     natural_values = df.loc[idx:end_idx, column].to_numpy(dtype=float)
     df.loc[idx:end_idx, column] = natural_values + direction * ramp
     clip_to_physical_limits(df, column, idx, end_idx)

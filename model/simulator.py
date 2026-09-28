@@ -608,10 +608,7 @@ class SimulatorState:
                 r_ts = r_ts.to_pydatetime()
             else:
                 r_reading = self._next_live_row(sid)
-                if getattr(self, "_force_live_ingest", False):
-                    r_ts = now
-                else:
-                    r_ts = self._live_observed_at.get(sid, now)
+                r_ts = self._live_observed_at.get(sid, now)
                 if hasattr(r_ts, "year") and r_ts.year <= 2025:
                     r_ts = now
             if r_reading is not None:

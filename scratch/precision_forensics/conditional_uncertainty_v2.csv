@@ -1,4 +1,0 @@
-parameter,sigma_sensor_pair,sigma_process_1h,sigma_pred_residual,composite_sigma_calibrated,calibration_status
-temperature_c,0.1414,1.3712,0.5472,0.5652,VALIDATED
-pressure_hpa,0.7071,0.1,0.2474,0.7491,VALIDATED
-humidity_pct,1.4142,5.462,3.2756,3.5679,VALIDATED

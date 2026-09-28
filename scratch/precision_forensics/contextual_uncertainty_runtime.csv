@@ -1,5 +1,0 @@
-component,temperature_c,pressure_hpa,humidity_pct
-sensor_floor_sigma,0.1,0.5,1.0
-atmospheric_process_rate,1.3785,0.6812,5.6421
-dt_scaling_regime,sqrt(dt_hours),sqrt(dt_hours),sqrt(dt_hours)
-peer_consensus_role,Secondary (20%),Primary (85%),Secondary (20%)

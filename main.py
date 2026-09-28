@@ -1228,8 +1228,22 @@ def _compute_spatial_context(sim, match: dict) -> dict:
             "divergence_score": divergence_score,
         }
 
-    # Select the parameter with highest divergence score across peers
-    best_p = max(param_evals.keys(), key=lambda k: param_evals[k]["divergence_score"])
+    # Prioritize explicitly affected parameters if present
+    mapped_aff = []
+    for aff in affected:
+        s_aff = str(aff).lower()
+        if "humid" in s_aff or "rh" in s_aff:
+            mapped_aff.append("humidity_pct")
+        elif "temp" in s_aff:
+            mapped_aff.append("temperature_c")
+        elif "press" in s_aff or "baro" in s_aff:
+            mapped_aff.append("pressure_hpa")
+
+    if mapped_aff and mapped_aff[0] in param_evals:
+        best_p = mapped_aff[0]
+    else:
+        # Select the parameter with highest divergence score across peers
+        best_p = max(param_evals.keys(), key=lambda k: param_evals[k]["divergence_score"])
     eval_info = param_evals[best_p]
 
     param = best_p

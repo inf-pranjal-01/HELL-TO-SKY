@@ -151,10 +151,14 @@ def evaluate_spike_evidence(
     current_sigma: float,
     dt_hours: float,
     expected_roc: float = 0.0,
-    sibling_peer_deltas: Optional[List[float]] = None
+    sibling_peer_deltas: Optional[List[float]] = None,
+    history_len: int = 24
 ) -> Tuple[float, Optional[str], Dict[str, Any]]:
     """
     Tier 1 Spike Check: Evaluates dynamic jump likelihood ratio relative to pre-jump state and spatial context.
+    Incorporates:
+      1. Sibling peer derivative consensus veto for regional environmental shifts.
+      2. Cold-start warmup safeguards to eliminate startup/reset false alarms.
     """
     if prior_val is None:
         return 0.0, None, {"jump_llr": 0.0, "is_spike": False, "status": "INSUFFICIENT_CONTEXT"}
@@ -164,13 +168,13 @@ def evaluate_spike_evidence(
     expected_change = expected_roc * max(0.01, dt_hours)
 
     peer_dispersion = 0.0
-    if sibling_peer_deltas:
+    if sibling_peer_deltas and len(sibling_peer_deltas) > 0:
         peer_arr = np.array(sibling_peer_deltas)
         peer_med = float(np.median(peer_arr))
         iqr = float(np.percentile(peer_arr, 75) - np.percentile(peer_arr, 25))
         peer_dispersion = max(0.10, iqr / 1.349 if iqr > 0 else float(np.std(peer_arr)))
-        # If peers strongly agree on an environmental change, incorporate peer consensus
-        if peer_dispersion < 1.0:
+        # If peers agree on a regional weather change (dispersion within 1.5x channel uncertainty), incorporate peer consensus derivative
+        if peer_dispersion <= 1.5 * current_sigma:
             expected_change = peer_med
 
     jump_mag = abs(delta - expected_change)
@@ -182,10 +186,10 @@ def evaluate_spike_evidence(
     from model.uncertainty_budget import GAP_GROWTH_RATES
     kappa = GAP_GROWTH_RATES.get(param, 0.25)
     
-    # 1-step natural innovation scale combining quantization noise, diurnal channel volatility, and peer dispersion
+    # 1-step natural innovation scale combining quantization noise, channel volatility, and peer dispersion
     sigma_jump = math.sqrt(
         2.0 * (sensor_floor ** 2)
-        + (0.6 * current_sigma) ** 2 * min(1.0, max(0.05, dt_hours))
+        + (1.0 * current_sigma) ** 2 * min(1.0, max(0.05, dt_hours))
         + (peer_dispersion ** 2)
         + kappa * max(0.05, dt_hours)
     )
@@ -194,14 +198,20 @@ def evaluate_spike_evidence(
     # Dynamic Wald Jump LLR
     jump_llr = float(0.5 * (z_jump ** 2) - math.log(max(1.1, sigma_jump / sensor_floor)))
 
-    is_spike = jump_llr >= WALD_UPPER_ALERT and z_jump >= 3.5
+    # Cold-start warmup safeguard (history_len < 6):
+    is_warmup = history_len < 6
+    alert_z_threshold = 4.8 if is_warmup else 4.2
+    alert_llr_threshold = max(WALD_UPPER_ALERT, 10.0 if is_warmup else WALD_UPPER_ALERT)
+
+    is_spike = jump_llr >= alert_llr_threshold and z_jump >= alert_z_threshold
     reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})" if is_spike else None
 
     diagnostics = {
         "jump_mag": jump_mag,
         "z_jump": z_jump,
         "jump_llr": jump_llr,
-        "is_spike": is_spike
+        "is_spike": is_spike,
+        "warmup": is_warmup
     }
     return jump_llr, reason, diagnostics
 
@@ -263,9 +273,9 @@ def evaluate_frozen_evidence(
     else:
         frozen_llr = 0.0
     
-    # Physical Wald alert criterion: evidence cleared Wald threshold AND target variance is within sensor floor
-    is_frozen = frozen_llr >= WALD_UPPER_ALERT and target_var <= (sensor_floor ** 2)
-    reason = f"Variance collapse (target_var={target_var:.4f} vs peer_var={peer_var:.4f}, LLR={frozen_llr:.2f})" if is_frozen else None
+    # Physical Wald alert criterion: evidence cleared Wald threshold AND target range is within physical stuck transducer noise limit (<= 0.20)
+    is_frozen = frozen_llr >= WALD_UPPER_ALERT and target_range <= 0.20 and target_var <= 0.02
+    reason = f"Variance collapse (target_var={target_var:.4f} vs peer_var={peer_var:.4f}, range={target_range:.2f}, LLR={frozen_llr:.2f})" if is_frozen else None
     
     diagnostics = {
         "target_var": target_var,
@@ -335,6 +345,7 @@ def score_reading(
     precomputed_neighbors: dict = None,
     precomputed_history_featured: pd.DataFrame = None,
     include_evaluation_diagnostics: bool = True,
+    sprt_state: dict = None,
     **kwargs
 ) -> dict:
     """
@@ -420,7 +431,7 @@ def score_reading(
         
         # Peer spatial consensus for this parameter
         peer_med, peer_disp, n_peers = PeerSpatialEngine.compute_robust_peer_consensus(
-            station_id, param, current_time, neighbor_buffers or {}
+            station_id, param, current_time, neighbor_buffers or {}, target_reading=raw_reading
         )
         
         # Dynamic expectation & solar ROC with spatial cold-start support
@@ -468,9 +479,29 @@ def score_reading(
                         prior_val = float(pv)
                         break
         
-        # 1. Spike Jump Check with diurnal rate-of-change compensation
+        # 1. Spike Jump Check with diurnal rate-of-change compensation & peer consensus
+        sibling_peer_deltas = []
+        if neighbor_buffers:
+            allowed_siblings = PeerSpatialEngine.get_sibling_peers(station_id)
+            for pid in allowed_siblings:
+                if pid not in neighbor_buffers:
+                    continue
+                p_buf = neighbor_buffers[pid]
+                p_rows = getattr(p_buf, "_raw_rows", None)
+                if p_rows and len(p_rows) >= 2:
+                    p_curr, p_prev = p_rows[-1].get(param), p_rows[-2].get(param)
+                    if p_curr is not None and p_prev is not None and not pd.isna(p_curr) and not pd.isna(p_prev):
+                        sibling_peer_deltas.append(float(p_curr) - float(p_prev))
+                elif isinstance(p_buf, pd.DataFrame) and len(p_buf) >= 2 and param in p_buf.columns:
+                    p_vals = pd.to_numeric(p_buf[param], errors="coerce").dropna()
+                    if len(p_vals) >= 2:
+                        sibling_peer_deltas.append(float(p_vals.iloc[-1]) - float(p_vals.iloc[-2]))
+
         s_llr, s_reason, s_diag = evaluate_spike_evidence(
-            param, val, exp_val, prior_val, sigma_tot, dt_hours, expected_roc=expected_rocs.get(param, 0.0)
+            param, val, exp_val, prior_val, sigma_tot, dt_hours,
+            expected_roc=expected_rocs.get(param, 0.0),
+            sibling_peer_deltas=sibling_peer_deltas,
+            history_len=len(history_df) if not history_df.empty else 0
         )
         if s_diag["is_spike"]:
             tier1_evidence.append({
@@ -524,6 +555,10 @@ def score_reading(
 
     # ── TIER 2: Persistent Temporal Faults (Pre-Whitened SPRT Drift) ─────
     tier2_evidence = []
+    sprt_updates = {}
+    
+    # Extract prior SPRT state if provided directly or via state object
+    active_sprt = sprt_state if sprt_state is not None else getattr(state, "sprt_state", None)
     
     for param in PARAMS:
         residual = innovations[param]
@@ -538,20 +573,29 @@ def score_reading(
         # Autoregressive pre-whitening
         whitened_eps = SequentialSPRT.pre_whiten_residual(param, residual, prior_res, dt_hours, sigma_tot)
         
+        s_pos_prev = 0.0
+        s_neg_prev = 0.0
+        if active_sprt and param in active_sprt:
+            s_pos_prev = float(active_sprt[param].get("s_pos", 0.0))
+            s_neg_prev = float(active_sprt[param].get("s_neg", 0.0))
+        
         # Dual CUSUM update
         s_pos, s_neg, drift_llr = SequentialSPRT.update_cusum(
-            param, s_pos_prev=0.0, s_neg_prev=0.0,
+            param, s_pos_prev=s_pos_prev, s_neg_prev=s_neg_prev,
             whitened_epsilon=whitened_eps, dt_hours=dt_hours, current_sigma=sigma_tot
         )
+        sprt_updates[param] = {"s_pos": s_pos, "s_neg": s_neg, "drift_llr": drift_llr}
         
         # Directional contrast against peer network
-        peer_med, _, n_p = PeerSpatialEngine.compute_robust_peer_consensus(station_id, param, current_time, neighbor_buffers or {})
+        peer_med, _, n_p = PeerSpatialEngine.compute_robust_peer_consensus(
+            station_id, param, current_time, neighbor_buffers or {}, target_reading=raw_reading
+        )
         if peer_med is not None and n_p >= 2:
             peer_res = peer_med - expectations[param]
             if (residual * peer_res) < 0 and abs(residual) > 2.0 * sigma_tot:
                 drift_llr *= 1.4  # Boost evidence on directional divergence
                 
-        if drift_llr >= WALD_UPPER_ALERT and abs(z_scores[param]) >= 2.2:
+        if drift_llr >= WALD_UPPER_ALERT and abs(z_scores[param]) >= 2.5:
             tier2_evidence.append({
                 "tier": 2,
                 "type": "drift",
@@ -590,7 +634,7 @@ def score_reading(
     eligible_peer_count = 0
     for p in PARAMS:
         p_med, p_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(
-            station_id, p, current_time, neighbor_buffers or {}
+            station_id, p, current_time, neighbor_buffers or {}, target_reading=raw_reading
         )
         if p_med is not None and not pd.isna(p_med) and n_p >= 2:
             spatial_diff = float(raw_reading[p]) - float(p_med)
@@ -605,7 +649,7 @@ def score_reading(
         d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
             peer_z["temperature_c"], peer_z["pressure_hpa"], peer_z["humidity_pct"]
         )
-        is_multivariate = cc_diag["is_multivariate_outlier"] and d_sq > 16.27
+        is_multivariate = cc_diag["is_multivariate_outlier"]
     else:
         # Isolated station fallback: evaluate local temporal innovation with strict physical invariants
         d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
@@ -620,7 +664,7 @@ def score_reading(
             if "timestamp" in history_df.columns
             else len(history_df) >= 3
         )
-        is_multivariate = is_hard_phys or (has_sufficient_history and cc_diag["is_multivariate_outlier"] and d_sq > 60.0)
+        is_multivariate = is_hard_phys or (has_sufficient_history and cc_diag["is_multivariate_outlier"])
 
     if is_multivariate:
         implicated = ["temperature_c", "humidity_pct"]
@@ -634,6 +678,7 @@ def score_reading(
             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "joint", "confidence": 90.0, "reason": f"3D Spatial Mahalanobis distance D^2={d_sq:.2f} exceeded critical threshold (p={p_val:.4e})"}],
             "regime": regime,
+            "sprt_updates": sprt_updates,
             "evaluation_diagnostics": {
                 "tier": 3,
                 "d_squared": d_sq,
@@ -669,6 +714,7 @@ def score_reading(
                             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
                             "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "model_joint", "confidence": 88.0, "reason": f"Isolation Forest empirical tail (z={z_if:.2f}) corroborated by cross-channel divergence (D^2={d_sq:.2f})"}],
                             "regime": regime,
+                            "sprt_updates": sprt_updates,
                             "evaluation_diagnostics": {
                                 "tier": 4,
                                 "z_if": z_if,
@@ -692,6 +738,7 @@ def score_reading(
             "likely_faulty_sensors": [],
             "rules_fired": [],
             "regime": regime,
+            "sprt_updates": sprt_updates,
             "evaluation_diagnostics": {
                 "tier": 5,
                 "status": "AMBIGUOUS",
@@ -708,6 +755,7 @@ def score_reading(
         "likely_faulty_sensors": [],
         "rules_fired": [],
         "regime": regime,
+        "sprt_updates": sprt_updates,
         "evaluation_diagnostics": {
             "tier": 5,
             "status": "NORMAL",

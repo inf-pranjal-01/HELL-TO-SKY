@@ -18,25 +18,6 @@ from typing import Dict, List, Optional, Tuple
 
 from model.dynamic_expectation import STATION_COORDS
 
-# Approximate station elevations (meters above sea level)
-STATION_ELEVATIONS = {
-    # Delhi (~215m)
-    "AWS-DEL-011": 215.0, "AWS-DEL-101": 200.0, "AWS-DEL-102": 220.0, "AWS-DEL-103": 210.0,
-    # Mumbai (~15m)
-    "AWS-MUM-007": 14.0, "AWS-MUM-101": 15.0, "AWS-MUM-102": 10.0, "AWS-MUM-103": 18.0,
-    # Chennai (~10m)
-    "AWS-CHN-024": 7.0, "AWS-CHN-101": 18.0, "AWS-CHN-102": 15.0, "AWS-CHN-103": 35.0,
-    # Kolkata (~10m)
-    "AWS-KOL-015": 9.0, "AWS-KOL-101": 12.0, "AWS-KOL-102": 10.0, "AWS-KOL-103": 15.0,
-    # Bhopal (~500m)
-    "AWS-BHO-030": 527.0, "AWS-BHO-101": 500.0, "AWS-BHO-102": 430.0, "AWS-BHO-103": 450.0,
-    # Varanasi (~80m)
-    "AWS-VAR-052": 80.0, "AWS-VAR-101": 85.0, "AWS-VAR-102": 78.0, "AWS-VAR-103": 82.0,
-    # Ranchi (~650m)
-    "AWS-RAN-067": 651.0, "AWS-RAN-101": 660.0, "AWS-RAN-102": 330.0, "AWS-RAN-103": 600.0,
-}
-
-
 # 7 Regional Clusters of 4 Stations Each (28 stations total)
 STATION_CLUSTERS: Dict[str, List[str]] = {
     "BHO": ["AWS-BHO-030", "AWS-BHO-101", "AWS-BHO-102", "AWS-BHO-103"],
@@ -70,6 +51,33 @@ def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) ->
     return R * c
 
 
+def compute_dynamic_hypsometric_elevation(
+    temp_c: Optional[float],
+    pressure_hpa: Optional[float],
+    humidity_pct: Optional[float] = 50.0
+) -> float:
+    """
+    Computes geopotential station elevation dynamically using the international standard hypsometric equation:
+      z = (R_d * T_v / g) * ln(P_0 / P)
+    Zero hardcoded lookup tables -- automatically adapts to any station location, mountain terrain, or coastal basin
+    purely from the real-time thermobaric invariants.
+    """
+    if pressure_hpa is None or pd.isna(pressure_hpa) or float(pressure_hpa) <= 0:
+        return 0.0
+    p = float(pressure_hpa)
+    t = float(temp_c) if temp_c is not None and not pd.isna(temp_c) else 25.0
+    t_k = t + 273.15
+    rh = max(0.01, min(100.0, float(humidity_pct) if humidity_pct is not None and not pd.isna(humidity_pct) else 50.0))
+    # Tetens formula for actual vapor pressure in hPa
+    e_sat = 6.112 * math.exp((17.67 * t) / (t + 243.5))
+    e_act = (rh / 100.0) * e_sat
+    # Virtual temperature correction
+    t_v = t_k * (1.0 + 0.378 * (e_act / max(1e-2, p)))
+    # Hypsometric scale factor: R_d / g = 287.058 / 9.80665 = 29.2713 m/K
+    z = 29.2713 * t_v * math.log(1013.25 / max(100.0, p))
+    return float(z)
+
+
 class PeerSpatialEngine:
     """
     Robust Spatial Aggregation and Regional Anomaly Contrast Engine.
@@ -85,28 +93,30 @@ class PeerSpatialEngine:
     def compute_peer_weights(
         cls,
         target_station_id: str,
-        peer_station_ids: List[str]
+        peer_station_ids: List[str],
+        target_alt_dyn: Optional[float] = None,
+        peer_alts_dyn: Optional[Dict[str, float]] = None
     ) -> Dict[str, float]:
         r"""
-        Computes distance & elevation-adjusted spatial weights:
-        w_ij \propto exp(-dist / d_scale) * exp(-|delta_alt| / h_scale)
+        Computes distance & dynamic elevation-adjusted spatial weights:
+        w_ij \propto exp(-dist / d_scale) * exp(-|delta_alt_dyn| / h_scale)
         """
         if not peer_station_ids:
             return {}
         
         target_lat, target_lon = STATION_COORDS.get(target_station_id, (20.0, 77.0))
-        target_alt = STATION_ELEVATIONS.get(target_station_id, 100.0)
         
         raw_weights = {}
         for pid in peer_station_ids:
             plat, plon = STATION_COORDS.get(pid, (20.0, 77.0))
-            palt = STATION_ELEVATIONS.get(pid, 100.0)
-            
             dist_km = haversine_distance_km(target_lat, target_lon, plat, plon)
-            alt_diff = abs(target_alt - palt)
             
-            # Spatial decay (30km scale) and lapse-rate elevation decay (500m scale)
-            w = math.exp(-dist_km / 30.0) * math.exp(-alt_diff / 500.0)
+            if target_alt_dyn is not None and peer_alts_dyn and pid in peer_alts_dyn:
+                alt_diff = abs(target_alt_dyn - peer_alts_dyn[pid])
+                w = math.exp(-dist_km / 30.0) * math.exp(-alt_diff / 500.0)
+            else:
+                w = math.exp(-dist_km / 30.0)
+                
             raw_weights[pid] = max(1e-4, w)
         
         total_w = sum(raw_weights.values())
@@ -118,7 +128,8 @@ class PeerSpatialEngine:
         target_station_id: str,
         param: str,
         current_time: pd.Timestamp,
-        neighbor_buffers: Dict[str, pd.DataFrame]
+        neighbor_buffers: Dict[str, pd.DataFrame],
+        target_reading: Optional[dict] = None
     ) -> Tuple[Optional[float], Optional[float], int]:
         """
         Computes robust weighted median of peer derivatives/innovations.
@@ -132,11 +143,18 @@ class PeerSpatialEngine:
         allowed_siblings = cls.get_sibling_peers(target_station_id)
         if not allowed_siblings:
             return None, None, 0
+
+        # Compute dynamic geopotential altitude of target station
+        target_alt = None
+        if target_reading:
+            target_alt = compute_dynamic_hypsometric_elevation(
+                target_reading.get("temperature_c"),
+                target_reading.get("pressure_hpa"),
+                target_reading.get("humidity_pct")
+            )
             
-        valid_peer_vals = []
-        valid_peer_weights = []
-        
-        weights = cls.compute_peer_weights(target_station_id, allowed_siblings)
+        peer_raw_rows = {}
+        peer_alts = {}
         
         for pid in allowed_siblings:
             if pid not in neighbor_buffers:
@@ -155,20 +173,18 @@ class PeerSpatialEngine:
                 latest_time = ts_val if isinstance(ts_val, pd.Timestamp) else pd.to_datetime(ts_val, utc=True)
                 if abs((current_time - latest_time).total_seconds()) > 5400:
                     continue
-                val = last_row.get(param)
-                if val is not None and not (isinstance(val, float) and math.isnan(val)):
-                    try:
-                        valid_peer_vals.append(float(val))
-                        valid_peer_weights.append(weights.get(pid, 1.0))
-                    except (ValueError, TypeError):
-                        pass
+                peer_raw_rows[pid] = last_row
+                peer_alts[pid] = compute_dynamic_hypsometric_elevation(
+                    last_row.get("temperature_c"),
+                    last_row.get("pressure_hpa"),
+                    last_row.get("humidity_pct")
+                )
                 continue
                 
             ndf = buf_obj.raw_history_df() if hasattr(buf_obj, "raw_history_df") else buf_obj
             if ndf is None or not isinstance(ndf, pd.DataFrame) or ndf.empty or param not in ndf.columns:
                 continue
             
-            # Check freshness: latest reading within 1.5h
             pts = pd.to_datetime(ndf["timestamp"], utc=True, errors="coerce")
             pvals = pd.to_numeric(ndf[param], errors="coerce")
             valid_mask = pts.notna() & pvals.notna()
@@ -177,11 +193,63 @@ class PeerSpatialEngine:
             
             latest_time = pts[valid_mask].iloc[-1]
             if abs((current_time - latest_time).total_seconds()) > 5400:
-                continue  # Stale peer reading
+                continue
             
-            val = float(pvals[valid_mask].iloc[-1])
-            valid_peer_vals.append(val)
-            valid_peer_weights.append(weights.get(pid, 1.0))
+            last_series = ndf[valid_mask].iloc[-1]
+            peer_raw_rows[pid] = last_series.to_dict()
+            peer_alts[pid] = compute_dynamic_hypsometric_elevation(
+                last_series.get("temperature_c"),
+                last_series.get("pressure_hpa"),
+                last_series.get("humidity_pct")
+            )
+
+        if not peer_raw_rows:
+            return None, None, 0
+
+        # If target elevation wasn't provided, estimate from target's buffer or peer average
+        if target_alt is None:
+            if target_station_id in neighbor_buffers:
+                t_buf = neighbor_buffers[target_station_id]
+                t_rows = getattr(t_buf, "_raw_rows", None)
+                if t_rows:
+                    target_alt = compute_dynamic_hypsometric_elevation(
+                        t_rows[-1].get("temperature_c"),
+                        t_rows[-1].get("pressure_hpa"),
+                        t_rows[-1].get("humidity_pct")
+                    )
+            if target_alt is None and peer_alts:
+                target_alt = float(np.median(list(peer_alts.values())))
+                
+        weights = cls.compute_peer_weights(
+            target_station_id,
+            allowed_siblings,
+            target_alt_dyn=target_alt,
+            peer_alts_dyn=peer_alts
+        )
+        
+        valid_peer_vals = []
+        valid_peer_weights = []
+        
+        for pid, r in peer_raw_rows.items():
+            val = r.get(param)
+            if val is None or (isinstance(val, float) and math.isnan(val)):
+                continue
+            try:
+                fval = float(val)
+                if param == "pressure_hpa" and target_alt is not None and pid in peer_alts:
+                    # Dynamic thermodynamic hypsometric reduction to target geopotential level:
+                    # P_adj = P_peer * exp((z_peer - z_target) / (29.2713 * T_v))
+                    p_temp = float(r.get("temperature_c") or 25.0)
+                    p_humid = float(r.get("humidity_pct") or 50.0)
+                    t_v = (p_temp + 273.15) * (1.0 + 0.378 * (6.112 * (p_humid / 100.0) / max(100.0, fval)))
+                    scale_h = 29.2713 * max(200.0, t_v)
+                    delta_exp = max(-0.5, min(0.5, (peer_alts[pid] - target_alt) / max(100.0, scale_h)))
+                    fval = fval * math.exp(delta_exp)
+                    
+                valid_peer_vals.append(fval)
+                valid_peer_weights.append(weights.get(pid, 1.0))
+            except (ValueError, TypeError):
+                pass
         
         n_eligible = len(valid_peer_vals)
         if n_eligible == 0:

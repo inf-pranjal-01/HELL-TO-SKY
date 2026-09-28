@@ -1,5 +1,0 @@
-config,TP,FN,Recall_pct,Recovered_vs_A
-"A: Contam ON, Context ON (Step 7)",75021,16445,82.02064154986553,0
-"B: Contam OFF, Context ON (Clean Hist)",80396,11070,87.89714210744977,5375
-"C: Contam ON, Context OFF (Raw Jump)",88977,2489,97.27877025342751,13956
-"D: Contam OFF, Context OFF (Clean Raw)",89322,2144,97.65595959154221,14301

@@ -172,24 +172,30 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
         <span className="sg-explain-card__score"><Gauge size={16} /> {Math.round(score)}% evidence strength</span>
       </div>
 
-      <div className="sg-explain-card__selector-wrapper">
-        <div className="sg-explain-card__selector" aria-label="Active inspected anomaly">
-          {(() => {
-            const d = new Date(selected.timestamp);
-            const dateStr = !isNaN(d.getTime()) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
-            const timeStr = !isNaN(d.getTime()) ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-            return (
-              <div
-                className="sg-explain-card__pill-active is-active"
-                title={`Active Inspected Incident — Station: ${selected.station_id || 'Network'} — Time: ${dateStr} ${timeStr}`}
-              >
-                {selected.station_id && <span className="sg-explain-card__pill-station">[{selected.station_id}]</span>}
-                <span className="sg-explain-card__pill-type">{selected.type ? selected.type.replace(/_/g, ' ') : 'Anomaly Incident'}</span>
+      <div className="sg-explain-card__active-banner" aria-label="Active inspected anomaly">
+        {(() => {
+          const d = new Date(selected.timestamp);
+          const dateStr = !isNaN(d.getTime()) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+          const timeStr = !isNaN(d.getTime()) ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+          const anomalyId = selected.anomaly_id || explanation?.anomaly_id || 'Active Incident';
+          const typeName = (selected.type || explanation?.fault_type || 'Anomaly Incident').replace(/_/g, ' ');
+          const severity = (selected.severity || 'medium').toUpperCase();
+
+          return (
+            <div className="sg-explain-card__incident-badge">
+              <span className="sg-explain-card__incident-label">INSPECTING INCIDENT:</span>
+              <span className="sg-explain-card__pill-id">{anomalyId}</span>
+              {selected.station_id && (
+                <span className="sg-explain-card__pill-station">Station: <strong>{selected.station_id}</strong></span>
+              )}
+              <span className="sg-explain-card__pill-type">{typeName}</span>
+              <span className={`sg-explain-card__pill-severity is-${severity.toLowerCase()}`}>{severity}</span>
+              {(dateStr || timeStr) && (
                 <span className="sg-explain-card__pill-time">{dateStr} {timeStr}</span>
-              </div>
-            );
-          })()}
-        </div>
+              )}
+            </div>
+          );
+        })()}
         <Link to="/alerts" className="sg-explain-card__view-all-link" title="View all anomalies network-wide on the Alerts page">
           <span>All Alerts</span>
           <ExternalLink size={12} aria-hidden="true" />

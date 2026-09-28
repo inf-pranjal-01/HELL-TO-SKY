@@ -67,12 +67,13 @@ class SequentialSPRT:
     @staticmethod
     def compute_drift_allowance(param: str, current_sigma: float) -> float:
         """
-        Computes dynamic CUSUM allowance \delta_t = max(0.05, \sigma_sensor / \sigma_t).
+        Computes dynamic CUSUM reference shift \delta_t = max(1.0, \sigma_sensor / \sigma_t).
+        In Page's CUSUM, slack constant k = \delta / 2 = 0.50 ensures E[\epsilon - k] < 0 under H0.
         """
         from model.uncertainty_budget import SENSOR_QUANTIZATION_FLOORS
         sensor_floor = SENSOR_QUANTIZATION_FLOORS.get(param, 0.10)
         ratio = sensor_floor / max(1e-4, current_sigma)
-        return float(max(0.05, min(0.35, ratio)))
+        return float(max(1.0, min(2.0, 1.0 + ratio)))
 
     @classmethod
     def update_cusum(

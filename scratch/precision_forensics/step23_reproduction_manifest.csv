@@ -1,4 +1,0 @@
-configuration_name,benchmark_driver,buffer_implementation,macro_precision,macro_recall,macro_f1,reproducible_exact,status
-Historical Step 19 Reference,scratch/precision_forensics/build_step19_population_and_audit.py,model.state.StationBuffer (Excludes flagged anomalies),73.33%,95.42%,82.92%,True,AUTHORITATIVE_BASELINE
-Historical Step 21 Reference,scratch/precision_forensics/run_step21_benchmark.py,model.state.StationBuffer (Excludes flagged anomalies),73.24%,91.33%,81.28%,True,VALID_UNDER_CORRECT_BUFFER_SEMANTICS
-Step 22 Config A (Flawed Buffer),scratch/precision_forensics/run_step22_benchmark.py,DualStationBuffer (Appended anomalies into raw history),72.41%,89.34%,79.98%,False,INVALID_DRIVER_CONFIGURATION_DRIFT

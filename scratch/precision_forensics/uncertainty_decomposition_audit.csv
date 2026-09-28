@@ -1,4 +1,0 @@
-parameter,quantization_floor,current_sigma_jump,empirical_process_std,empirical_process_mad,process_to_sensor_ratio,is_sensor_sigma_too_narrow_for_weather,diagnosis
-temperature_c,0.1,0.5196152422706632,4.134303351465412,3.7064999999999997,7.956470509600425,True,Sensor sigma represents instrument floor; natural weather std exceeds sensor floor by 7.96x
-pressure_hpa,0.5,0.8660254037844386,32.09970492375221,31.431119999999897,37.065546557271794,True,Sensor sigma represents instrument floor; natural weather std exceeds sensor floor by 37.07x
-humidity_pct,1.0,1.5,26.774071535282182,22.238999999999997,17.849381023521456,True,Sensor sigma represents instrument floor; natural weather std exceeds sensor floor by 17.85x

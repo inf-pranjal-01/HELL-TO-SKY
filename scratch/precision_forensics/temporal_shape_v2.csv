@@ -1,6 +1,0 @@
-shape_type,t_minus_1,t_0,t_plus_1,peer_aligned,is_instantaneous_fault
-transducer_spike,0.0,1.0,0.0,False,True
-step_jump_fault,0.0,1.0,1.0,False,True
-weather_front,0.0,0.8,0.9,True,False
-diurnal_solar_ramp,0.0,0.4,0.8,True,False
-slow_sensor_drift,0.05,0.1,0.15,False,False

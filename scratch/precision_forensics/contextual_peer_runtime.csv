@@ -1,5 +1,0 @@
-peer_metric,value,description
-sibling_count,3,Strictly 3 sibling peers in cluster
-cross_cluster_peers,0,Zero cross-cluster leakage
-temporal_synchronization,lag_0,Synchronous causal peer diffs
-dispersion_expansion,MAD / IQR,Peer disagreement increases uncertainty

@@ -1,5 +1,0 @@
-representation,formula,pros,cons,precision_impact,recall_impact
-A_Raw_Delta_vs_Quantization_Floor,z = |y_t - y_{t-1}| / sqrt(2*floor^2 + 0.25*dt),"Simple, no history needed",Ignores atmospheric process variance and diurnal heating; high false alarms on clean weather fronts,Poor (Baseline 72.35%),High (97.27%)
-B_Atmospheric_Process_Aware_Jump,z = |y_t - y_{t-1}| / sqrt(2*floor^2 + sigma_process^2 * dt),Correctly scales uncertainty with atmospheric process variance,Still misses directional diurnal drift without expectation,Moderate (~82-85%),High (~96%)
-C_Peer_Subtracted_Differential_Jump,z = |(y_t - y_{t-1}) - Delta y_peer| / sigma_res,Subtracts synoptic/regional common-mode movement naturally,Requires peer buffers and synchronous availability,Very High (~88-92%),High (~96%)
-D_Fused_Contextual_Innovation_LLR,LLR = 0.5 * [(Delta y - E[Delta y|C]) / sigma_tot]^2 - ln(sigma_tot / floor),Mathematically rigorous Wald sequential probability ratio object with full context conditioning,Requires clean specification of H0 and H1 hypotheses,Superior (>90%),Superior (>95%)

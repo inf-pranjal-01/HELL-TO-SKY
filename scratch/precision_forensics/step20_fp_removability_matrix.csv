@@ -1,5 +1,0 @@
-Mechanism,FP_Removed_Total,FP_Removed_Per_Seed,FP_Proportion_Pct,TP_Destroyed_Total,TP_Destroyed_Per_Seed,TP_Overlap_Pct,Fault_Types_Affected,Safe_Candidate
-PEER-CONSISTENT_MOVEMENT (Tier 1 Spike),573,81.85714285714286,1.8048949507040037,999,142.71428571428572,1.1446314607514008,"{'drift': 809, 'frozen_value': 101, 'unstructured_anomaly': 65, 'spike': 22, 'multivariate_inconsistency': 2}",False
-SOLAR_OR_DIURNAL_TRANSITION (Tier 1 Spike),8897,1271.0,28.024695246794973,19876,2839.4285714285716,22.773468382277116,"{'drift': 13701, 'unstructured_anomaly': 2073, 'frozen_value': 2003, 'multivariate_inconsistency': 999, 'spike': 942, 'sensor_fail_low': 158}",False
-PEER-CONSISTENT_DRIFT (Tier 2 CUSUM),157,22.428571428571427,0.4945349166850411,303,43.285714285714285,0.3471705031107852,"{'drift': 209, 'frozen_value': 84, 'unstructured_anomaly': 9, 'spike': 1}",False
-ENVIRONMENTAL_TRANSITION_COHERENCE (Tier 1),17461,2494.4285714285716,55.00047248558919,53287,7612.428571428572,61.05503168074063,Many single-channel spikes happen to be thermo-coherent with background,False

@@ -1,6 +1,0 @@
-morphology,dt_0_innovation,dt_plus_1_reversion,peer_support,is_fault
-Instantaneous Electrical Spike,High (>4.0 sigma),Immediate (-100% reversion),Zero (Isolated),True
-Persistent Step Jump,High (>4.0 sigma),Zero (Maintains offset),Zero (Isolated),True
-Diurnal Solar Heating,Low (<1.0 sigma under diurnal exp),Monotonic continuation,High (Regional),False
-Synoptic Barometric Front,Low (<1.0 sigma under peer exp),Monotonic continuation,Very High (>0.95),False
-Localized Rain Shower,Moderate (1.5-2.5 sigma),Gradual recovery over hours,Moderate,False

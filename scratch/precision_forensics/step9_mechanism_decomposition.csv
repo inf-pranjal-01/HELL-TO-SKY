@@ -1,4 +1,0 @@
-mechanism,count,pct,description
-Mechanism A: Onset Miss,508,3.452963567156063,Fault intrinsically difficult or sub-threshold at initial observation
-Mechanism B: State Contamination,8118,55.17944535073409,Onset missed -> corrupted value entered history buffer -> destroyed downstream evidence
-Mechanism C: Intrinsic Contextual Suppression,6086,41.36759108210985,Point missed even with clean history due to environmental subtraction or inflated sigma

@@ -172,6 +172,8 @@ class StationBuffer:
         self.station_id = station_id
         self.health = SensorHealthTracker(station_id)
         self._raw_rows: deque = deque(maxlen=RAW_HISTORY_MAXLEN_HOURS)
+        self._clean_rows: deque = deque(maxlen=RAW_HISTORY_MAXLEN_HOURS)
+        self.sprt_state: dict = {p: {"s_pos": 0.0, "s_neg": 0.0} for p in PARAMS}
 
         # Repair/recovery state -- separate from health.status so a
         # sensor can be OFFLINE (health's own circuit breaker) while
@@ -187,56 +189,45 @@ class StationBuffer:
             self._cache_dirty = False
         return self._cached_df
 
+    def clean_history_df(self) -> pd.DataFrame:
+        return pd.DataFrame(list(self._clean_rows))
+
     def record_raw_reading(self, raw_reading: dict, timestamp, verdict: dict):
         """
-        CAUSAL EXCLUSION -- now PER-READING, not just per-sensor-OFFLINE.
-        See this file's module docstring, fix #3, for the bug this
-        closes (a lone spike that never tips the sensor OFFLINE was
-        previously not excluded from anything and quietly degraded the
-        rolling baseline for ~48h afterward).
-
-        A row is excluded from the detection buffer if ANY of:
-          - the station is currently OFFLINE (should_include_in_baseline()
-            -- the original whole-sensor gate, kept for the sustained-
-            fault case, where you want the WHOLE offline window
-            excluded, not just individually-anomalous readings within it)
-          - THIS reading's own verdict was is_anomaly=True (new --
-            catches an isolated spike/dropout/etc. that doesn't push
-            the sensor OFFLINE on its own)
-          - a repair is in progress (recovery_active) -- don't let
-            not-yet-trusted post-repair readings seed the baseline
-            either
-
-        KNOWN REMAINING LIMITATION: whole-ROW exclusion, not
-        per-parameter -- see module docstring fix #3's closing note.
+        CAUSAL DUAL-BUFFER RECORDING:
+        - _raw_rows maintains recent temporal continuity (for rate-of-change, variance collapse, and CUSUM innovations)
+        - _clean_rows strictly excludes anomalies, offline periods, and repairs to preserve pure diurnal baseline
+        - sprt_state continuously tracks and updates sequential CUSUM evidence accumulators
         """
-        if not self.health.should_include_in_baseline():
-            return
-        if verdict.get("is_anomaly"):
-            return
-        if self.recovery_active:
-            return
         row = dict(raw_reading)
         row["station_id"] = self.station_id
         row["timestamp"] = timestamp
         self._raw_rows.append(row)
         self._cache_dirty = True
 
+        # Update SPRT accumulators
+        if "sprt_updates" in verdict:
+            for p, s_up in verdict["sprt_updates"].items():
+                if p in self.sprt_state:
+                    self.sprt_state[p]["s_pos"] = s_up["s_pos"]
+                    self.sprt_state[p]["s_neg"] = s_up["s_neg"]
+
+        # Causal Baseline Exclusion: only admit to clean baseline if healthy & non-anomalous
+        if self.health.should_include_in_baseline() and not verdict.get("is_anomaly") and not self.recovery_active:
+            self._clean_rows.append(row)
+            # Gradually decay SPRT accumulator on confirmed clean readings
+            for p in PARAMS:
+                self.sprt_state[p]["s_pos"] = max(0.0, self.sprt_state[p]["s_pos"] * 0.75)
+                self.sprt_state[p]["s_neg"] = max(0.0, self.sprt_state[p]["s_neg"] * 0.75)
+
     def reset_detection_state(self):
         """
         Wipes SHORT-WINDOW scratch state ONLY (§A in module docstring)
         -- called by StateManager.switch_to_live()/start_replay().
-        Never touches HistoryStore's persisted file for this station;
-        that history is deliberately mode-independent and survives
-        this reset.
-
-        Fresh SensorHealthTracker means every per-parameter counter,
-        CUSUM-relevant buffer state, and offline/warning status starts
-        clean -- this is the actual fix for "live mode still shows
-        already-offline sensors and stale anomaly counts from the
-        replay that just ran."
         """
         self._raw_rows.clear()
+        self._clean_rows.clear()
+        self.sprt_state = {p: {"s_pos": 0.0, "s_neg": 0.0} for p in PARAMS}
         self._cache_dirty = True
         self.health = SensorHealthTracker(self.station_id)
         self.recovery_active = False

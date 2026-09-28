@@ -1,8 +1,0 @@
-file,line,code_snippet,parameter_or_logic,is_dt_aware,risk_level
-model/detect.py,123,"sigma_jump = math.sqrt(2.0 * (sensor_floor ** 2) + 0.25 * max(0.5, dt_hours))",dt scaling or window assumption,True,HIGH
-model/detect.py,127,"jump_llr = float(0.5 * (z_jump ** 2) - math.log(max(1.1, sigma_jump / sensor_floor)))",dt scaling or window assumption,False,LOW
-model/detect.py,262,"dt_hours = max(0.1, (current_time - prior_time).total_seconds() / 3600.0) if prior_time is not None ",dt scaling or window assumption,True,LOW
-model/detect.py,309,"s_llr, s_reason, s_diag = evaluate_spike_evidence(param, val, exp_val, prior_val, sigma_tot, dt_hour",dt scaling or window assumption,True,LOW
-model/detect.py,370,"whitened_eps = SequentialSPRT.pre_whiten_residual(param, residual, prior_res, dt_hours, sigma_tot)",dt scaling or window assumption,True,LOW
-model/detect.py,375,"whitened_epsilon=whitened_eps, dt_hours=dt_hours, current_sigma=sigma_tot",dt scaling or window assumption,True,LOW
-model/peer_spatial_engine.py,226,sigma_diff = math.sqrt((target_sigma ** 2) + ((peer_dispersion or 0.5) ** 2)),dt scaling or window assumption,False,LOW

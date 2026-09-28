@@ -1,4 +1,0 @@
-param,lost_tps_triggered_on_channel_in_baseline,mean_lost_baseline_z,mean_lost_step7_z,mean_lost_baseline_sigma,mean_lost_step7_sigma
-temperature_c,8649,13.454551669475965,0.0,0.5196152422706631,0.5196152422706631
-pressure_hpa,4886,7.379522480480999,0.0,0.8660254037844383,0.8660254037844383
-humidity_pct,9638,18.565076459166203,0.0,1.5,1.5
