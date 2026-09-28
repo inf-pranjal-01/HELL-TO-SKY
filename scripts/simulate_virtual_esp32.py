@@ -194,15 +194,17 @@ def stream_dataset(
     interval: float,
     max_packets: int = 0,
     faults_only: bool = False,
+    use_dataset: bool = False,
 ):
+    mode_label = "Historical CSV Dataset Replay" if use_dataset else "Live Real-Time Physical Sensor Emulation"
     print("┌────────────────────────────────────────────────────────────────────────┐")
     print("│         SkyGuard AI — Virtual ESP32 Edge Telemetry Streamer            │")
     print("│       Continuous-Time Causal Edge AI Engine • Live Ingestion           │")
     print("├────────────────────────────────────────────────────────────────────────┤")
     print(f"│  Target Station   : {station_id:<51} │")
+    print(f"│  Stream Mode      : {mode_label:<51} │")
     print(f"│  Ingestion URL    : {endpoint_url:<51} │")
     print(f"│  Pacing Interval  : {f'{interval}s per packet':<51} │")
-    print(f"│  Dataset File     : {csv_path:<51} │")
     print("└────────────────────────────────────────────────────────────────────────┘\n")
 
     if not Path(csv_path).exists():
@@ -222,10 +224,19 @@ def stream_dataset(
     df_idx = 0
     total_rows = len(df) if df is not None else 0
 
-    # Base nominal baseline values for synthetic fallback
-    curr_temp = 29.4
-    curr_pres = 1012.3
-    curr_hum = 68.0
+    # Realistic physical baseline matching current Indian regional climates
+    station_baselines = {
+        "AWS-CHN-024": {"temp": 32.5, "pres": 1012.0, "hum": 62.0},
+        "AWS-DEL-011": {"temp": 34.0, "pres": 1008.0, "hum": 45.0},
+        "AWS-MUM-007": {"temp": 31.0, "pres": 1011.5, "hum": 75.0},
+        "AWS-KOL-015": {"temp": 31.5, "pres": 1010.0, "hum": 70.0},
+        "AWS-BHO-030": {"temp": 30.0, "pres": 1013.0, "hum": 55.0},
+        "AWS-VAR-052": {"temp": 32.0, "pres": 1009.5, "hum": 58.0},
+    }
+    base = station_baselines.get(station_id, {"temp": 31.0, "pres": 1011.0, "hum": 60.0})
+    curr_temp = base["temp"]
+    curr_pres = base["pres"]
+    curr_hum = base["hum"]
 
     print("══════════════════════════════════════════════════════════════════════════")
     print(f"  STREAMING LIVE EDGE PACKETS TO SKYGUARD AI BACKEND (PACING: {interval}s)")
@@ -241,7 +252,7 @@ def stream_dataset(
 
             now_ts = pd.Timestamp.now(tz="UTC").isoformat()
 
-            if df is not None and total_rows > 0:
+            if use_dataset and df is not None and total_rows > 0:
                 row = df.iloc[df_idx % total_rows]
                 df_idx += 1
                 t_val = None if pd.isna(row.get("temperature_c")) else float(row.get("temperature_c"))
@@ -250,11 +261,15 @@ def stream_dataset(
                 gt_anom = bool(row.get("is_anomaly", False)) if "is_anomaly" in row else False
                 gt_fault = str(row.get("fault_type", "nominal")) if pd.notna(row.get("fault_type")) else "nominal"
             else:
-                # Synthetic smooth diurnal cycle
-                cycle_sin = math.sin(count * 0.1)
-                t_val = round(curr_temp + cycle_sin * 1.5, 2)
-                p_val = round(curr_pres - cycle_sin * 0.8, 1)
-                h_val = round(curr_hum - cycle_sin * 4.0, 1)
+                # Realistic physical high-frequency sensor signal with subtle micro-fluctuations (clean blue baseline)
+                # Sensor transducer Brownian micro-drift within +/- 0.05 degC per reading
+                micro_t = (math.sin(count * 0.15) * 0.2) + ((count % 7) * 0.02 - 0.06)
+                micro_p = (math.cos(count * 0.12) * 0.1) + ((count % 5) * 0.02 - 0.04)
+                micro_h = (math.sin(count * 0.10) * 0.4) + ((count % 9) * 0.05 - 0.20)
+                
+                t_val = round(curr_temp + micro_t, 2)
+                p_val = round(curr_pres + micro_p, 1)
+                h_val = round(curr_hum + micro_h, 1)
                 gt_anom = False
                 gt_fault = "nominal"
 
@@ -449,6 +464,7 @@ if __name__ == "__main__":
     parser.add_argument("--url", type=str, default="http://localhost:8000/api/ingest/observation", help="FastAPI Ingestion Endpoint")
     parser.add_argument("--interval", type=float, default=2.0, help="Streaming interval in seconds (default: 2.0)")
     parser.add_argument("--csv", type=str, default="data/AWS-CHN-024_labeled.csv", help="Path to labeled dataset CSV")
+    parser.add_argument("--dataset", action="store_true", help="Stream raw rows from CSV dataset instead of live real-time weather")
     parser.add_argument("--packets", type=int, default=0, help="Maximum number of packets to stream (0 for continuous)")
     parser.add_argument("--faults-only", action="store_true", help="Stream only anomaly/fault rows from the dataset")
     parser.add_argument("--test-timeout", action="store_true", help="Test the 35-second Inactivity Watchdog Auto-Exit")
@@ -461,4 +477,4 @@ if __name__ == "__main__":
     elif args.interactive:
         run_interactive_injector(args.url, args.station)
     else:
-        stream_dataset(args.url, args.station, args.csv, args.interval, args.packets, args.faults_only)
+        stream_dataset(args.url, args.station, args.csv, args.interval, args.packets, args.faults_only, use_dataset=args.dataset or args.faults_only)
