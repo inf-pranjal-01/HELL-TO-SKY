@@ -114,6 +114,7 @@ ARTIFACTS_PATH = Path(__file__).parent.parent / "model_artifacts" / "isolation_f
 
 REPLAY_STEP_SECONDS = 2  # one historical hour is streamed every two wall-clock seconds
 LIVE_FETCH_INTERVAL_SECONDS = 15 * 60  # Open-Meteo current weather: poll every 15 minutes
+EDGE_INACTIVITY_TIMEOUT_SECONDS = 330  # Auto-exit ESP32 edge mode after 5.5 min of inactivity
 TREND_HISTORY_MAXLEN = 2000
 RECENT_ANOMALIES_MAXLEN = 200
 
@@ -234,6 +235,8 @@ class SimulatorState:
             "last_packet_time": None,
             "packet_count": 0,
         }
+        self._edge_mode_started_at: datetime | None = None
+        self._edge_last_packet_monotonic: float = 0.0
 
     async def _broadcast_event(self, payload: dict):
         """Asynchronously dispatch real-time events to connected WebSocket clients."""
@@ -373,6 +376,9 @@ class SimulatorState:
         }
         self.recent_anomalies.clear()
 
+        self._edge_mode_started_at = datetime.now(timezone.utc)
+        self._edge_last_packet_monotonic = time.monotonic()
+
         self.edge_status = {
             "status": "WAITING",
             "connected": False,
@@ -398,7 +404,7 @@ class SimulatorState:
 
         return "edge_ready"
 
-    def stop_edge_mode(self):
+    def stop_edge_mode(self, reason: str = "manual"):
         """
         Switches back from EDGE to LIVE mode.
         Purges edge scratch state, restores live buffers, and resumes live Open-Meteo updates.
@@ -423,14 +429,25 @@ class SimulatorState:
             "packet_count": 0,
         }
 
+        self._edge_mode_started_at = None
+        self._edge_last_packet_monotonic = 0.0
+
         self._live_last_fetch = None
         self._live_refresh_requested = True
+
+        msg = (
+            "ESP32 hardware link timed out (no packets received for >330s). Auto-exited to Live Mode."
+            if reason == "timeout"
+            else "ESP32 mode closed. Switched to Live Mode."
+        )
 
         try:
             loop = asyncio.get_running_loop()
             loop.create_task(self._broadcast_event({
                 "type": "MODE_CHANGE",
                 "mode": "live",
+                "reason": reason,
+                "message": msg,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }))
             loop.create_task(self._broadcast_event({
@@ -807,15 +824,13 @@ async def run_simulation_loop(sim_state: SimulatorState):
             now = tick_start
             if sim_state.mode == "replay":
                 await sim_state.tick()
-            elif sim_state.mode in ("live", "edge") and now >= next_live_tick:
-                if sim_state.mode == "live":
-                    await sim_state.tick()
-                    if sim_state._live_refresh_requested:
-                        next_live_tick = 0.0
-                        sim_state._live_refresh_requested = False
-                    else:
-                        next_live_tick = asyncio.get_running_loop().time() + LIVE_FETCH_INTERVAL_SECONDS
-                else:
+            elif sim_state.mode == "edge":
+                # Watchdog check: Auto-exit edge mode if no packets received for >330 seconds
+                last_pkt_mono = getattr(sim_state, "_edge_last_packet_monotonic", 0.0)
+                if last_pkt_mono > 0.0 and (time.monotonic() - last_pkt_mono) >= EDGE_INACTIVITY_TIMEOUT_SECONDS:
+                    print(f"[simulator] ESP32 edge mode inactivity timeout (> {EDGE_INACTIVITY_TIMEOUT_SECONDS}s). Auto-exiting to Live Mode.")
+                    sim_state.stop_edge_mode(reason="timeout")
+                elif now >= next_live_tick:
                     # In EDGE mode: background live fetching continues to persist unbroken records
                     # for all 20 stations to TimescaleDB/CSV without interrupting active edge testing UI.
                     await sim_state._maybe_refresh_live_cache()
@@ -828,6 +843,13 @@ async def run_simulation_loop(sim_state: SimulatorState):
                             batch_bg.append((sid, r_ts, r_reading, {"is_anomaly": False, "health_status": "HEALTHY"}))
                     if batch_bg:
                         await asyncio.to_thread(sim_state.manager.history.append_batch, batch_bg, source="live")
+                    next_live_tick = asyncio.get_running_loop().time() + LIVE_FETCH_INTERVAL_SECONDS
+            elif sim_state.mode == "live" and now >= next_live_tick:
+                await sim_state.tick()
+                if sim_state._live_refresh_requested:
+                    next_live_tick = 0.0
+                    sim_state._live_refresh_requested = False
+                else:
                     next_live_tick = asyncio.get_running_loop().time() + LIVE_FETCH_INTERVAL_SECONDS
         except Exception as e:
             # Preserve the actual file/line in server logs. A one-line error

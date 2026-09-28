@@ -10,6 +10,7 @@ import {
   Info,
   AlertTriangle,
   Cpu,
+  Clock,
 } from 'lucide-react';
 import { useStation } from '../context/StationContext';
 import { useDashboardData } from '../hooks/useDashboardData';
@@ -36,9 +37,11 @@ export const DashboardPage: React.FC = () => {
   const [isInjecting, setIsInjecting] = useState<boolean>(false);
   const [isPurging, setIsPurging] = useState<boolean>(false);
   const [injectionNotice, setInjectionNotice] = useState<string | null>(null);
+  const [edgeTimeoutNotice, setEdgeTimeoutNotice] = useState<string | null>(null);
   const [isProviderBannerDismissed, setIsProviderBannerDismissed] = useState<boolean>(false);
   const activeStationRef = useRef<string | undefined>(selectedStation?.station_id);
   const noticeTimerRef = useRef<number | null>(null);
+  const timeoutNoticeTimerRef = useRef<number | null>(null);
 
   const {
     currentReading,
@@ -83,7 +86,24 @@ export const DashboardPage: React.FC = () => {
   }, [providerStatus?.status]);
 
   useEffect(() => {
+    const handleEdgeTimeout = (e: Event) => {
+      const customEvt = e as CustomEvent;
+      const msg = customEvt.detail?.message || 'ESP32 hardware link timed out (inactivity >330s). Auto-exited to Live Mode.';
+      setEdgeTimeoutNotice(msg);
+      if (timeoutNoticeTimerRef.current !== null) {
+        clearTimeout(timeoutNoticeTimerRef.current);
+      }
+      timeoutNoticeTimerRef.current = window.setTimeout(() => {
+        setEdgeTimeoutNotice(null);
+      }, 10000);
+    };
+
+    window.addEventListener('sg-edge-timeout', handleEdgeTimeout);
     return () => {
+      window.removeEventListener('sg-edge-timeout', handleEdgeTimeout);
+      if (timeoutNoticeTimerRef.current !== null) {
+        clearTimeout(timeoutNoticeTimerRef.current);
+      }
       if (noticeTimerRef.current !== null) {
         clearTimeout(noticeTimerRef.current);
       }
@@ -392,6 +412,27 @@ export const DashboardPage: React.FC = () => {
           </Tooltip>
         </div>
       </header>
+
+      {/* ESP32 Inactivity Auto-Exit Notice Banner (Small Announcement) */}
+      {edgeTimeoutNotice && (
+        <div className="sg-edge-timeout-banner" role="status" aria-live="polite">
+          <div className="sg-edge-timeout-banner__content">
+            <Clock size={15} className="sg-edge-timeout-icon" aria-hidden="true" />
+            <span className="sg-edge-timeout-text">
+              <strong>ESP32 Inactivity Timeout:</strong> No hardware packets received for &gt;330s (5.5m). Automatically returned to <strong>Live Mode</strong>.
+            </span>
+          </div>
+          <button
+            type="button"
+            className="sg-edge-timeout-dismiss"
+            onClick={() => setEdgeTimeoutNotice(null)}
+            aria-label="Dismiss timeout announcement"
+            title="Dismiss notification"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* SIH Demo Notice Toast if triggered */}
       {injectionNotice && (

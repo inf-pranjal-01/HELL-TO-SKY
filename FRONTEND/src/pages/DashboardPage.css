@@ -215,6 +215,59 @@
   animation: toastFadeIn 0.2s ease-out;
 }
 
+/* ESP32 Inactivity Timeout Notice Banner (Small Announcement) */
+.sg-edge-timeout-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0.45rem 0.85rem;
+  background: rgba(245, 158, 11, 0.09);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  animation: toastFadeIn 0.2s ease-out;
+}
+
+.sg-edge-timeout-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.sg-edge-timeout-icon {
+  flex-shrink: 0;
+  color: #fbbf24;
+}
+
+.sg-edge-timeout-text {
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+.sg-edge-timeout-text strong {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.sg-edge-timeout-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sg-edge-timeout-dismiss:hover {
+  color: var(--text-primary);
+}
+
 @keyframes toastFadeIn {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }

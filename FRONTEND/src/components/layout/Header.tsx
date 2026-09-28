@@ -155,6 +155,23 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </Tooltip>
           </div>
+        ) : systemStatus?.mode === 'edge' ? (
+          <div className="sg-header__mode-badge sg-header__mode-badge--edge" role="status">
+            <Cpu size={13} className="sg-header__mode-icon" aria-hidden="true" />
+            <span className="sg-header__mode-text">ESP32 Ingestion Mode</span>
+            <Tooltip
+              position="bottom"
+              content="ESP32: Microcontroller edge hardware ingestion"
+            >
+              <button
+                type="button"
+                className="sg-header__mode-info-btn"
+                aria-label="ESP32 edge mode details"
+              >
+                <Info size={12} />
+              </button>
+            </Tooltip>
+          </div>
         ) : (
           <div className="sg-header__mode-badge sg-header__mode-badge--live" role="status">
             <Database size={13} className="sg-header__mode-icon" aria-hidden="true" />

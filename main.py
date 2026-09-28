@@ -24,6 +24,7 @@ import os
 os.environ['OPENBLAS_NUM_THREADS']='1'
 os.environ['OMP_NUM_THREADS']='1'
 import asyncio
+import time
 import json
 import math
 import numpy as np
@@ -452,7 +453,8 @@ async def ingest_edge_observation(payload: dict):
         source="edge",
     )
 
-    # Update edge status
+    # Update edge status & watchdog monotonic timestamp
+    sim._edge_last_packet_monotonic = time.monotonic()
     if getattr(sim, "edge_status", None) is not None:
         was_connected = sim.edge_status.get("connected", False)
         sim.edge_status["status"] = "CONNECTED"
@@ -496,7 +498,6 @@ async def ingest_edge_observation(payload: dict):
     })
 
     # Broadcast live over WebSockets
-    import time
     ingest_time_ms = int(time.time() * 1000)
     await ws_manager.broadcast({
         "type": "TELEMETRY_TICK",

@@ -387,7 +387,7 @@ export interface SystemStatusSummary {
   active_anomalies_count: number;
   avg_sensor_health_pct: number;
   last_updated: string;
-  mode?: 'live' | 'replay';
+  mode?: 'live' | 'replay' | 'edge';
 }
 
 /**

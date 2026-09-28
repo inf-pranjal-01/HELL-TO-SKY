@@ -21,10 +21,15 @@ export function windowTrendPoints(
     return { points: [], windowStart: windowEnd - spanMs, windowEnd };
   }
 
-  // 2. Window bounds: anchored to latest point timestamp (never stretching to old history)
+  // 2. Window bounds: anchored to latest point timestamp, dynamically adapting to span when incoming data points cover less than full requested window (e.g. streaming hardware packets)
+  const firstTime = new Date(sorted[0].timestamp).getTime();
   const lastTime = new Date(sorted[sorted.length - 1].timestamp).getTime();
+  const deltaT = lastTime - firstTime;
+
   const windowEnd = lastTime;
-  const windowStart = windowEnd - spanMs;
+  const windowStart = deltaT >= spanMs || deltaT === 0
+    ? windowEnd - spanMs
+    : Math.min(firstTime, windowEnd - 60000);
 
   // 3. Strictly filter points within [windowStart, windowEnd]
   const inWindow = sorted.filter((p) => {

@@ -52,37 +52,54 @@ export const EdgeStatusProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (unmounted) return;
           try {
             const data = JSON.parse(event.data);
-            const isEdgeMessage =
-              data.mode === 'edge' ||
-              data.source === 'edge' ||
-              (data.edge_inference && Object.keys(data.edge_inference).length > 0) ||
-              (data.anomaly && data.anomaly.source === 'edge') ||
-              (data.anomaly && data.anomaly.edge_inference);
-
-            if (isEdgeMessage) {
-              const now = Date.now();
-              lastSeenRef.current = now;
-              setIsEdgeOnline(true);
-              setLastEdgeTimestamp(new Date());
-
-              if (data.station_id) {
-                setEdgeStationId(data.station_id);
+            if (data.type === 'MODE_CHANGE' && data.mode !== 'edge') {
+              lastSeenRef.current = 0;
+              setIsEdgeOnline(false);
+            } else if (data.type === 'EDGE_STATUS') {
+              if (data.edge_status && !data.edge_status.connected) {
+                lastSeenRef.current = 0;
+                setIsEdgeOnline(false);
+              } else if (data.edge_status && data.edge_status.connected) {
+                const now = Date.now();
+                lastSeenRef.current = now;
+                setIsEdgeOnline(true);
+                if (data.edge_status.station_id) {
+                  setEdgeStationId(data.edge_status.station_id);
+                }
               }
+            } else {
+              const isEdgeMessage =
+                data.mode === 'edge' ||
+                data.source === 'edge' ||
+                (data.edge_inference && Object.keys(data.edge_inference).length > 0) ||
+                (data.anomaly && data.anomaly.source === 'edge') ||
+                (data.anomaly && data.anomaly.edge_inference);
 
-              // Compute turnaround latency
-              let measuredLatency: number = 12;
-              if (data.ingest_time_ms && typeof data.ingest_time_ms === 'number') {
-                const diff = now - data.ingest_time_ms;
-                measuredLatency = diff >= 0 && diff < 5000 ? Math.max(1, diff) : 12;
-              } else if (data.edge_inference?.latency_ms) {
-                measuredLatency = data.edge_inference.latency_ms;
-              }
-              setLatencyMs(measuredLatency);
+              if (isEdgeMessage) {
+                const now = Date.now();
+                lastSeenRef.current = now;
+                setIsEdgeOnline(true);
+                setLastEdgeTimestamp(new Date());
 
-              if (data.edge_inference) {
-                setLatestEdgeInference(data.edge_inference);
-              } else if (data.anomaly?.edge_inference) {
-                setLatestEdgeInference(data.anomaly.edge_inference);
+                if (data.station_id) {
+                  setEdgeStationId(data.station_id);
+                }
+
+                // Compute turnaround latency
+                let measuredLatency: number = 12;
+                if (data.ingest_time_ms && typeof data.ingest_time_ms === 'number') {
+                  const diff = now - data.ingest_time_ms;
+                  measuredLatency = diff >= 0 && diff < 5000 ? Math.max(1, diff) : 12;
+                } else if (data.edge_inference?.latency_ms) {
+                  measuredLatency = data.edge_inference.latency_ms;
+                }
+                setLatencyMs(measuredLatency);
+
+                if (data.edge_inference) {
+                  setLatestEdgeInference(data.edge_inference);
+                } else if (data.anomaly?.edge_inference) {
+                  setLatestEdgeInference(data.anomaly.edge_inference);
+                }
               }
             }
           } catch {

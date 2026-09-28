@@ -431,6 +431,10 @@ export function useDashboardData(
               fetchTrendsRef.current(trendHoursRef.current);
               fetchAnomaliesRef.current();
               window.dispatchEvent(new CustomEvent('sg-refresh-stations'));
+              if (data.reason === 'timeout') {
+                window.dispatchEvent(new CustomEvent('sg-edge-timeout', { detail: data }));
+              }
+              window.dispatchEvent(new CustomEvent('sg-mode-change', { detail: data }));
 
             } else if (data.type === 'PROVIDER_STATUS') {
               if (data.provider_status) {

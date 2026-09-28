@@ -230,6 +230,12 @@
   color: #facc15;
 }
 
+.sg-header__mode-badge--edge {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
 .sg-header__mode-badge--live {
   background: rgba(59, 130, 246, 0.12);
   border: 1px solid rgba(59, 130, 246, 0.35);
