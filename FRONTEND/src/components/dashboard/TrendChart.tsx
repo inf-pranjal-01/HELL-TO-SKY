@@ -338,8 +338,22 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
           {areaD && <path d={areaD} fill={`url(#grad-${selectedMetric})`} />}
 
+          {/* Single-point baseline guide */}
+          {validPoints.length === 1 && (
+            <line
+              x1={padLeft}
+              y1={getY(validPoints[0][activeCfg.key] as number)}
+              x2={width - padRight}
+              y2={getY(validPoints[0][activeCfg.key] as number)}
+              stroke={activeCfg.color}
+              strokeWidth="1.5"
+              strokeDasharray="4 4"
+              strokeOpacity="0.45"
+            />
+          )}
+
           {/* Line stroke */}
-          {pathD && (
+          {pathD && validPoints.length > 1 && (
             <path
               d={pathD}
               fill="none"
@@ -355,25 +369,39 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             const cx = getX(pt.timestamp);
             const cy = getY(pt[activeCfg.key] as number);
             const isAnomaly = isMetricAnomalous(pt, selectedMetric);
+            const isLatest = i === validPoints.length - 1;
 
             return (
-              <circle
-                key={`${pt.timestamp}-${i}`}
-                cx={cx}
-                cy={cy}
-                r={isAnomaly ? 3.5 : 2.5}
-                className={`sg-chart-point ${isAnomaly ? 'sg-chart-point--anomaly' : ''}`}
-                fill={isAnomaly ? '#ef4444' : activeCfg.color}
-                stroke="#ffffff"
-                strokeWidth={isAnomaly ? 1.5 : 1}
-                onMouseEnter={() => setHoveredPoint({ point: pt, x: cx, y: cy })}
-                onMouseLeave={() => setHoveredPoint(null)}
-                tabIndex={0}
-                role="button"
-                aria-label={`${activeCfg.label}: ${pt[activeCfg.key]} ${activeCfg.unit} at ${new Date(
-                  pt.timestamp
-                ).toLocaleTimeString()}`}
-              />
+              <g key={`${pt.timestamp}-${i}`}>
+                {isLatest && (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={6}
+                    fill="none"
+                    stroke={isAnomaly ? '#ef4444' : activeCfg.color}
+                    strokeWidth="1.5"
+                    strokeOpacity="0.6"
+                    className="sg-chart-latest-pulse"
+                  />
+                )}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={isAnomaly ? 3.5 : 2.5}
+                  className={`sg-chart-point ${isAnomaly ? 'sg-chart-point--anomaly' : ''}`}
+                  fill={isAnomaly ? '#ef4444' : activeCfg.color}
+                  stroke="#ffffff"
+                  strokeWidth={isAnomaly ? 1.5 : 1}
+                  onMouseEnter={() => setHoveredPoint({ point: pt, x: cx, y: cy })}
+                  onMouseLeave={() => setHoveredPoint(null)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${activeCfg.label}: ${pt[activeCfg.key]} ${activeCfg.unit} at ${new Date(
+                    pt.timestamp
+                  ).toLocaleTimeString()}`}
+                />
+              </g>
             );
           })}
         </svg>

@@ -111,9 +111,10 @@ def run_esp32_hardware_test(port: str, baudrate: int, csv_path: str, interval: f
         count = 0
         for idx, row in df.iterrows():
             count += 1
+            now_ts = pd.Timestamp.now(tz="UTC").isoformat()
             payload = {
                 "station_id": str(row.get("station_id", "AWS-CHN-024")),
-                "timestamp": str(row.get("timestamp", pd.Timestamp.now(tz="UTC").isoformat())),
+                "timestamp": now_ts,
                 "temperature_c": None if pd.isna(row.get("temperature_c")) else float(row.get("temperature_c")),
                 "pressure_hpa": None if pd.isna(row.get("pressure_hpa")) else float(row.get("pressure_hpa")),
                 "humidity_pct": None if pd.isna(row.get("humidity_pct")) else float(row.get("humidity_pct")),

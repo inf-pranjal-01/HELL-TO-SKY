@@ -89,6 +89,7 @@ export const DashboardPage: React.FC = () => {
     const handleEdgeTimeout = (e: Event) => {
       const customEvt = e as CustomEvent;
       const msg = customEvt.detail?.message || 'ESP32 hardware link timed out (inactivity >35s). Auto-exited to Live Mode.';
+      setInjectionNotice(null);
       setEdgeTimeoutNotice(msg);
       if (timeoutNoticeTimerRef.current !== null) {
         clearTimeout(timeoutNoticeTimerRef.current);
@@ -98,9 +99,15 @@ export const DashboardPage: React.FC = () => {
       }, 10000);
     };
 
+    const handleModeChange = () => {
+      setInjectionNotice(null);
+    };
+
     window.addEventListener('sg-edge-timeout', handleEdgeTimeout);
+    window.addEventListener('sg-mode-change', handleModeChange);
     return () => {
       window.removeEventListener('sg-edge-timeout', handleEdgeTimeout);
+      window.removeEventListener('sg-mode-change', handleModeChange);
       if (timeoutNoticeTimerRef.current !== null) {
         clearTimeout(timeoutNoticeTimerRef.current);
       }
@@ -180,21 +187,29 @@ export const DashboardPage: React.FC = () => {
   const handleEdgeToggle = async () => {
     if (isInjecting) return;
     setIsInjecting(true);
+    if (noticeTimerRef.current !== null) {
+      clearTimeout(noticeTimerRef.current);
+    }
+    setEdgeTimeoutNotice(null);
+
     try {
       if (streamMode === 'edge') {
         await systemStatusService.switchToLive();
         await syncStreamStatus();
-        setInjectionNotice('ESP32 hardware testing closed. Switched to Live mode.');
+        setInjectionNotice('ESP32 mode closed. Switched to Live Mode (Open-Meteo API).');
       } else {
         await systemStatusService.switchToEdge(selectedStation?.station_id);
         await syncStreamStatus();
-        setInjectionNotice('Switched to ESP32 Edge Ingestion mode. Waiting for hardware packets...');
+        setInjectionNotice('Switched to ESP32 Ingestion Mode. Waiting for hardware packets...');
       }
       await refreshAll();
     } catch (err) {
       setInjectionNotice(formatUserErrorMessage(err, 'Failed to toggle ESP32 mode.'));
     } finally {
       setIsInjecting(false);
+      noticeTimerRef.current = window.setTimeout(() => {
+        setInjectionNotice(null);
+      }, 7000);
     }
   };
 

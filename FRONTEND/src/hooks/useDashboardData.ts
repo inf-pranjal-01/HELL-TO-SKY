@@ -82,23 +82,35 @@ function mergeTrendPoints(
   hours: number,
   activeMode?: 'live' | 'replay' | 'edge'
 ) {
-  const byTimestamp = new Map<string, TrendsResponse['points'][number]>();
-  for (const point of base) {
-    if (activeMode && point.source && point.source !== activeMode) continue;
-    byTimestamp.set(point.timestamp, point);
+  const byTimestamp = new Map<number, TrendsResponse['points'][number]>();
+
+  const processPoint = (point: TrendsResponse['points'][number]) => {
+    if (!point || !point.timestamp) return;
+    const timeMs = new Date(point.timestamp).getTime();
+    if (Number.isNaN(timeMs)) return;
+
+    // Strict boundary isolation: only accept points matching activeMode (or if point has no source tag)
+    if (activeMode && point.source && point.source !== activeMode) return;
+
+    const existing = byTimestamp.get(timeMs);
+    byTimestamp.set(timeMs, existing ? { ...existing, ...point } : point);
+  };
+
+  for (const point of base || []) {
+    processPoint(point);
   }
-  for (const point of additions) {
-    if (activeMode && point.source && point.source !== activeMode) continue;
-    const existing = byTimestamp.get(point.timestamp);
-    byTimestamp.set(point.timestamp, existing ? { ...existing, ...point } : point);
+  for (const point of additions || []) {
+    processPoint(point);
   }
 
-  const points = Array.from(byTimestamp.values())
-    .filter((point) => !Number.isNaN(new Date(point.timestamp).getTime()))
-    .sort((left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
-  const latestTimestamp = points.at(-1) ? new Date(points.at(-1)!.timestamp).getTime() : 0;
+  const sortedPoints = Array.from(byTimestamp.entries())
+    .sort(([t1], [t2]) => t1 - t2)
+    .map(([, point]) => point);
+
+  if (sortedPoints.length === 0) return [];
+  const latestTimestamp = new Date(sortedPoints[sortedPoints.length - 1].timestamp).getTime();
   const cutoff = latestTimestamp - hours * 60 * 60 * 1000;
-  return points.filter((point) => new Date(point.timestamp).getTime() >= cutoff);
+  return sortedPoints.filter((point) => new Date(point.timestamp).getTime() >= cutoff);
 }
 
 /**
@@ -211,9 +223,13 @@ export function useDashboardData(
             const data = JSON.parse(event.data);
 
             if (data.type === 'TELEMETRY_TICK') {
-              const activeMode = priorStreamModeRef.current;
               const tickMode = data.mode || 'live';
-              if (data.station_id === activeStationIdRef.current && tickMode === activeMode) {
+              if (tickMode === 'edge' && priorStreamModeRef.current !== 'edge') {
+                priorStreamModeRef.current = 'edge';
+                setStreamStatus((prev) => ({ ...prev, mode: 'edge' }));
+              }
+
+              if (data.station_id === activeStationIdRef.current) {
                 // End-to-end turnaround latency readout (real measured delta)
                 if (data.ingest_time_ms) {
                   const measuredLatency = Math.max(1, Date.now() - data.ingest_time_ms);
@@ -279,10 +295,12 @@ export function useDashboardData(
                       suggested_humidity_pct: data.verdict?.suggested_values?.humidity_pct,
                       affected_parameters: data.verdict?.affected_parameters || data.verdict?.likely_faulty_sensors || [],
                       health_status: data.verdict?.health_status,
-                      source: data.mode,
+                      source: data.mode || 'live',
                     };
 
                     const visibleHours = trendHoursRef.current;
+                    const activeMode = priorStreamModeRef.current;
+
                     if (!previous || previous.station_id !== data.station_id) {
                       const next = {
                         station_id: data.station_id,
@@ -640,7 +658,6 @@ export function useDashboardData(
   const fetchTrends = useCallback(async (hours: number = trendHours) => {
     if (!stationId) return;
     const targetStationId = stationId;
-    const requestRevision = trendRevisionRef.current;
     if (!trendsRef.current || trendsRef.current.station_id !== targetStationId) {
       setIsLoadingTrends(true);
     }
@@ -654,10 +671,8 @@ export function useDashboardData(
       const dataWithFiltered = { ...data, points: filteredPoints };
 
       const latestLocal = trendsRef.current;
-      // A WebSocket/current-reading update can arrive while this request is
-      // in flight. Merge it by recorded timestamp instead of letting an older
-      // HTTP response make the graph jump backwards.
-      const nextTrends = latestLocal?.station_id === targetStationId && trendRevisionRef.current !== requestRevision
+      // Merge HTTP response with any local/WebSocket points that arrived in the meantime
+      const nextTrends = (latestLocal?.station_id === targetStationId && latestLocal.points && latestLocal.points.length > 0)
         ? { ...dataWithFiltered, points: mergeTrendPoints(dataWithFiltered.points, latestLocal.points, hours, activeMode) }
         : dataWithFiltered;
       trendsRef.current = nextTrends;
