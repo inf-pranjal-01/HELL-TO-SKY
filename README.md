@@ -16,7 +16,7 @@
 ---
 
 ### 📚 Official Project Documentation
-[**1. External Research Impact (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQASBZignVrFRoMYC5b5WJVFAfV-ghAvuNpoc0-y8F6W6Mo?e=LY430r) • [**2. Technical Methodology & Architecture (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQD_FsEHaKwFT7Wfm4cQsGgLAftP2txmCJrQxgIpIJXdNUw?e=IAfyC1) • [**3. Experimental Performance Casebook (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQDSQYAGIDHhS5f7SIgnwKhtAVboqVnNghDWWUAkIoZj6-I?e=wWg8Ny) • [**4. Edge AI ESP32 Architecture (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQBTdSgyCfbwT6Vy0p0166tpAbaZ1pELUb_bp6A8-Cm8jTk?e=iWgqSL)
+[**1. External Research Impact (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQC9U3kfnIf-QpTj7x5j_4wkAQXQQOvHEIpnT2Q4vGgZ4QA?e=SMnCpD) • [**2. Technical Methodology & Architecture (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQD_FsEHaKwFT7Wfm4cQsGgLAftP2txmCJrQxgIpIJXdNUw?e=IAfyC1) • [**3. Experimental Performance Casebook (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQDSQYAGIDHhS5f7SIgnwKhtAVboqVnNghDWWUAkIoZj6-I?e=wWg8Ny) • [**4. Edge AI ESP32 Architecture (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQBTdSgyCfbwT6Vy0p0166tpAbaZ1pELUb_bp6A8-Cm8jTk?e=iWgqSL)
 
 </div>
 
@@ -63,7 +63,7 @@ For in-depth technical analysis, mathematical derivations, and hardware deployme
 
 | Document | Primary Focus | Official PDF Link |
 | :--- | :--- | :--- |
-| **Doc 1: External Research Impact** | Comprehensive socio-economic impact analysis, agricultural resilience, disaster early warning, and meteorological quality benchmarks. | [**Open Document 1 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQASBZignVrFRoMYC5b5WJVFAfV-ghAvuNpoc0-y8F6W6Mo?e=LY430r) |
+| **Doc 1: External Research Impact** | Comprehensive socio-economic impact analysis, agricultural resilience, disaster early warning, and meteorological quality benchmarks. | [**Open Document 1 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQC9U3kfnIf-QpTj7x5j_4wkAQXQQOvHEIpnT2Q4vGgZ4QA?e=SMnCpD) |
 | **Doc 2: Technical Methodology & Architecture** | Formal mathematical derivations for dynamic diurnal baselines, Wald-Page SPRT drift, 3D Mahalanobis covariance, and thermodynamic invariants. | [**Open Document 2 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQD_FsEHaKwFT7Wfm4cQsGgLAftP2txmCJrQxgIpIJXdNUw?e=IAfyC1) |
 | **Doc 3: Experimental Performance Casebook** | Empirical evaluation casebook, 60,480 telemetry benchmark breakdown, confusion matrices, and episodic temporal matching analysis. | [**Open Document 3 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQDSQYAGIDHhS5f7SIgnwKhtAVboqVnNghDWWUAkIoZj6-I?e=wWg8Ny) |
 | **Doc 4: Edge AI ESP32 Architecture** | MicroPython / C++ embedded sensor edge firmware, TinyML quantization, LoRa/GSM telemetry framing, and hardware field trial results. | [**Open Document 4 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQBTdSgyCfbwT6Vy0p0166tpAbaZ1pELUb_bp6A8-Cm8jTk?e=iWgqSL) |
