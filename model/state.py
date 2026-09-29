@@ -130,10 +130,11 @@ the mode switch only works end-to-end if main.py cooperates)
     frontend polls, so the UI can show which mode is currently active.
 """
 
+from __future__ import annotations
 import sys
 from collections import deque
-
 from pathlib import Path
+from typing import Optional, Dict, List, Any, Tuple
 
 import pandas as pd
 
