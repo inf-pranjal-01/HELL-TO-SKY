@@ -48,20 +48,14 @@ class SequentialSPRT:
         current_sigma: float
     ) -> float:
         """
-        Pre-whitens innovation residual:
-        \epsilon_t = (e_t - \rho e_{t-dt}) / (\sigma * sqrt(1 - \rho^2))
+        Computes standardized innovation residual:
+        \epsilon_t = (x_t - \mu(h_solar)) / \sigma_tot
+        Preserves DC calibration drift across multi-hour episodes.
         """
-        if prior_residual is None or dt_hours > 12.0 or current_sigma < 1e-6:
-            # First reading or after large gap: correlation memory is 0
-            return float(np.clip(current_residual / max(1e-4, current_sigma), -5.0, 5.0))
+        if current_sigma < 1e-6:
+            return 0.0
         
-        rho = cls.compute_autocorrelation(param, dt_hours)
-        rho_clamped = min(0.95, max(0.0, rho))
-        
-        whitened_num = current_residual - rho_clamped * prior_residual
-        whitened_den = current_sigma * math.sqrt(max(0.05, 1.0 - (rho_clamped ** 2)))
-        
-        epsilon = whitened_num / max(1e-4, whitened_den)
+        epsilon = current_residual / max(1e-4, current_sigma)
         return float(np.clip(epsilon, -5.0, 5.0))
 
     @staticmethod

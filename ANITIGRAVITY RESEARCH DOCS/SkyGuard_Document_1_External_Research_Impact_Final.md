@@ -14,7 +14,7 @@ When bad data passes unflagged into Numerical Weather Prediction (NWP) forecast 
 2. **Continuous Uninterrupted Streaming Passover (Suggested Replacement Readings):** When a sensor sends bad or missing data, the system instantly estimates and suggests a physically accurate replacement value so weather forecasting models keep running smoothly without crashing.
 3. **Anti-Poisoning Data Quarantine & Health Score Lifecycle:** Automatically isolates bad data so it cannot corrupt long-term baseline statistics, and tracks station health scores (0 to 100) to notify operators when maintenance is needed.
 4. **Elevation & Climate Scale Adaptability:** Automatically adjusts baseline expectations for high-altitude stations (such as mountain or plateau weather stations) so altitude differences do not trigger fake alarms.
-5. **Sub-Millisecond Multi-Platform Speed:** Processes each weather reading in just **0.210 milliseconds (p95)** on central computers (handling over 4,700 readings per second) and under **19 microseconds** on low-cost ESP32 microcontrollers.
+5. **High-Efficiency Multi-Platform Execution:** Engineered for real-time streaming ingestion on central servers and low-power ESP32 microcontrollers without compute bottlenecks.
 
 ---
 
@@ -105,7 +105,7 @@ SkyGuard AI is an **~80% complete, fully functional working prototype**. It has 
 * **6-Tier Physics & ML Detection Engine:** Complete multi-tier priority arbitration combining physical invariants, SPRT drift, 3D Mahalanobis, and spatial peer consensus.
 * **Continuous Streaming Imputation (Suggested Replacement Readings):** Real-time 4-tier fallback generator providing clean substitute readings when data is missing or corrupted.
 * **Dynamic Sensor Health & Quarantine:** Station health tracking with continuous score hysteresis (0 to 100) to isolate faulty sensors and prevent baseline corruption.
-* **Ultra-Low Latency Inference:** Optimized code running in 0.210 ms (p95) on CPU and under 19 microseconds on ESP32 microcontrollers.
+* **High-Efficiency Inference Engine:** Optimized streaming code running on central CPU and low-power ESP32 microcontrollers.
 * **Real-Time Operator Web Dashboard:** Live dashboard with interactive maps, live streaming endpoints, and SHAP diagnostic explanations.
 
 #### 6.2 Future Scope & Institutional Deployment Roadmap
@@ -123,7 +123,7 @@ This register maps key technical claims directly to their underlying standards a
 | :--- | :--- | :--- |
 | **C-001** | WMO mandates Level I-III physical, temporal, and spatial Quality Control for AWS. | WMO-No. 8 (Vol. III, Ch. 1) [R01] |
 | **C-002** | High-density AWS networks capture localized urban and regional microclimates. | IMD / PIB Technical Reports [R02] |
-| **C-003** | Single-reading algorithmic inference executes in p95 $0.210\text{ ms}$ on standard CPU. | Benchmark Profiler Artifact [E01] |
+| **C-003** | Single-reading algorithmic inference executes in real-time streaming cadence on standard CPU. | Benchmark Profiler Artifact [E01] |
 | **C-004** | Sequential SPRT / CUSUM accumulates low-SNR calibration drift evidence. | Page (1954); Wald (1945) [M02] |
 | **C-005** | Isolation Forests isolate high-dimensional anomalies with linear time complexity. | Liu, Ting, Zhou (2008) [M01] |
 | **C-006** | SHAP additive feature attributions provide component-level failure diagnostics. | Lundberg & Lee (2017) [M03] |

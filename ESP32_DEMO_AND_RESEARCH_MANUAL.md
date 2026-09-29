@@ -8,27 +8,15 @@
 **SkyGuard AI** is a meteorological telemetry ingestion, fault detection, and sensor health governance platform. It is engineered to monitor automated weather station (AWS) networks for sensor degradation, physical noise spikes, frozen transducers, calibration drift, and environmental anomalies.
 
 The platform divides responsibilities across two complementary stages of the data-quality pipeline:
-1. **ESP32 Edge Module**: Evaluates incoming local sensor signals at the physical station site to provide immediate local hardware protection and maintain station-level resilience during network disruptions.
+1. **ESP32 Edge Module**: Evaluates incoming local sensor signals at the physical station site to provide immediate local hardware protection for locally certifiable edge faults (`CERTAIN_FAULT`) and maintain station-level resilience during network disruptions.
 2. **Central SkyGuard Engine**: Ingests raw telemetry streams to perform spatio-temporal ML scoring, cross-station spatial peer corroboration, diurnal uncertainty budget estimation, and SHAP explainability.
 
-```mermaid
-flowchart TD
-    subgraph EDGE["Sensor Site (ESP32 Edge Engine)"]
-        SENSORS["Physical Sensor Array\n(DHT22 / BME280 / Transducers)"] -->|Raw Analog/Digital Signals| ESP["ESP32 Microcontroller\n(240MHz Dual Core, 320KB RAM)"]
-        ESP -->|Sub-1ms Sequential Inference| L1_RULES["Level 1 Edge Safety Rules\n- Physical Bounds Check\n- Instant Step-Spike Filter\n- Dropout & Fail-Low Protection"]
-        L1_RULES -->|Emergency Actuator / Relay| SAFE["Local Safety Action"]
-        ESP -->|Serial / Wi-Fi Telemetry Packet| BRIDGE["Transport Arbitration Layer"]
-    end
+---
 
-    subgraph CENTRAL["Central Cloud / Server System"]
-        BRIDGE -->|HTTP POST /api/ingest/observation| FASTAPI["FastAPI Central Ingestion Service"]
-        FASTAPI -->|Raw Telemetry Ingest| STATE["State Manager & Dynamic Window"]
-        STATE -->|Spatial Peer Query| PEERS["28 Neighboring Station Buffers\n(Bhopal, Chennai, Delhi, etc.)"]
-        STATE -->|Vectorized ML Scoring| DETECT["Decision Engine & Fault Classifier\n- Isolation Forest ML\n- Diurnal Uncertainty Budget\n- Cross-Channel Mahalanobis"]
-        DETECT -->|Authoritative Verdict| STORE["TimescaleDB / Mirror CSV Store"]
-        DETECT -->|WebSocket Tick| UI["Interactive Operations Dashboard\n- Dynamic Telemetry Trends\n- SHAP Explainability & Risk Cards"]
-    end
-```
+### Pipeline Architecture Overview
+
+* **Sensor Site (ESP32 Edge Engine)**: Physical Sensor Array (DHT22 / BME280 / Transducers) → ESP32 Microcontroller (240MHz Dual Core, 320KB RAM) → Level 1 Edge Safety Rules (Physical Bounds Check, Instant Step-Spike Filter, Dropout & Fail-Low Protection) → Emergency Local Actuation / Relay & USB-Serial / Wi-Fi Telemetry Ingestion Packet.
+* **Central Cloud / Server System**: FastAPI Central Ingestion Service (`POST /api/ingest/observation`) → State Manager & Dynamic Window → 28 Neighboring Station Peer Buffers → Decision Engine & Fault Classifier (Isolation Forest ML, Diurnal Uncertainty Budget, Cross-Channel Mahalanobis) → TimescaleDB / Mirror CSV Store & Interactive Operations Dashboard (Live Trends, SHAP Risk Cards).
 
 ---
 
@@ -47,7 +35,7 @@ The ESP32 module focuses on local signal validation and station-level resilience
 
 1. **Immediate Local Fault Protection**  
    - Sensor short-circuits, severe voltage spikes, or out-of-range physical readings are certified instantly from single-station physical bounds.  
-   - The ESP32 evaluates these local bounds in **$< 1\text{ ms}$**, enabling immediate local hardware protection (triggering safety relays or local alerts) before transmitting data.
+   - The ESP32 evaluates these local bounds directly on-device, enabling immediate local hardware protection (triggering safety relays or local alerts) before transmitting data.
 
 2. **Station-Level Resilience During Network Disruptions**  
    - Severe weather events can disrupt cellular or Wi-Fi links.  
@@ -73,16 +61,15 @@ Anomalies requiring broader temporal or multi-station context are evaluated by t
 | Data-Quality Pipeline Stage | ESP32 Edge Engine | Central SkyGuard Engine |
 |---|:---:|:---:|
 | **Primary Scope** | Immediate Local Protection & Resilience | Temporal, Spatial & Multivariate Context |
-| **Processing Latency** | $< 1.0\text{ ms}$ (On-Device MCU) | ~15–30 ms (Vectorized Ingestion) |
-| **Physical Range Bounds Check** | ✅ Certified from Local Evidence | ✅ Enforcement & Archival |
-| **Instant Sensor Dropout Filter** | ✅ Certified from Local Evidence | ✅ Record & Track |
-| **Sub-ADC Step Spike Filter** | ✅ On-Device Differential Check | ✅ Diurnal Uncertainty Budget |
-| **Station Network Outage Survival** | ✅ Local Buffering & Resilience | ❌ Requires Active Connection |
-| **Spatial Peer Corroboration** | ❌ Requires Multi-Station View | ✅ **28-Station Spatial Covariance** |
-| **CUSUM Drift & Frozen Value Detection** | ❌ Requires Historical Window | ✅ **Diurnal Volatility & Multi-Hour Check** |
-| **Isolation Forest ML Model** | ❌ MCU Memory Constraint | ✅ **Trained Ensemble Model** |
-| **SHAP Feature Attribution** | ❌ Excluded from MCU | ✅ **Full Interactive Explainability** |
-| **Final System Verdict Authority** | 🟡 Edge Advisory Tag | ✅ **Authoritative Central Verdict** |
+| **Physical Range Bounds Check** | Certified from Local Evidence | Enforcement & Archival |
+| **Instant Sensor Dropout Filter** | Certified from Local Evidence | Record & Track |
+| **Sub-ADC Step Spike Filter** | On-Device Differential Check | Diurnal Uncertainty Budget |
+| **Station Network Outage Survival** | Local Buffering & Resilience | Requires Active Connection |
+| **Spatial Peer Corroboration** | Excluded (Single Node) | **28-Station Spatial Covariance** |
+| **CUSUM Drift & Frozen Value Detection** | Local Stuck-Output Check | **Diurnal Volatility & Multi-Hour Check** |
+| **Isolation Forest ML Model** | MCU Memory Constraint | **Trained Ensemble Model** |
+| **SHAP Feature Attribution** | Excluded from MCU | **Full Interactive Explainability** |
+| **Final System Verdict Authority** | Edge Advisory Tag | **Authoritative Central Verdict** |
 
 ---
 
@@ -92,7 +79,7 @@ Anomalies requiring broader temporal or multi-station context are evaluated by t
 
 The ESP32 source code is located in the `EDGE/` directory:
 
-```
+```text
 HELL-TO-SKY/
 ├── EDGE/
 │   ├── esp32/                      <-- PlatformIO / ESP-IDF C++ Project (C++17)
@@ -104,7 +91,7 @@ HELL-TO-SKY/
 │   │   └── platformio.ini          <-- PlatformIO Environment Configuration
 │   │
 │   └── esp32_arduino/              <-- Arduino IDE C++ Sketch (Single-File Flashing)
-│       └── edge_engine.cpp         <-- Standalone Arduino Firmware (Rename to .ino if needed)
+│       └── edge_engine.cpp         <-- Standalone Arduino Firmware
 ```
 
 ---
@@ -162,26 +149,12 @@ HELL-TO-SKY/
 
 Follow these steps to run the end-to-end telemetry system.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Evaluator as Operator / User
-    participant SCRIPT as Hardware Streamer Script
-    participant ESP32 as ESP32 Microcontroller
-    participant BACKEND as Central FastAPI Server
-    participant UI as Frontend Web Dashboard
-
-    Evaluator->>BACKEND: Start FastAPI Server (port 8000)
-    Evaluator->>UI: Open Operations Center Dashboard (port 5173)
-    Evaluator->>SCRIPT: Run test_esp32_hardware.py --port COM5
-    SCRIPT->>ESP32: Transmit reading payload over USB Serial
-    ESP32->>ESP32: Compute Level 1 Local Edge Advisory (<1ms)
-    ESP32-->>SCRIPT: Return Edge Advisory (SAFE_FORWARD / CERTAIN_FAULT)
-    SCRIPT->>BACKEND: POST /api/ingest/observation
-    BACKEND->>BACKEND: Spatio-Temporal ML & Diurnal Uncertainty Scoring
-    BACKEND-->>UI: WebSocket TELEMETRY_TICK Broadcast
-    UI-->>Evaluator: Live UI Update: Packet Count, Trend Line & SHAP Card
-```
+### Execution Workflow Sequence
+1. **Operator**: Starts FastAPI Server (port 8000) & opens Operations Center Dashboard (`http://localhost:5173`).
+2. **Hardware Streamer Script**: Transmits observation payload to physical ESP32 microcontroller over USB Serial (`python scripts/test_esp32_hardware.py --port COM5`).
+3. **ESP32 Edge Microcontroller**: Evaluates Level 1 Local Edge Advisory (`SAFE_FORWARD`, `DEFER_TO_CENTRAL`, or `CERTAIN_FAULT`).
+4. **Backend Server**: Ingests payload via `POST /api/ingest/observation`, computes spatio-temporal ML & diurnal uncertainty score, and broadcasts WebSocket update (`TELEMETRY_TICK`).
+5. **Frontend Dashboard**: Live UI updates packet counts, interactive trend lines, and SHAP risk cards.
 
 ---
 
@@ -229,39 +202,68 @@ python scripts/test_esp32_hardware.py --port COM5 --interval 2.0 --csv data_esp3
 
 ---
 
-### Step 4: System Verification Points
+### 4.1 Steps to Reproduce ESP32 Benchmarks
 
-1. **Dashboard Status Header**:
-   - Status turns green: `ESP32 HARDWARE LINK ACTIVE — Station: AWS-CHN-024 • Device: esp32-devkit-v1-serial`.
-   - Packet counter increments (`Packets Ingested: 1, 2, 3...`).
-   - Turnaround latency reports measured performance (**1ms to 18ms**).
+To independently verify all empirical metrics and fault detection scorecards, execute the following commands from the project root directory:
 
-2. **Current Telemetry Cards & Risk Score**:
-   - Temperature, Pressure, and Humidity cards display live values.
-   - Anomaly Risk Score gauge updates dynamically.
+#### 1. Run Dedicated ESP32 Certain Fault Benchmark Suite
+Evaluates all 60,480 telemetry observations across 28 Indian weather stations in `data_esp32/`:
 
-3. **Telemetry Trends Chart**:
-   - Interactive SVG trend line scales time dynamically for incoming points.
-   - Anomalous points display red markers with tooltips detailing risk score, fault type, and suggested values.
+```powershell
+python scripts/benchmark_esp32_entry_protection.py
+```
 
-4. **Analytics & SHAP Explainability**:
-   - Navigate to `/analytics` to view on-device ESP32 edge advisories, active rule triggers, and feature attribution.
+*Expected Output Summary*:
+- **Evaluated Telemetry Observations**: 60,480
+- **True Positives (TP - Certain Faults)**: 5,192
+- **False Positives (FP - False Alarms)**: 0
+- **False Negatives (FN - Central Deferred)**: 607 (deferred to Level 2 Central Engine)
+- **ESP32 CERTAIN_FAULT Precision**: **100%** (Zero False Alarms, $FP = 0$)
+- **False Positive Rate (FPR)**: **0%**
+
+#### 2. Run Complete Automated System Test Suite
+Executes unit, integration, and contract tests across backend services, edge rules, and telemetry parsers:
+
+```powershell
+python -m pytest tests/
+```
+
+*Expected Output Summary*: **67 / 67 Passed (100%)**.
 
 ---
 
-## 5. System Performance & Evaluation Metrics
+## 5. System Performance & Empirical Benchmarking
 
-Evaluated across a ground-truth dataset of 60,480 telemetry records across 28 weather stations in India (Bhopal, Chennai, Delhi, Kolkata, Mumbai, Ranchi, Varanasi):
+### 5.1 ESP32 Edge Certain Fault Scope Benchmark (28 Station Datasets)
 
-| Performance Indicator | Measured Value | Scope |
+Evaluated across **60,480 continuous telemetry observations** across 28 automated weather station datasets in India (Bhopal, Chennai, Delhi, Kolkata, Mumbai, Ranchi, Varanasi):
+
+| Benchmark Metric | Empirical Value | Operational Interpretation |
 |---|:---:|---|
-| **Automated Test Suite** | **67 / 67 Passed** (100%) | Complete automated system test suite |
-| **ESP32 On-Device Latency** | **$< 1.0\text{ ms}$** | Local signal bounds evaluation |
-| **Central Ingestion Throughput** | **177.96 rows / sec** | Vectorized spatio-temporal scoring |
-| **Pooled Overall Anomaly Precision** | **90.9%** (Oracle Baseline) | 971 True Positives vs. 97 False Positives |
-| **Spike Detection Precision** | **98.6%** | Instantaneous jump isolation |
-| **Multiclass Fault Labeler Accuracy** | **95.8%** (Macro F1: 82.6%) | Typed classification on pre-flagged anomalies |
-| **False Positive Rate (FPR)** | **$< 0.16\%$** | False alarm rate on clean weather |
+| **Total Evaluated Telemetry Observations** | **60,480** | Full 28-station continuous telemetry dataset |
+| **True Positives (TP - Certain Faults)** | **5,192** | On-device certifiable edge faults intercepted |
+| **False Positives (FP - False Alarms)** | **0** | **Zero false alarms on clean operational weather** |
+| **False Negatives (FN - Central Deferred)** | **607** | Non-certain anomalies deferred to Level 2 Central Engine |
+| **ESP32 CERTAIN_FAULT Precision** | **100%** | **100% precision on certified edge fault scope ($FP = 0$)** |
+| **False Positive Rate (FPR)** | **0%** | Zero false alarm rate on clean weather stream |
+| **Overall Network Fault Recall** | **Low (By Design)** | ESP32 local recall is low against full network anomalies; complex spatio-temporal faults are deferred to Central Engine |
+| **Automated System Test Suite** | **67 / 67 Passed** | 100% test suite pass rate |
+
+---
+
+### 5.2 Breakdown Across ESP32 Certifiable Fault Categories
+
+| Certifiable Edge Fault Scope Category | True Positives (TP) | False Positives (FP) | Scope Status |
+|---|:---:|:---:|:---:|
+| **1. Sensor Disconnection / Acquisition Failure (ADC / NaN Dropout)** | 278 | 0 | Certified Edge Fault |
+| **2. Invalid or Sentinel Readings (Electrical Rail Floor / Fail-Low)** | 596 | 0 | Certified Edge Fault |
+| **3. Physically Impossible Values / Hard Range Violations** | 651 | 0 | Certified Edge Fault |
+| **4. Sensor Saturation / Rail Clipping (0% / 100% RH)** | 0 | 0 | Deferred to Central Level 2 |
+| **5. Missing Samples / Heartbeat Failure (>3h Gap)** | 0 | 0 | Certified Edge Fault |
+| **6. Timestamp / RTC Integrity Failures (Clock Rollback)** | 0 | 0 | Certified Edge Fault |
+| **7. Clear Communication / Transmission Frame Failure** | 0 | 0 | Certified Edge Fault |
+| **8. Established Sensor Freeze / Stuck Output ($\ge 3$ Identical Samples)** | 3,667 | 0 | Certified Edge Fault |
+| **TOTAL POOLED EDGE EVALUATION** | **5,192** | **0** | **100% Precision (Zero FP)** |
 
 ---
 
@@ -337,4 +339,4 @@ Evaluated across a ground-truth dataset of 60,480 telemetry records across 28 we
 | `SerialException: Could not open port COM5` | Port occupied or incorrect COM port | List ports: `python -c "import serial.tools.list_ports; print([p.device for p in serial.tools.list_ports.comports()])"` |
 | `FastAPI 404 Station AWS-CHN-024 not registered` | History store cleared | Execute `POST /api/admin/clear-history` or restart FastAPI. |
 | ESP32 Terminal reads `WiFi connection failed` | Wi-Fi credentials unconfigured | ESP32 automatically uses USB Serial Host Bridge mode; data streaming continues over USB serial. |
-| Test suite failures | Local cache mismatch | Execute `python -m pytest tests/` in terminal. |
+| Benchmark / test failures | Local cache mismatch | Execute `python scripts/benchmark_esp32_entry_protection.py` or `python -m pytest tests/`. |

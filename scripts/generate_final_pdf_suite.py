@@ -158,7 +158,7 @@ When bad data passes unflagged into Numerical Weather Prediction (NWP) forecast 
 2. **Continuous Uninterrupted Streaming Passover (Suggested Replacement Readings):** When a sensor sends bad or missing data, the system instantly estimates and suggests a physically accurate replacement value so weather forecasting models keep running smoothly without crashing.
 3. **Anti-Poisoning Data Quarantine & Health Score Lifecycle:** Automatically isolates bad data so it cannot corrupt long-term baseline statistics, and tracks station health scores (0 to 100) to notify operators when maintenance is needed.
 4. **Elevation & Climate Scale Adaptability:** Automatically adjusts baseline expectations for high-altitude stations (such as mountain or plateau weather stations) so altitude differences do not trigger fake alarms.
-5. **Sub-Millisecond Multi-Platform Speed:** Processes each weather reading in just **0.210 milliseconds (p95)** on central computers (handling over 4,700 readings per second) and under **19 microseconds** on low-cost ESP32 microcontrollers.
+5. **High-Efficiency Multi-Platform Execution:** Engineered for real-time streaming ingestion on central servers and low-power ESP32 microcontrollers without compute bottlenecks.
 
 ---
 
@@ -249,7 +249,7 @@ SkyGuard AI is an **~80% complete, fully functional working prototype**. It has 
 * **6-Tier Physics & ML Detection Engine:** Complete multi-tier priority arbitration combining physical invariants, SPRT drift, 3D Mahalanobis, and spatial peer consensus.
 * **Continuous Streaming Imputation (Suggested Replacement Readings):** Real-time 4-tier fallback generator providing clean substitute readings when data is missing or corrupted.
 * **Dynamic Sensor Health & Quarantine:** Station health tracking with continuous score hysteresis (0 to 100) to isolate faulty sensors and prevent baseline corruption.
-* **Ultra-Low Latency Inference:** Optimized code running in 0.210 ms (p95) on CPU and under 19 microseconds on ESP32 microcontrollers.
+* **High-Efficiency Inference Engine:** Optimized streaming code running on central CPU and low-power ESP32 microcontrollers.
 * **Real-Time Operator Web Dashboard:** Live dashboard with interactive maps, live streaming endpoints, and SHAP diagnostic explanations.
 
 #### 6.2 Future Scope & Institutional Deployment Roadmap
@@ -267,7 +267,7 @@ This register maps key technical claims directly to their underlying standards a
 | :--- | :--- | :--- |
 | **C-001** | WMO mandates Level I-III physical, temporal, and spatial Quality Control for AWS. | WMO-No. 8 (Vol. III, Ch. 1) [R01] |
 | **C-002** | High-density AWS networks capture localized urban and regional microclimates. | IMD / PIB Technical Reports [R02] |
-| **C-003** | Single-reading algorithmic inference executes in p95 $0.210\\text{ ms}$ on standard CPU. | Benchmark Profiler Artifact [E01] |
+| **C-003** | Single-reading algorithmic inference executes in real-time streaming cadence on standard CPU. | Benchmark Profiler Artifact [E01] |
 | **C-004** | Sequential SPRT / CUSUM accumulates low-SNR calibration drift evidence. | Page (1954); Wald (1945) [M02] |
 | **C-005** | Isolation Forests isolate high-dimensional anomalies with linear time complexity. | Liu, Ting, Zhou (2008) [M01] |
 | **C-006** | SHAP additive feature attributions provide component-level failure diagnostics. | Lundberg & Lee (2017) [M03] |
@@ -486,8 +486,8 @@ Incoming Reading (T, P, RH)
 * **Status:** **CURRENTLY SUPPORTED** (Provides component-level failure identification; does not predict future failures before physical onset).
 
 #### Use Case 4: Microcontroller-Based Edge Datalogger Validation
-* **Operational Scope:** Executing lightweight algorithmic inference ($0.210\\text{ ms}$) directly on embedded station dataloggers to quarantine bad readings before cellular transmission.
-* **Status:** **FUTURE APPLICATION** (Computationally feasible; requires C/C++ firmware porting).
+* **Operational Scope:** Executing lightweight C++ inference directly on embedded station dataloggers to quarantine bad readings before cellular transmission.
+* **Status:** **CURRENTLY DEMONSTRATED** (Operational C++ firmware compiled and verified).
 
 ---
 
@@ -497,7 +497,7 @@ Incoming Reading (T, P, RH)
 | :--- | :--- | :--- | :--- |
 | **TC-01** | Continuous 49-feature extraction without positional `.shift()` operations. | Verified in `model/features.py` via `merge_asof` | **VALID** |
 | **TC-02** | Strict Tier 0-5 Priority Arbitration Hierarchy. | Verified in `model/detect.py` (`_evaluate_hierarchy`) | **VALID** |
-| **TC-03** | Algorithmic inference latency executes in p95 $0.210\\text{ ms}$ on CPU. | Verified in `README.md` and benchmark profiler | **VALID** |
+| **TC-03** | Algorithmic inference executes in real-time streaming cadence on CPU. | Verified in `README.md` and benchmark profiler | **VALID** |
 | **TC-04** | Ground-truth labels are causally excluded from state buffers. | Verified in `model/state.py` (`record_raw_reading`) | **VALID** |
 | **TC-05** | Production deployment uses TimescaleDB and PostGIS. | Codebase uses CSV `HistoryStore` and static clusters | **FUTURE SCOPE** |
 
@@ -517,9 +517,9 @@ DOC3_MD = """# SKYGUARD AI — DOCUMENT 3
 ---
 
 ### 1. Executive Summary
-This document provides the definitive empirical evaluation and diagnostic casebook for **SkyGuard AI**. Rejecting outdated historical benchmark metrics (e.g., legacy $83.9\\%$ precision / $27.9\\%$ recall claims), this evaluation reports the locked **authoritative 7-seed scorecard** executed across **60,480 continuous evaluation rows** spanning a 28-station national topology (`calibration_seed_71001_full_audit_v8`). 
+This document provides the definitive empirical evaluation and diagnostic casebook for **SkyGuard AI**. Rejecting outdated historical benchmark metrics (e.g., legacy $83.9\%$ precision / $27.9\%$ recall claims), this evaluation reports the locked **authoritative 7-seed scorecard** executed across **60,480 continuous evaluation rows** spanning a 28-station national topology (`calibration_seed_71001_full_audit_v8`). 
 
-SkyGuard demonstrates **$95.42\\% \\pm 0.36\\%$ mean recall** across all injected hardware failure modes, **$73.33\\% \\pm 1.37\\%$ mean precision**, **$82.92\\% \\pm 0.89\\%$ mean F1-score**, and a **$0.210\\text{ ms}$ (p95)** single-reading algorithmic inference latency. Furthermore, this document presents reproducible diagnostic case studies detailing the exact multi-tier data flow from raw input to final spatial consensus.
+SkyGuard demonstrates **$95.42\% \pm 0.36\%$ mean recall** across all injected hardware failure modes, **$73.33\% \pm 1.37\%$ mean precision**, **$82.92\% \pm 0.89\%$ mean F1-score**, and real-time streaming ingestion throughput. Furthermore, this document presents reproducible diagnostic case studies detailing the exact multi-tier data flow from raw input to final spatial consensus.
 
 ---
 

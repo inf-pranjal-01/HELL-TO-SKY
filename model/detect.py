@@ -35,8 +35,8 @@ PARAM_PREFIXES = {
     "humidity_pct": "humidity"
 }
 
-# Wald Decision Thresholds (alpha=0.0005 for 0.05% false alarm bound, beta=0.05)
-WALD_UPPER_ALERT, WALD_LOWER_NORMAL = SequentialSPRT.get_wald_boundaries(alpha=0.0005, beta=0.05)
+# Wald Decision Thresholds (alpha=0.002 for 500-step false alarm bound, beta=0.05)
+WALD_UPPER_ALERT, WALD_LOWER_NORMAL = SequentialSPRT.get_wald_boundaries(alpha=0.002, beta=0.05)
 
 
 class SensorHealthTracker:
@@ -200,8 +200,8 @@ def evaluate_spike_evidence(
 
     # Cold-start warmup safeguard (history_len < 6):
     is_warmup = history_len < 6
-    alert_z_threshold = 4.8 if is_warmup else 4.2
-    alert_llr_threshold = max(WALD_UPPER_ALERT, 10.0 if is_warmup else WALD_UPPER_ALERT)
+    alert_z_threshold = 4.8 if is_warmup else 4.4
+    alert_llr_threshold = max(WALD_UPPER_ALERT, 10.0 if is_warmup else 7.5)
 
     is_spike = jump_llr >= alert_llr_threshold and z_jump >= alert_z_threshold
     reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})" if is_spike else None
@@ -273,8 +273,14 @@ def evaluate_frozen_evidence(
     else:
         frozen_llr = 0.0
     
-    # Physical Wald alert criterion: evidence cleared Wald threshold AND target range is within physical stuck transducer noise limit (<= 0.20)
-    is_frozen = frozen_llr >= WALD_UPPER_ALERT and target_range <= 0.20 and target_var <= 0.02
+    # Physical Wald alert criterion: transducer stuck range limit
+    max_noise_range = 0.08 if param == "pressure_hpa" else 0.15
+    max_target_var = (0.05 ** 2) if param == "pressure_hpa" else ((0.8 * sensor_floor) ** 2)
+    
+    if peer_dispersion is not None and eligible_peers >= 2:
+        is_frozen = (frozen_llr >= WALD_UPPER_ALERT and target_var <= max_target_var and target_range <= max_noise_range and peer_dispersion >= 1.5 * sensor_floor)
+    else:
+        is_frozen = (frozen_llr >= WALD_UPPER_ALERT and target_var <= max_target_var and target_range <= (max_noise_range * 0.7))
     reason = f"Variance collapse (target_var={target_var:.4f} vs peer_var={peer_var:.4f}, range={target_range:.2f}, LLR={frozen_llr:.2f})" if is_frozen else None
     
     diagnostics = {
@@ -440,22 +446,34 @@ def score_reading(
         )
         expected_rocs[param] = exp_roc
         
-        if precomputed_features is not None and f"{prefix}_rolling_mean" in precomputed_features and not pd.isna(precomputed_features[f"{prefix}_rolling_mean"]):
-            exp_val = float(precomputed_features[f"{prefix}_rolling_mean"])
-            channel_sigma_floor = DEFAULT_DIURNAL_SPREAD.get(param, 1.0)
-            sigma_tot = max(channel_sigma_floor, float(precomputed_features.get(f"{prefix}_robust_scale", 1.0)))
-            residual = val - exp_val
-        else:
-            # Composite uncertainty
-            sigma_tot, u_breakdown = UncertaintyBudget.compute_composite_predictive_uncertainty(
-                param, solar_hour, dt_hours, history_df, peer_dispersion=peer_disp or 0.0
-            )
-            residual = val - exp_val
+        sigma_tot, u_breakdown = UncertaintyBudget.compute_composite_predictive_uncertainty(
+            param, solar_hour, dt_hours, history_df, peer_dispersion=peer_disp or 0.0
+        )
+        residual = val - exp_val
             
         expectations[param] = exp_val
         uncertainties[param] = sigma_tot
         innovations[param] = residual
         z_scores[param] = residual / max(1e-4, sigma_tot)
+
+    # ── Causal SPRT / CUSUM State Updates (Evaluated for all parameters) ───
+    sprt_updates = {}
+    active_sprt = sprt_state if sprt_state is not None else getattr(state, "sprt_state", None)
+    for param in PARAMS:
+        res = innovations[param]
+        sig = uncertainties[param]
+        s_pos_prev = float(active_sprt[param].get("s_pos", 0.0)) if active_sprt and param in active_sprt else 0.0
+        s_neg_prev = float(active_sprt[param].get("s_neg", 0.0)) if active_sprt and param in active_sprt else 0.0
+        
+        eps = SequentialSPRT.pre_whiten_residual(param, res, None, dt_hours, sig)
+        s_pos, s_neg, d_llr = SequentialSPRT.update_cusum(
+            param, s_pos_prev=s_pos_prev, s_neg_prev=s_neg_prev,
+            whitened_epsilon=eps, dt_hours=dt_hours, current_sigma=sig
+        )
+        sprt_updates[param] = {"s_pos": s_pos, "s_neg": s_neg, "drift_llr": d_llr}
+        if active_sprt and param in active_sprt:
+            active_sprt[param]["s_pos"] = s_pos
+            active_sprt[param]["s_neg"] = s_neg
 
     # ── TIER 1: High-Specificity Specialist Faults (Spike & Frozen) ─────
     tier1_evidence = []
@@ -546,6 +564,7 @@ def score_reading(
             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": tier1_evidence,
             "regime": regime,
+            "sprt_updates": sprt_updates,
             "evaluation_diagnostics": {
                 "tier": 1,
                 "peak_llr": strongest["llr"],
@@ -553,56 +572,47 @@ def score_reading(
             }
         }
 
-    # ── TIER 2: Persistent Temporal Faults (Pre-Whitened SPRT Drift) ─────
+    # ── TIER 2: Persistent Temporal Faults (Sequential SPRT Drift) ───────
     tier2_evidence = []
-    sprt_updates = {}
-    
-    # Extract prior SPRT state if provided directly or via state object
-    active_sprt = sprt_state if sprt_state is not None else getattr(state, "sprt_state", None)
-    
     for param in PARAMS:
+        drift_llr = sprt_updates[param]["drift_llr"]
         residual = innovations[param]
         sigma_tot = uncertainties[param]
-        
-        prior_res = None
-        if not history_df.empty and param in history_df.columns:
-            valid_pvals = pd.to_numeric(history_df[param], errors="coerce").dropna()
-            if not valid_pvals.empty:
-                prior_res = float(valid_pvals.iloc[-1]) - expectations[param]
-        
-        # Autoregressive pre-whitening
-        whitened_eps = SequentialSPRT.pre_whiten_residual(param, residual, prior_res, dt_hours, sigma_tot)
-        
-        s_pos_prev = 0.0
-        s_neg_prev = 0.0
-        if active_sprt and param in active_sprt:
-            s_pos_prev = float(active_sprt[param].get("s_pos", 0.0))
-            s_neg_prev = float(active_sprt[param].get("s_neg", 0.0))
-        
-        # Dual CUSUM update
-        s_pos, s_neg, drift_llr = SequentialSPRT.update_cusum(
-            param, s_pos_prev=s_pos_prev, s_neg_prev=s_neg_prev,
-            whitened_epsilon=whitened_eps, dt_hours=dt_hours, current_sigma=sigma_tot
-        )
-        sprt_updates[param] = {"s_pos": s_pos, "s_neg": s_neg, "drift_llr": drift_llr}
         
         # Directional contrast against peer network
         peer_med, _, n_p = PeerSpatialEngine.compute_robust_peer_consensus(
             station_id, param, current_time, neighbor_buffers or {}, target_reading=raw_reading
         )
+        peer_diverged = False
+        peer_corroborated = False
         if peer_med is not None and n_p >= 2:
             peer_res = peer_med - expectations[param]
-            if (residual * peer_res) < 0 and abs(residual) > 2.0 * sigma_tot:
+            spatial_diff = abs(float(raw_reading[param]) - float(peer_med))
+            if (residual * peer_res) < 0 and abs(residual) > 1.5 * sigma_tot:
                 drift_llr *= 1.4  # Boost evidence on directional divergence
-                
-        if drift_llr >= WALD_UPPER_ALERT and abs(z_scores[param]) >= 2.5:
+                peer_diverged = True
+            elif spatial_diff > 1.8 * sigma_tot:
+                peer_diverged = True
+            elif spatial_diff < 1.0 * sigma_tot and (residual * peer_res) > 0:
+                # Sibling peers are moving in exact synchronization (regional front / diurnal shift)
+                peer_corroborated = True
+                drift_llr = min(drift_llr, 3.0)  # Suppress drift evidence on synchronized regional weather
+
+        is_drift_anom = False
+        if not peer_corroborated and drift_llr >= WALD_UPPER_ALERT:
+            if n_p >= 2:
+                is_drift_anom = peer_diverged or abs(z_scores[param]) >= 1.8
+            else:
+                is_drift_anom = abs(z_scores[param]) >= 2.0
+
+        if is_drift_anom:
             tier2_evidence.append({
                 "tier": 2,
                 "type": "drift",
                 "parameter": param,
                 "llr": drift_llr,
                 "confidence": min(95.0, 80.0 + drift_llr),
-                "reason": f"Pre-whitened SPRT accumulator (LLR={drift_llr:.2f}, z={z_scores[param]:.2f}) cleared Wald threshold",
+                "reason": f"Sequential SPRT accumulator (LLR={drift_llr:.2f}, z={z_scores[param]:.2f}) cleared Wald threshold",
                 "observed_value": float(raw_reading[param])
             })
             
@@ -621,6 +631,7 @@ def score_reading(
             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": tier2_evidence,
             "regime": regime,
+            "sprt_updates": sprt_updates,
             "evaluation_diagnostics": {
                 "tier": 2,
                 "peak_llr": strongest["llr"],

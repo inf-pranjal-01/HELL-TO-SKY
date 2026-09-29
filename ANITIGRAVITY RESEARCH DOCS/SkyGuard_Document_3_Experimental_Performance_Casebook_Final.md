@@ -7,7 +7,7 @@
 ### 1. Executive Summary
 This document provides the definitive empirical evaluation and diagnostic casebook for **SkyGuard AI**. Rejecting outdated historical benchmark metrics (e.g., legacy $83.9\%$ precision / $27.9\%$ recall claims), this evaluation reports the locked **authoritative 7-seed scorecard** executed across **60,480 continuous evaluation rows** spanning a 28-station national topology (`calibration_seed_71001_full_audit_v8`). 
 
-SkyGuard demonstrates **$95.42\% \pm 0.36\%$ mean recall** across all injected hardware failure modes, **$73.33\% \pm 1.37\%$ mean precision**, **$82.92\% \pm 0.89\%$ mean F1-score**, and a **$0.210\text{ ms}$ (p95)** single-reading algorithmic inference latency. Furthermore, this document presents reproducible diagnostic case studies detailing the exact multi-tier data flow from raw input to final spatial consensus.
+SkyGuard demonstrates **$95.42\% \pm 0.36\%$ mean recall** across all injected hardware failure modes, **$73.33\% \pm 1.37\%$ mean precision**, **$82.92\% \pm 0.89\%$ mean F1-score**, and real-time streaming ingestion throughput. Furthermore, this document presents reproducible diagnostic case studies detailing the exact multi-tier data flow from raw input to final spatial consensus.
 
 ---
 

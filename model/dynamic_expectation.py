@@ -170,10 +170,10 @@ def compute_dynamic_expectation(
                     p_ts = pd.to_datetime(clean_rows["timestamp"].iloc[-1], utc=True)
                     dt_hours = max(0.1, min(24.0, (current_time - p_ts).total_seconds() / 3600.0))
 
-    if prior_val is not None and dt_hours <= 6.0:
-        expected_val = prior_val + (expected_roc * dt_hours) + peer_innovation_delta
-    elif neighbor_median is not None and not pd.isna(neighbor_median):
+    if neighbor_median is not None and not pd.isna(neighbor_median):
         expected_val = float(neighbor_median) + (expected_roc * dt_hours)
+    elif prior_val is not None and dt_hours <= 6.0:
+        expected_val = prior_val + (expected_roc * dt_hours) + peer_innovation_delta
     elif not history_df.empty and param in history_df.columns and len(history_df[param].dropna()) > 0:
         clean_vals = history_df[param].dropna()
         clean_in_bounds = clean_vals[(clean_vals >= b_min) & (clean_vals <= b_max)]

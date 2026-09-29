@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-[**Live Dashboard**](http://localhost:5173) • [**API Docs**](http://localhost:8000/docs) • [**Fast Benchmark (Judges)**](evaluation/fast_benchmark.py) • [**Benchmark Guide**](BENCHMARK_GUIDE.md)
+[**Live Dashboard**](http://localhost:5173) • [**API Docs**](http://localhost:8000/docs) • [**Fast Benchmark (Judges)**](evaluation/fast_benchmark.py) • [**Benchmark Guide**](BENCHMARK_GUIDE.md) • [**Research Report**](RESEARCH_REPORT.md)
 
 </div>
 

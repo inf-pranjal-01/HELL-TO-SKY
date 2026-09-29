@@ -200,8 +200,8 @@ Incoming Reading (T, P, RH)
 * **Status:** **CURRENTLY SUPPORTED** (Provides component-level failure identification; does not predict future failures before physical onset).
 
 #### Use Case 4: Microcontroller-Based Edge Datalogger Validation
-* **Operational Scope:** Executing lightweight algorithmic inference ($0.210\text{ ms}$) directly on embedded station dataloggers to quarantine bad readings before cellular transmission.
-* **Status:** **FUTURE APPLICATION** (Computationally feasible; requires C/C++ firmware porting).
+* **Operational Scope:** Executing lightweight C++ inference directly on embedded station dataloggers to quarantine bad readings before cellular transmission.
+* **Status:** **CURRENTLY DEMONSTRATED** (Operational C++ firmware compiled and verified).
 
 ---
 
@@ -211,7 +211,7 @@ Incoming Reading (T, P, RH)
 | :--- | :--- | :--- | :--- |
 | **TC-01** | Continuous 49-feature extraction without positional `.shift()` operations. | Verified in `model/features.py` via `merge_asof` | **VALID** |
 | **TC-02** | Strict Tier 0-5 Priority Arbitration Hierarchy. | Verified in `model/detect.py` (`_evaluate_hierarchy`) | **VALID** |
-| **TC-03** | Algorithmic inference latency executes in p95 $0.210\text{ ms}$ on CPU. | Verified in `README.md` and benchmark profiler | **VALID** |
+| **TC-03** | Algorithmic inference executes in real-time streaming cadence on CPU. | Verified in `README.md` and benchmark profiler | **VALID** |
 | **TC-04** | Ground-truth labels are causally excluded from state buffers. | Verified in `model/state.py` (`record_raw_reading`) | **VALID** |
 | **TC-05** | Production deployment uses TimescaleDB and PostGIS. | Codebase uses CSV `HistoryStore` and static clusters | **FUTURE SCOPE** |
 

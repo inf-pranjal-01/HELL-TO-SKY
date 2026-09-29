@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 170" width="100%" height="170">
+  <rect width="100%" height="100%" fill="#ffffff" rx="8" />
+
+  <text x="450" y="22" fill="#0f172a" font-family="Inter, sans-serif" font-size="11" font-weight="bold" text-anchor="middle">28-STATION CLUSTER TOPOLOGY (7 GEOGRAPHIC CLUSTERS — STRICT LOCAL ISOLATION)</text>
+  <text x="450" y="38" fill="#64748b" font-family="Inter, sans-serif" font-size="8.5" text-anchor="middle">Each cluster consists of 1 Center Target Station (C) and 3 Regional Sibling Peers (S) — Zero Cross-Cluster Leakage</text>
+
+  <g transform="translate(15, 50)">
+    <!-- 7 Clusters -->
+    <!-- DEL -->
+    <g transform="translate(0, 0)">
+      <rect width="115" height="105" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <rect width="115" height="22" rx="6" fill="#1e3a8a"/>
+      <text x="57" y="15" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">DELHI [DEL]</text>
+      <text x="10" y="40" fill="#dc2626" font-family="Inter, sans-serif" font-size="8" font-weight="bold">AWS-DEL-011 (C)</text>
+      <text x="10" y="58" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-DEL-101 (S₁)</text>
+      <text x="10" y="74" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-DEL-102 (S₂)</text>
+      <text x="10" y="90" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-DEL-103 (S₃)</text>
+    </g>
+
+    <!-- MUM -->
+    <g transform="translate(125, 0)">
+      <rect width="115" height="105" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <rect width="115" height="22" rx="6" fill="#1e3a8a"/>
+      <text x="57" y="15" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">MUMBAI [MUM]</text>
+      <text x="10" y="40" fill="#dc2626" font-family="Inter, sans-serif" font-size="8" font-weight="bold">AWS-MUM-007 (C)</text>
+      <text x="10" y="58" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-MUM-101 (S₁)</text>
+      <text x="10" y="74" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-MUM-102 (S₂)</text>
+      <text x="10" y="90" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-MUM-103 (S₃)</text>
+    </g>
+
+    <!-- CHN -->
+    <g transform="translate(250, 0)">
+      <rect width="115" height="105" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <rect width="115" height="22" rx="6" fill="#1e3a8a"/>
+      <text x="57" y="15" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">CHENNAI [CHN]</text>
+      <text x="10" y="40" fill="#dc2626" font-family="Inter, sans-serif" font-size="8" font-weight="bold">AWS-CHN-024 (C)</text>
+      <text x="10" y="58" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-CHN-101 (S₁)</text>
+      <text x="10" y="74" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-CHN-102 (S₂)</text>
+      <text x="10" y="90" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-CHN-103 (S₃)</text>
+    </g>
+
+    <!-- KOL -->
+    <g transform="translate(375, 0)">
+      <rect width="115" height="105" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <rect width="115" height="22" rx="6" fill="#1e3a8a"/>
+      <text x="57" y="15" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">KOLKATA [KOL]</text>
+      <text x="10" y="40" fill="#dc2626" font-family="Inter, sans-serif" font-size="8" font-weight="bold">AWS-KOL-015 (C)</text>
+      <text x="10" y="58" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-KOL-101 (S₁)</text>
+      <text x="10" y="74" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-KOL-102 (S₂)</text>
+      <text x="10" y="90" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-KOL-103 (S₃)</text>
+    </g>
+
+    <!-- BHO -->
+    <g transform="translate(500, 0)">
+      <rect width="115" height="105" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <rect width="115" height="22" rx="6" fill="#1e3a8a"/>
+      <text x="57" y="15" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">BHOPAL [BHO]</text>
+      <text x="10" y="40" fill="#dc2626" font-family="Inter, sans-serif" font-size="8" font-weight="bold">AWS-BHO-030 (C)</text>
+      <text x="10" y="58" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-BHO-101 (S₁)</text>
+      <text x="10" y="74" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-BHO-102 (S₂)</text>
+      <text x="10" y="90" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-BHO-103 (S₃)</text>
+    </g>
+
+    <!-- RAN -->
+    <g transform="translate(625, 0)">
+      <rect width="115" height="105" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <rect width="115" height="22" rx="6" fill="#1e3a8a"/>
+      <text x="57" y="15" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">RANCHI [RAN]</text>
+      <text x="10" y="40" fill="#dc2626" font-family="Inter, sans-serif" font-size="8" font-weight="bold">AWS-RAN-067 (C)</text>
+      <text x="10" y="58" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-RAN-101 (S₁)</text>
+      <text x="10" y="74" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-RAN-102 (S₂)</text>
+      <text x="10" y="90" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-RAN-103 (S₃)</text>
+    </g>
+
+    <!-- VAR -->
+    <g transform="translate(750, 0)">
+      <rect width="115" height="105" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <rect width="115" height="22" rx="6" fill="#1e3a8a"/>
+      <text x="57" y="15" fill="#ffffff" font-family="Inter, sans-serif" font-size="8.5" font-weight="bold" text-anchor="middle">VARANASI [VAR]</text>
+      <text x="10" y="40" fill="#dc2626" font-family="Inter, sans-serif" font-size="8" font-weight="bold">AWS-VAR-052 (C)</text>
+      <text x="10" y="58" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-VAR-101 (S₁)</text>
+      <text x="10" y="74" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-VAR-102 (S₂)</text>
+      <text x="10" y="90" fill="#334155" font-family="Inter, sans-serif" font-size="7.5">AWS-VAR-103 (S₃)</text>
+    </g>
+  </g>
+</svg>

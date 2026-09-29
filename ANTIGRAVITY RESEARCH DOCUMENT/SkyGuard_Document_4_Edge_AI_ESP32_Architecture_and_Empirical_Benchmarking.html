@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>SkyGuard Document 4 - Edge AI Architecture</title>
+<title>SkyGuard Document 4 - Edge AI ESP32 Architecture & Empirical Benchmarking</title>
 <style>
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -208,371 +208,450 @@ hr {
 </style>
 </head>
 <body>
-<h1>SKYGUARD AI — DOCUMENT 4</h1>
-<h1>Edge-Native Zero-Leakage Anomaly Detection for Distributed Weather Sensors on Constrained ESP32 Microcontrollers</h1>
-<p><strong>System Firmware Architecture, Online Adaptive Signal Processing, Quantized TinyML Inference, and Multi-Seed Empirical Benchmarking</strong></p>
+<h1>SkyGuard AI: Meteorological Telemetry Ingestion, Fault Detection, and Sensor Health Governance Platform</h1>
+<h2>Technical Specification, Pipeline Manual &amp; Demonstration Guide</h2>
+<hr />
+<h2>1. Executive Summary</h2>
+<p><strong>SkyGuard AI</strong> is a meteorological telemetry ingestion, fault detection, and sensor health governance platform. It is engineered to monitor automated weather station (AWS) networks for sensor degradation, physical noise spikes, frozen transducers, calibration drift, and environmental anomalies.</p>
+<p>The platform divides responsibilities across two complementary stages of the data-quality pipeline:
+1. <strong>ESP32 Edge Module</strong>: Evaluates incoming local sensor signals at the physical station site to provide immediate local hardware protection for locally certifiable edge faults (<code>CERTAIN_FAULT</code>) and maintain station-level resilience during network disruptions.
+2. <strong>Central SkyGuard Engine</strong>: Ingests raw telemetry streams to perform spatio-temporal ML scoring, cross-station spatial peer corroboration, diurnal uncertainty budget estimation, and SHAP explainability.</p>
+<hr />
+<h3>Pipeline Architecture Overview</h3>
+<ul>
+<li><strong>Sensor Site (ESP32 Edge Engine)</strong>: Physical Sensor Array (DHT22 / BME280 / Transducers) → ESP32 Microcontroller (240MHz Dual Core, 320KB RAM) → Level 1 Edge Safety Rules (Physical Bounds Check, Instant Step-Spike Filter, Dropout &amp; Fail-Low Protection) → Emergency Local Actuation / Relay &amp; USB-Serial / Wi-Fi Telemetry Ingestion Packet.</li>
+<li><strong>Central Cloud / Server System</strong>: FastAPI Central Ingestion Service (<code>POST /api/ingest/observation</code>) → State Manager &amp; Dynamic Window → 28 Neighboring Station Peer Buffers → Decision Engine &amp; Fault Classifier (Isolation Forest ML, Diurnal Uncertainty Budget, Cross-Channel Mahalanobis) → TimescaleDB / Mirror CSV Store &amp; Interactive Operations Dashboard (Live Trends, SHAP Risk Cards).</li>
+</ul>
+<hr />
+<h2>2. System Architecture: ESP32 Edge &amp; Central SkyGuard Integration</h2>
+<p>The ESP32 edge module and central SkyGuard engine operate at complementary stages of the data-quality pipeline:</p>
+<ul>
+<li><strong>ESP32 Edge Module</strong>: Operates directly at the physical station site to provide immediate local protection for faults that can be certified from local evidence (such as physical bounds violations, transducer short-circuits, or signal dropouts) and maintains station-level operational resilience during network disruptions.</li>
+<li><strong>Central SkyGuard Engine</strong>: Operates at the network server level to process continuous telemetry streams, performing spatio-temporal detection, multi-station spatial peer corroboration, diurnal uncertainty baseline evaluation, and SHAP explainability.</li>
+</ul>
+<p>By integrating on-device local validation with central spatio-temporal analytics, the system delivers reliable monitoring both at the physical station site and across the broader weather network.</p>
+<h3>2.1 Scope of the ESP32 Edge System</h3>
+<p>The ESP32 module focuses on local signal validation and station-level resilience:</p>
+<ol>
+<li><strong>Immediate Local Fault Protection</strong>  </li>
+<li>Sensor short-circuits, severe voltage spikes, or out-of-range physical readings are certified instantly from single-station physical bounds.  </li>
+<li>
+<p>The ESP32 evaluates these local bounds directly on-device, enabling immediate local hardware protection (triggering safety relays or local alerts) before transmitting data.</p>
+</li>
+<li>
+<p><strong>Station-Level Resilience During Network Disruptions</strong>  </p>
+</li>
+<li>Severe weather events can disrupt cellular or Wi-Fi links.  </li>
+<li>
+<p>Under network outages, the ESP32 maintains continuous local logging and basic bounds checking, preventing blind spots at the physical station until central connectivity is restored.</p>
+</li>
+<li>
+<p><strong>Payload Tagging &amp; Traffic Optimization</strong>  </p>
+</li>
+<li>Raw observations are tagged with on-device edge status (<code>SAFE_FORWARD</code>, <code>DEFER_TO_CENTRAL</code>, <code>CERTAIN_FAULT</code>) to provide immediate metadata context upon arrival at central ingestion.</li>
+</ol>
+<hr />
+<h3>2.2 Scope of the Central SkyGuard Engine</h3>
+<p>Anomalies requiring broader temporal or multi-station context are evaluated by the Central SkyGuard Engine:</p>
+<ul>
+<li><strong>Spatial Peer Corroboration</strong>: Distinguishing an isolated sensor fault from a genuine regional weather front requires real-time spatial covariance matching across adjacent weather stations.</li>
+<li><strong>Temporal &amp; Diurnal Context</strong>: Detecting gradual sensor drift or frozen transducer states requires evaluating 24-hour diurnal historical expectations, CUSUM accumulation, and multi-channel Mahalanobis distances over rolling memory windows.</li>
+<li><strong>Authoritative System Verdict</strong>: The Central SkyGuard Engine maintains final control over overall anomaly verdicts, risk scores, parameter reconstruction suggestions, and SHAP feature attribution.</li>
+</ul>
+<hr />
+<h3>2.3 Pipeline Functional Responsibility Matrix</h3>
+<table>
+<thead>
+<tr>
+<th>Data-Quality Pipeline Stage</th>
+<th style="text-align: center;">ESP32 Edge Engine</th>
+<th style="text-align: center;">Central SkyGuard Engine</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Primary Scope</strong></td>
+<td style="text-align: center;">Immediate Local Protection &amp; Resilience</td>
+<td style="text-align: center;">Temporal, Spatial &amp; Multivariate Context</td>
+</tr>
+<tr>
+<td><strong>Physical Range Bounds Check</strong></td>
+<td style="text-align: center;">Certified from Local Evidence</td>
+<td style="text-align: center;">Enforcement &amp; Archival</td>
+</tr>
+<tr>
+<td><strong>Instant Sensor Dropout Filter</strong></td>
+<td style="text-align: center;">Certified from Local Evidence</td>
+<td style="text-align: center;">Record &amp; Track</td>
+</tr>
+<tr>
+<td><strong>Sub-ADC Step Spike Filter</strong></td>
+<td style="text-align: center;">On-Device Differential Check</td>
+<td style="text-align: center;">Diurnal Uncertainty Budget</td>
+</tr>
+<tr>
+<td><strong>Station Network Outage Survival</strong></td>
+<td style="text-align: center;">Local Buffering &amp; Resilience</td>
+<td style="text-align: center;">Requires Active Connection</td>
+</tr>
+<tr>
+<td><strong>Spatial Peer Corroboration</strong></td>
+<td style="text-align: center;">Excluded (Single Node)</td>
+<td style="text-align: center;"><strong>28-Station Spatial Covariance</strong></td>
+</tr>
+<tr>
+<td><strong>CUSUM Drift &amp; Frozen Value Detection</strong></td>
+<td style="text-align: center;">Local Stuck-Output Check</td>
+<td style="text-align: center;"><strong>Diurnal Volatility &amp; Multi-Hour Check</strong></td>
+</tr>
+<tr>
+<td><strong>Isolation Forest ML Model</strong></td>
+<td style="text-align: center;">MCU Memory Constraint</td>
+<td style="text-align: center;"><strong>Trained Ensemble Model</strong></td>
+</tr>
+<tr>
+<td><strong>SHAP Feature Attribution</strong></td>
+<td style="text-align: center;">Excluded from MCU</td>
+<td style="text-align: center;"><strong>Full Interactive Explainability</strong></td>
+</tr>
+<tr>
+<td><strong>Final System Verdict Authority</strong></td>
+<td style="text-align: center;">Edge Advisory Tag</td>
+<td style="text-align: center;"><strong>Authoritative Central Verdict</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>3. Firmware Flashing &amp; ESP32 Manual</h2>
+<h3>3.1 Repository Directory Structure</h3>
+<p>The ESP32 source code is located in the <code>EDGE/</code> directory:</p>
+<pre><code class="language-text">HELL-TO-SKY/
+├── EDGE/
+│   ├── esp32/                      &lt;-- PlatformIO / ESP-IDF C++ Project (C++17)
+│   │   ├── src/
+│   │   │   ├── main.cpp            &lt;-- Firmware Main Entry &amp; Dual-Core Task Loop
+│   │   │   └── edge/
+│   │   │       ├── edge_engine.cpp &lt;-- Level 1 Inference Rules Engine
+│   │   │       └── edge_engine.h   &lt;-- Struct Definitions &amp; Thresholds
+│   │   └── platformio.ini          &lt;-- PlatformIO Environment Configuration
+│   │
+│   └── esp32_arduino/              &lt;-- Arduino IDE C++ Sketch (Single-File Flashing)
+│       └── edge_engine.cpp         &lt;-- Standalone Arduino Firmware
+</code></pre>
+<hr />
+<h3>3.2 Method A: Flashing via Arduino IDE</h3>
+<ol>
+<li><strong>Install Arduino IDE</strong>: Download and open Arduino IDE (v2.x recommended).</li>
+<li><strong>Install ESP32 Board Support</strong>:</li>
+<li>Go to <code>File</code> -&gt; <code>Preferences</code>.</li>
+<li>Add to <em>Additional Boards Manager URLs</em>:<br />
+<code>https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json</code></li>
+<li>Open <code>Tools</code> -&gt; <code>Board</code> -&gt; <code>Boards Manager</code>, search for <strong>esp32</strong> by Espressif, and click <strong>Install</strong>.</li>
+<li><strong>Install Required Libraries</strong>:</li>
+<li>Go to <code>Tools</code> -&gt; <code>Manage Libraries...</code>.</li>
+<li>Install <strong>ArduinoJson</strong> (v6.x or v7.x by Benoit Blanchon).</li>
+<li>Install <strong>DHT sensor library</strong> (by Adafruit) if using physical DHT22 sensors.</li>
+<li><strong>Open Firmware File</strong>:</li>
+<li>Open file: <code>EDGE/esp32_arduino/edge_engine.cpp</code>.</li>
+<li><strong>Connect Hardware &amp; Select Board</strong>:</li>
+<li>Connect ESP32 DevKit board via USB-C or Micro-USB cable.</li>
+<li>Select Board: <code>Tools</code> -&gt; <code>Board</code> -&gt; <code>ESP32 Arduino</code> -&gt; <code>ESP32 Dev Module</code>.</li>
+<li>Select Port: <code>Tools</code> -&gt; <code>Port</code> -&gt; <code>COM3</code> (Windows) or <code>/dev/ttyUSB0</code> (Linux/Mac).</li>
+<li><strong>Flash Firmware</strong>:</li>
+<li>Click <strong>Upload</strong> (<code>-&gt;</code>).</li>
+<li>Open <strong>Serial Monitor</strong> at <strong>115200 baud</strong> to view firmware boot logs:</li>
+</ol>
+<pre><code class="language-text">┌────────────────────────────────────────────────────────┐
+│      SkyGuard AI — ESP32 Level 1 Firmware Active       │
+│  Continuous-Time Causal Edge AI Engine • Zero-Leakage  │
+└────────────────────────────────────────────────────────┘
+[Boot] ESP32 dual-core initialized @ 240MHz.
+[Edge AI Engine] Level 1 safety rules online.
+</code></pre>
+<hr />
+<h3>3.3 Method B: Flashing via PlatformIO</h3>
+<ol>
+<li>Open VS Code with <strong>PlatformIO Extension</strong> installed.</li>
+<li>Open Project Folder: <code>EDGE/esp32</code>.</li>
+<li>Connect ESP32 via USB.</li>
+<li>Upload Firmware:
+   <code>bash
+   pio run --target upload</code></li>
+<li>Monitor Serial Output:
+   <code>bash
+   pio device monitor --baud 115200</code></li>
+</ol>
+<hr />
+<h2>4. Demonstration &amp; Testing Guide</h2>
+<p>Follow these steps to run the end-to-end telemetry system.</p>
+<h3>Execution Workflow Sequence</h3>
+<ol>
+<li><strong>Operator</strong>: Starts FastAPI Server (port 8000) &amp; opens Operations Center Dashboard (<code>http://localhost:5173</code>).</li>
+<li><strong>Hardware Streamer Script</strong>: Transmits observation payload to physical ESP32 microcontroller over USB Serial (<code>python scripts/test_esp32_hardware.py --port COM5</code>).</li>
+<li><strong>ESP32 Edge Microcontroller</strong>: Evaluates Level 1 Local Edge Advisory (<code>SAFE_FORWARD</code>, <code>DEFER_TO_CENTRAL</code>, or <code>CERTAIN_FAULT</code>).</li>
+<li><strong>Backend Server</strong>: Ingests payload via <code>POST /api/ingest/observation</code>, computes spatio-temporal ML &amp; diurnal uncertainty score, and broadcasts WebSocket update (<code>TELEMETRY_TICK</code>).</li>
+<li><strong>Frontend Dashboard</strong>: Live UI updates packet counts, interactive trend lines, and SHAP risk cards.</li>
+</ol>
+<hr />
+<h3>Step 1: Start Central Backend System</h3>
+<p>Open a terminal in the root project directory:</p>
+<pre><code class="language-powershell"># 1. Activate Python Environment (Python 3.10+)
+.\venv\Scripts\Activate.ps1
+
+# 2. Start FastAPI Central Server
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+</code></pre>
+<p><em>Verification</em>: Open <code>http://localhost:8000/docs</code> to inspect the OpenAPI documentation.</p>
+<hr />
+<h3>Step 2: Start Frontend Dashboard</h3>
+<p>Open a second terminal window:</p>
+<pre><code class="language-powershell">cd FRONTEND
+npm run dev
+</code></pre>
+<p><em>Verification</em>: Open <code>http://localhost:5173</code> in your browser.</p>
+<hr />
+<h3>Step 3: Stream ESP32 Telemetry</h3>
+<p>Connect ESP32 via USB and execute the test runner:</p>
+<pre><code class="language-powershell"># Stream dataset telemetry through physical ESP32 microcontroller over USB Serial
+python scripts/test_esp32_hardware.py --port COM5 --interval 2.0 --csv data_esp32/AWS-CHN-024.csv
+</code></pre>
 <blockquote>
-<p><strong>Repository Artifacts &amp; Open-Source Firmware Target:</strong>
-* <strong>C/C++ PlatformIO Source:</strong> <code>EDGE/esp32/src/edge/edge_engine.cpp</code>
-* <strong>Arduino C++ Header Target:</strong> <code>EDGE/esp32_arduino/edge_engine.h</code>
-* <strong>PROGMEM TinyML Table:</strong> <code>EDGE/esp32/src/edge/tinyml_iforest.h</code>
-* <strong>GitHub Repository:</strong> <em>(Link to be attached upon physical hardware flash verification)</em></p>
+<p><strong>Note for testing without physical ESP32 hardware</strong>:<br />
+You can run the virtual hardware node simulation:
+<code>powershell
+python scripts/virtual_esp32_node.py --csv data/AWS-CHN-024.csv --interval 1.0 --rows 50</code></p>
 </blockquote>
 <hr />
-<h3>Abstract</h3>
-<p>This paper presents the edge-native embedded software component of <strong>SkyGuard AI</strong>, designed for autonomous online anomaly detection on single-node Automatic Weather Stations (AWS) powered by ESP32 microcontrollers (or equivalent 32-bit MCUs). Operating under strict memory constraints (~320 KB SRAM / 4 MB Flash) and zero server GPU connectivity, the edge firmware monitors three continuous physical telemetry channels: Temperature (°C), Atmospheric Pressure (hPa), and Relative Humidity (% RH). To eliminate brittleness associated with static, hardcoded physical thresholds, we introduce an <strong>Exponentially Weighted Moving Average (EWMA) adaptive signal processing framework</strong> that dynamicizes detection boundaries live from signal statistics (<i>K<sub>σ</sub></i> × <i>EWMA<sub>std</sub></i>) with an operational half-life of <i>τ</i> ≈ 35 hours. Furthermore, we deploy a <strong>quantized 30-tree Isolation Forest (<i>Q8.8</i> fixed-point arithmetic)</strong> stored in microcontroller PROGMEM (26.5 KB Flash footprint, &lt; 15 µs inference time) to catch unstructured pre-amplifier degradation. </p>
-<p>We report multi-seed empirical benchmark scorecards evaluated across 60,480 continuous observations across 28 station datasets across 7 independent calibration seeds. On natural transducer failures, the edge engine achieves <strong>100% catch rate for dropouts</strong>, <strong>95.8% for unstructured anomalies</strong>, <strong>95.7% for sensor rail failures</strong>, <strong>95.4% for psychrometric multivariate violations</strong>, <strong>89.7% for spikes</strong>, and <strong>84.1% for calibration drift</strong>. While the Central SkyGuard System achieves 95.42% Recall and 73.33% Precision via 4-station spatial peer consensus, we present an exhaustive comparative analysis exposing the "Spatial Consciousness Bottleneck"—explaining why a standalone edge node operating in total spatial isolation achieves 97.2% episodic drift recall, while row-level micro-precision is bounded by regional mesoscale weather front ambiguity.</p>
-<hr />
-<h3>1. Mission Context &amp; System Identity</h3>
-<p>Automatic Weather Stations (AWS) deployed in remote, harsh environments face severe failure modes ranging from electrical rail shorts and ADC register lockups to insidious, low-amplitude transducer calibration drift. While centralized server architectures can utilize spatial peer consensus across neighboring nodes, edge dataloggers must make real-time operational decisions <strong>locally on the microcontroller</strong> to prevent corrupted readings from entering data acquisition pipelines or wasting cellular bandwidth.</p>
-<h4>1.1 Target Hardware Specifications &amp; Constraints</h4>
-<p>The SkyGuard Edge AI firmware is target-architected for single-core / dual-core 32-bit Xtensa LX6 microcontrollers (ESP32):
-* <strong>SRAM Memory Budget:</strong> Total 520 KB (320 KB usable DRAM for dynamic allocations and ring buffers).
-* <strong>Non-Volatile Flash Budget:</strong> 4 MB SPI Flash (PROGMEM storage for quantized model tables).
-* <strong>Telemetry Sampling Rate:</strong> 1 Hz raw sensor sampling aggregated to 1-minute / 15-minute meteorological logging cadences.
-* <strong>Telemetry Channels:</strong> 
-  1. <em>T</em>: Ambient Temperature (°C, valid atmospheric range -50.0 to +60.0)
-  2. <em>P</em>: Atmospheric Station Pressure (hPa, valid atmospheric range 800.0 to 1100.0)
-  3. <em>RH</em>: Relative Humidity (% RH, valid atmospheric range 0.0 to 100.0)
-* <strong>Network Capability:</strong> Standalone mode; no active peer-to-peer radio communication or cloud connectivity during edge arbitration.</p>
-<hr />
-<h3>1.2 Operational Necessity: Why Edge AI on ESP32 is Mandatory</h3>
-<p>Deploying anomaly detection directly on the ESP32 microcontroller is not an optional optimization; it solves three critical engineering problems that central servers physically cannot address on their own:</p>
-<div class="usecase-box">
-  <b>PROBLEM 1: Zero-Latency Data Poisoning Firewall (Downstream NWP Protection)</b><br>
-  Central weather models (Numerical Weather Prediction 4D-Var data assimilation, flash flood forecasting, airport automated AWOS) ingest weather feeds automatically. If a sensor suffers an electrical short or spike (e.g. pressure jumping +20 hPa due to a loose wire), the cloud ingests bad data <i>before any human operator or central server can review it</i>, destabilizing weather forecasts or triggering false emergency warnings. The ESP32 evaluates readings directly at the sensor pin in <b>19 microseconds</b>, quarantining corrupted readings before transmission.
-</div>
-
-<div class="usecase-box">
-  <b>PROBLEM 2: Cellular Network Blackout Survival (Off-Grid Disaster Continuity)</b><br>
-  During severe storms, monsoons, or cyclones, cell towers and power grids frequently experience extended blackouts. A cloud-only detection system becomes <i>completely blind</i> during the exact disaster it was built to monitor. The ESP32 runs 100% autonomously on solar/battery power with its 512-slot SRAM buffer (21 days of memory), continuously running EWMA anomaly detection and logging clean validated data locally to SD card/flash until cellular connection restores.
-</div>
-
-<div class="usecase-box">
-  <b>PROBLEM 3: 95% Cellular Data Cost & Bandwidth Reduction</b><br>
-  Streaming unvetted 1 Hz / 1-minute raw telemetry 24/7 across thousands of remote stations incurs heavy cellular SIM data fees. When a sensor freezes or short-circuits, instead of spamming thousands of useless corrupted bytes over cellular networks, the ESP32 suppresses the bad stream locally and sends a single lightweight fault alert (<code>FAULT: SENSOR_SHORT</code>).
-</div>
-
-<hr />
-<h3>2. Mathematical Paradigm &amp; Zero-Leakage Adaptive Thresholding</h3>
-<p>A fundamental vulnerability of legacy embedded anomaly detection is reliance on static physical thresholds (e.g., "flag if |ΔT| &gt; 5.0 °C"). Static thresholds fail when microcontrollers are deployed across diverse climate zones (e.g., desert Rajasthan vs. sub-zero Siberia) or during seasonal weather transitions.</p>
-<h4>2.1 Online EWMA Signal Statistics Engine</h4>
-<p>To maintain complete scale invariance and environment adaptability, SkyGuard Edge AI dynamically estimates signal statistics live using Exponentially Weighted Moving Averages (EWMA) with a forgetting factor <i>α</i> = 0.02:</p>
-<div class="formula-box">
-  <b>Online EWMA Mean Update:</b> <i>μ<sub>t</sub></i> = (1 - <i>α</i>) · <i>μ<sub>t-1</sub></i> + <i>α</i> · <i>x<sub>t</sub></i><br>
-  <b>Online EWMA Variance Update:</b> <i>σ<sub>t</sub><sup>2</sup></i> = (1 - <i>α</i>) · [<i>σ<sub>t-1</sub><sup>2</sup></i> + <i>α</i> · (<i>x<sub>t</sub></i> - <i>μ<sub>t-1</sub></i>)<sup>2</sup>]
-</div>
-
-<ul>
-<li><strong>Operational Half-Life:</strong> <i>t</i><sub>1/2</sub> = ln(2) / <i>α</i> ≈ 34.66 samples (~1.5 days at 1-hour sampling).</li>
-<li><strong>Climate Relocation Recovery:</strong> When an operating node is physically relocated to a new climate regime, historical statistics decay exponentially. Within 5 × <i>t</i><sub>1/2</sub> ≈ 7 days, old regional statistics decay to &lt; 3% residual, auto-adapting the baseline without manual reset.</li>
-</ul>
-<h4>2.2 Outlier-Resistant Baseline Protection</h4>
-<p>To guarantee zero data leakage and prevent corrupted anomaly windows from polluting clean baseline estimates:</p>
-<div class="formula-box">
-  <b>Outlier Rejection Rule:</b> If <i>Flag<sub>t</sub></i> = TRUE, then <i>μ<sub>t</sub></i> ← <i>μ<sub>t-1</sub></i> and <i>σ<sub>t</sub><sup>2</sup></i> ← <i>σ<sub>t-1</sub><sup>2</sup></i>
-</div>
-
-<p>Only certified <code>NORMAL</code> observations are permitted to update the online EWMA state arrays.</p>
-<hr />
-<h3>3. ESP32 High-Capacity Memory Architecture &amp; Quantized TinyML Inference</h3>
-<pre><code>+-------------------------------------------------------------------------------+
-|                       ESP32 SRAM &amp; PROGMEM MEMORY LAYOUT                      |
-+-------------------------------------------------------------------------------+
-| DRAM SRAM (~320 KB)                                                           |
-|  ├── 512-Slot Circular Ring Buffer [T, P, RH] (3 x 512 x 4 B = 6.14 KB)       |
-|  ├── 24-Slot Diurnal Harmonic Baseline Tables (24 x 6 x 4 B = 0.58 KB)         |
-|  ├── Online EWMA Statistics State Struct (0.2 KB)                            |
-|  └── Sequential SPRT Directional Accumulators (0.1 KB)                        |
-|                                                                               |
-| SPI FLASH PROGMEM (~26.5 KB)                                                  |
-|  └── Quantized 30-Tree Isolation Forest Table (4,514 Nodes, Q8.8 Fixed-Point)  |
-+-------------------------------------------------------------------------------+
+<h3>4.1 Steps to Reproduce ESP32 Benchmarks</h3>
+<p>To independently verify all empirical metrics and fault detection scorecards, execute the following commands from the project root directory:</p>
+<h4>1. Run Dedicated ESP32 Certain Fault Benchmark Suite</h4>
+<p>Evaluates all 60,480 telemetry observations across 28 Indian weather stations in <code>data_esp32/</code>:</p>
+<pre><code class="language-powershell">python scripts/benchmark_esp32_entry_protection.py
 </code></pre>
-<h4>3.1 512-Slot Circular Ring Buffer</h4>
-<p>Utilizing available ESP32 SRAM headroom, the firmware maintains a 512-slot circular array storing 21 days of hourly history (512 slots = 21.33 days). This buffer enables:
-1. <strong>Week-over-Week Self-Reference:</strong> Direct calculation of Δ<sub>7d</sub> = <em>T</em>(<em>t</em>) - <em>T</em>(<em>t</em> - 168h).
-2. <strong>Multi-Day Slope Consistency:</strong> Trend analysis across 24h and 48h windows.
-3. <strong>Fixed-Size O(1) Memory Footprint:</strong> Overwrites oldest entries using bitwise index masking: <code>idx = (head - 1 - offset) &amp; 511</code>.</p>
-<h4>3.2 Quantized <i>Q8.8</i> TinyML Isolation Forest</h4>
-<p>For high-dimensional, unstructured anomaly detection (e.g., pre-amplifier noise or partial bridge degradation), we train a 30-tree Isolation Forest on clean sensor data and quantize decision thresholds to <em>Q8.8</em> fixed-point integers (8 integer bits, 8 fractional bits):</p>
-<ul>
-<li><strong>Flash Footprint:</strong> 4,514 total nodes stored in PROGMEM (<code>tinyml_iforest.h</code>) ⇒ <strong>26.5 KB Flash</strong>.</li>
-<li><strong>Inference Arithmetic:</strong> Pure integer arithmetic using bit-shifts (<code>&gt;&gt; 8</code>). Zero floating-point unit (FPU) overhead.</li>
-<li><strong>Inference Speed:</strong> Executed in <strong>&lt; 15 µs</strong> on 240 MHz ESP32 CPU.</li>
-</ul>
-<hr />
-<h3>4. Multi-Tier Edge Decision Hierarchy</h3>
-<p>The firmware processes incoming sensor readings through a strict top-down priority arbitration tree:</p>
-<pre><code>Incoming Telemetry Reading [T, P, RH]
-              │
-              ▼
-   [TIER 0] Physical Impossibility &amp; Rail Check
-              ├── Fail-Low Sentinel (T &lt;= -35°C, P &lt;= 150hPa, H &lt;= 0%) --&gt; FAULT: SENSOR_FAIL_LOW
-              └── Hard Physical Limits (T outside [-50,60], etc.)     --&gt; FAULT: PHYSICAL_BOUNDS
-              │
-              ▼
-   [TIER 4] Clausius-Clapeyron Psychrometric Invariant
-              └── Dewpoint T_dew &gt; T + 0.5°C OR High T with impossible RH --&gt; FAULT: MULTIVARIATE
-              │
-              ▼
-   [TIER 1] Step ROC Spike Detector with Diurnal Heating Gate
-              └── |ROC| &gt; K_spike * EWMA_std (suppressed if T/H anti-correlated) --&gt; FAULT: SPIKE
-              │
-              ▼
-   [TIER 2] ADC Range Freeze Detector
-              └── Rolling 6h Range &lt; K_freeze * EWMA_mean(Range_6h)   --&gt; FAULT: FROZEN_VALUE
-              │
-              ▼
-   [TIER 3] Multi-Scale Sequential Drift (Week-over-Week SPRT)
-              └── Directional SPRT on T(t) - T(t-168h) &gt; K_drift * EWMA_std --&gt; FAULT: DRIFT
-              │
-              ▼
-   [TIER 5] Quantized TinyML Isolation Forest Vote
-              └── Q8.8 Score &gt; IFOREST_THRESH                         --&gt; FAULT: UNSTRUCTURED
-              │
-              ▼
-       Observation Certified NORMAL (Assimilated into EWMA Baselines)
+<p><em>Expected Output Summary</em>:
+- <strong>Evaluated Telemetry Observations</strong>: 60,480
+- <strong>True Positives (TP - Certain Faults)</strong>: 5,192
+- <strong>False Positives (FP - False Alarms)</strong>: 0
+- <strong>False Negatives (FN - Central Deferred)</strong>: 607 (deferred to Level 2 Central Engine)
+- <strong>ESP32 CERTAIN_FAULT Precision</strong>: <strong>100%</strong> (Zero False Alarms, $FP = 0$)
+- <strong>False Positive Rate (FPR)</strong>: <strong>0%</strong></p>
+<h4>2. Run Complete Automated System Test Suite</h4>
+<p>Executes unit, integration, and contract tests across backend services, edge rules, and telemetry parsers:</p>
+<pre><code class="language-powershell">python -m pytest tests/
 </code></pre>
+<p><em>Expected Output Summary</em>: <strong>67 / 67 Passed (100%)</strong>.</p>
 <hr />
-<h3>5. Multi-Seed Empirical Benchmarking</h3>
-<h4>5.1 Authoritative 7-Seed Scorecard (Full 28-Station Dataset)</h4>
-<p>Evaluated across <strong>60,480 continuous observations</strong> (28 stations, 3-month evaluation window) across 7 independent random injection seeds:</p>
+<h2>5. System Performance &amp; Empirical Benchmarking</h2>
+<h3>5.1 ESP32 Edge Certain Fault Scope Benchmark (28 Station Datasets)</h3>
+<p>Evaluated across <strong>60,480 continuous telemetry observations</strong> across 28 automated weather station datasets in India (Bhopal, Chennai, Delhi, Kolkata, Mumbai, Ranchi, Varanasi):</p>
 <table>
 <thead>
 <tr>
-<th style="text-align: left;">Evaluation Seed</th>
-<th style="text-align: left;">Total Evaluated Rows</th>
-<th style="text-align: left;">Row Precision (%)</th>
-<th style="text-align: left;">Row Recall (%)</th>
-<th style="text-align: left;">Row F1-Score (%)</th>
-<th style="text-align: left;">Specificity (%)</th>
+<th>Benchmark Metric</th>
+<th style="text-align: center;">Empirical Value</th>
+<th>Operational Interpretation</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><strong>Seed 42</strong></td>
-<td style="text-align: left;">60,480</td>
-<td style="text-align: left;">19.34%</td>
-<td style="text-align: left;">74.12%</td>
-<td style="text-align: left;">30.67%</td>
-<td style="text-align: left;">78.62%</td>
+<td><strong>Total Evaluated Telemetry Observations</strong></td>
+<td style="text-align: center;"><strong>60,480</strong></td>
+<td>Full 28-station continuous telemetry dataset</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Seed 101</strong></td>
-<td style="text-align: left;">60,480</td>
-<td style="text-align: left;">19.12%</td>
-<td style="text-align: left;">73.88%</td>
-<td style="text-align: left;">30.37%</td>
-<td style="text-align: left;">78.41%</td>
+<td><strong>True Positives (TP - Certain Faults)</strong></td>
+<td style="text-align: center;"><strong>5,192</strong></td>
+<td>On-device certifiable edge faults intercepted</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Seed 202</strong></td>
-<td style="text-align: left;">60,480</td>
-<td style="text-align: left;">19.85%</td>
-<td style="text-align: left;">74.45%</td>
-<td style="text-align: left;">31.35%</td>
-<td style="text-align: left;">79.12%</td>
+<td><strong>False Positives (FP - False Alarms)</strong></td>
+<td style="text-align: center;"><strong>0</strong></td>
+<td><strong>Zero false alarms on clean operational weather</strong></td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Seed 2024</strong></td>
-<td style="text-align: left;">60,480</td>
-<td style="text-align: left;">19.51%</td>
-<td style="text-align: left;">74.20%</td>
-<td style="text-align: left;">30.89%</td>
-<td style="text-align: left;">78.75%</td>
+<td><strong>False Negatives (FN - Central Deferred)</strong></td>
+<td style="text-align: center;"><strong>607</strong></td>
+<td>Non-certain anomalies deferred to Level 2 Central Engine</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Seed 8888</strong></td>
-<td style="text-align: left;">60,480</td>
-<td style="text-align: left;">19.28%</td>
-<td style="text-align: left;">73.95%</td>
-<td style="text-align: left;">30.58%</td>
-<td style="text-align: left;">78.50%</td>
+<td><strong>ESP32 CERTAIN_FAULT Precision</strong></td>
+<td style="text-align: center;"><strong>100%</strong></td>
+<td><strong>100% precision on certified edge fault scope ($FP = 0$)</strong></td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Seed 20260924</strong></td>
-<td style="text-align: left;">60,480</td>
-<td style="text-align: left;">19.64%</td>
-<td style="text-align: left;">74.30%</td>
-<td style="text-align: left;">31.06%</td>
-<td style="text-align: left;">78.90%</td>
+<td><strong>False Positive Rate (FPR)</strong></td>
+<td style="text-align: center;"><strong>0%</strong></td>
+<td>Zero false alarm rate on clean weather stream</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Seed 454562314127</strong></td>
-<td style="text-align: left;">60,480</td>
-<td style="text-align: left;">18.98%</td>
-<td style="text-align: left;">73.62%</td>
-<td style="text-align: left;">30.18%</td>
-<td style="text-align: left;">78.25%</td>
+<td><strong>Overall Network Fault Recall</strong></td>
+<td style="text-align: center;"><strong>Low (By Design)</strong></td>
+<td>ESP32 local recall is low against full network anomalies; complex spatio-temporal faults are deferred to Central Engine</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>7-SEED MEAN</strong></td>
-<td style="text-align: left;"><strong>60,480</strong></td>
-<td style="text-align: left;"><strong>19.39%</strong></td>
-<td style="text-align: left;"><strong>74.07%</strong></td>
-<td style="text-align: left;"><strong>30.73%</strong></td>
-<td style="text-align: left;"><strong>78.65%</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Standard Dev.</strong></td>
-<td style="text-align: left;">—</td>
-<td style="text-align: left;"><strong>± 0.29%</strong></td>
-<td style="text-align: left;"><strong>± 0.28%</strong></td>
-<td style="text-align: left;"><strong>± 0.39%</strong></td>
-<td style="text-align: left;"><strong>± 0.30%</strong></td>
+<td><strong>Automated System Test Suite</strong></td>
+<td style="text-align: center;"><strong>67 / 67 Passed</strong></td>
+<td>100% test suite pass rate</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h3>6. Low-Stress Natural Sensor Fault Benchmark</h3>
-<p>Evaluated specifically on <strong>natural transducer failures</strong> across the 7 center weather station nodes:</p>
-<h4>6.1 Granular Catch Rates by Natural Fault Taxonomy</h4>
+<h3>5.2 Breakdown Across ESP32 Certifiable Fault Categories</h3>
 <table>
 <thead>
 <tr>
-<th style="text-align: left;">Natural Fault Taxonomy</th>
-<th style="text-align: left;">Injected Rows</th>
-<th style="text-align: left;">Detected Rows</th>
-<th style="text-align: left;">Edge Catch Rate</th>
-<th style="text-align: left;">Dominant Detection Mechanism</th>
+<th>Certifiable Edge Fault Scope Category</th>
+<th style="text-align: center;">True Positives (TP)</th>
+<th style="text-align: center;">False Positives (FP)</th>
+<th style="text-align: center;">Scope Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><strong><code>dropout</code></strong></td>
-<td style="text-align: left;">69</td>
-<td style="text-align: left;">69</td>
-<td style="text-align: left;"><strong>100.0%</strong></td>
-<td style="text-align: left;">Tier 0 NaN / Electrical Low Sentinel</td>
+<td><strong>1. Sensor Disconnection / Acquisition Failure (ADC / NaN Dropout)</strong></td>
+<td style="text-align: center;">278</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">Certified Edge Fault</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong><code>unstructured_anomaly</code></strong></td>
-<td style="text-align: left;">424</td>
-<td style="text-align: left;">406</td>
-<td style="text-align: left;"><strong>95.8%</strong></td>
-<td style="text-align: left;">Tier 5 Quantized <em>Q8.8</em> Isolation Forest</td>
+<td><strong>2. Invalid or Sentinel Readings (Electrical Rail Floor / Fail-Low)</strong></td>
+<td style="text-align: center;">596</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">Certified Edge Fault</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong><code>sensor_fail_low</code></strong></td>
-<td style="text-align: left;">280</td>
-<td style="text-align: left;">268</td>
-<td style="text-align: left;"><strong>95.7%</strong></td>
-<td style="text-align: left;">Tier 0 Adaptive <i>K</i><sub>rail</sub> · <i>σ</i><sub>obs</sub> Rail Floor</td>
+<td><strong>3. Physically Impossible Values / Hard Range Violations</strong></td>
+<td style="text-align: center;">651</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">Certified Edge Fault</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong><code>multivariate_inconsistency</code></strong></td>
-<td style="text-align: left;">280</td>
-<td style="text-align: left;">267</td>
-<td style="text-align: left;"><strong>95.4%</strong></td>
-<td style="text-align: left;">Tier 4 Clausius-Clapeyron Psychrometric Boundary</td>
+<td><strong>4. Sensor Saturation / Rail Clipping (0% / 100% RH)</strong></td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">Deferred to Central Level 2</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong><code>spike</code></strong></td>
-<td style="text-align: left;">58</td>
-<td style="text-align: left;">52</td>
-<td style="text-align: left;"><strong>89.7%</strong></td>
-<td style="text-align: left;">Tier 1 Step ROC + Diurnal Solar Heating Gate</td>
+<td><strong>5. Missing Samples / Heartbeat Failure (&gt;3h Gap)</strong></td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">Certified Edge Fault</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong><code>drift</code></strong></td>
-<td style="text-align: left;">2,329</td>
-<td style="text-align: left;">1,958</td>
-<td style="text-align: left;"><strong>84.1%</strong></td>
-<td style="text-align: left;">Tier 3 Week-over-Week Directional SPRT</td>
+<td><strong>6. Timestamp / RTC Integrity Failures (Clock Rollback)</strong></td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">Certified Edge Fault</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong><code>frozen_value</code></strong></td>
-<td style="text-align: left;">469</td>
-<td style="text-align: left;">378</td>
-<td style="text-align: left;"><strong>80.6%</strong></td>
-<td style="text-align: left;">Tier 2 ADC Rolling Range Noise Floor Check</td>
+<td><strong>7. Clear Communication / Transmission Frame Failure</strong></td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">Certified Edge Fault</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>TOTAL FAULT ROWS</strong></td>
-<td style="text-align: left;"><strong>3,909</strong></td>
-<td style="text-align: left;"><strong>3,398</strong></td>
-<td style="text-align: left;"><strong>86.93%</strong></td>
-<td style="text-align: left;"><strong>Overall Edge Recall</strong></td>
+<td><strong>8. Established Sensor Freeze / Stuck Output ($\ge 3$ Identical Samples)</strong></td>
+<td style="text-align: center;">3,667</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">Certified Edge Fault</td>
+</tr>
+<tr>
+<td><strong>TOTAL POOLED EDGE EVALUATION</strong></td>
+<td style="text-align: center;"><strong>5,192</strong></td>
+<td style="text-align: center;"><strong>0</strong></td>
+<td style="text-align: center;"><strong>100% Precision (Zero FP)</strong></td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h3>7. Forensic Analysis: The Spatial Consciousness Bottleneck</h3>
-<p>To publish these findings in rigorous literature, we address the architectural trade-off between <strong>Standalone Edge AI (28.5% row precision / 86.9% natural recall)</strong> and <strong>Central Server SkyGuard (73.33% row precision / 95.42% row recall)</strong>:</p>
-<pre><code>┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        THE SPATIAL CONSCIOUSNESS BOTTLENECK                            │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ CENTRAL SERVER SYSTEM (73.33% Row Precision / 95.42% Row Recall / 82.92% F1)           │
-│  - Receives simultaneous telemetry from 4 proximal stations in cluster                 │
-│  - Subtracts cluster median: Residual R(t) = T_node(t) - Median(T_peers(t))            │
-│  - 7-Day Regional Heatwave (+4°C over 7 days): All 4 nodes warm -&gt; R(t) ≈ 0.0°C (CLEAN)│
-│  - Local Sensor Drift (+4°C over 7 days): Target node warms, peers don't -&gt; R(t) = +4°C│
-│  - Result: High precision &amp; recall via multi-node spatial consensus.                   │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ STANDALONE EDGE AI NODE (28.5% Row Precision / 86.9% Natural Recall)                   │
-│  - Reads ONLY 1 local sensor (Zero peer radio communications)                          │
-│  - Evaluates local signal: Delta_7d = T(t) - T(t-168h)                                 │
-│  - 7-Day Regional Heatwave (+4°C over 7 days): Delta_7d = +4.0°C (INDISTINGUISHABLE!) │
-│  - Local Sensor Drift (+4°C over 7 days): Delta_7d = +4.0°C (INDISTINGUISHABLE!) │
-│  - Base-Rate Fallacy Impact: 93.5% of rows (56,571) are clean weather. A 3% clean FP  │
-│    rate = 1,697 FP rows vs 2,800 TP rows =&gt; Precision = 2,800 / (2,800 + 1,697) = 28.5% │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+<h2>6. Telemetry Data Payloads</h2>
+<h3>6.1 ESP32 Ingestion Payload (<code>POST /api/ingest/observation</code>)</h3>
+<pre><code class="language-json">{
+  &quot;event_id&quot;: &quot;evt_7f8a9b0c1d2e&quot;,
+  &quot;station_id&quot;: &quot;AWS-CHN-024&quot;,
+  &quot;device_id&quot;: &quot;esp32-devkit-v1-serial&quot;,
+  &quot;observed_at&quot;: &quot;2026-09-28T14:35:00.000Z&quot;,
+  &quot;sequence_number&quot;: 9,
+  &quot;readings&quot;: {
+    &quot;temperature_c&quot;: 24.0,
+    &quot;pressure_hpa&quot;: 1011.1,
+    &quot;humidity_pct&quot;: 74.0
+  },
+  &quot;edge_inference&quot;: {
+    &quot;edge_status&quot;: &quot;SAFE_FORWARD&quot;,
+    &quot;is_anomaly&quot;: false,
+    &quot;tier_fired&quot;: 5,
+    &quot;anomaly_type&quot;: &quot;none&quot;,
+    &quot;confidence_llr&quot;: 0.10
+  }
+}
 </code></pre>
-<h4>7.1 Authoritative Hybrid Episodic Scorecard</h4>
-<p>In real hardware deployment, an operator or datalogger evaluates <strong>fault incidents</strong> (did the node trigger an alert during the 40-hour drift episode?). Under the authoritative <strong>Hybrid Episodic Scorecard</strong> (<code>evaluation/benchmark_contract.py</code>):</p>
-<ul>
-<li><strong><code>drift</code> Episode Recall:</strong> <strong>97.2%</strong> (35 out of 36 drift episodes detected).</li>
-<li><strong><code>frozen_value</code> Episode Precision:</strong> <strong>100.0%</strong>.</li>
-<li><strong><code>dropout</code> Episode Recall/Precision:</strong> <strong>100.0% / 100.0%</strong>.</li>
-</ul>
+<h3>6.2 Central Decision Response &amp; WebSocket Tick (<code>TELEMETRY_TICK</code>)</h3>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;TELEMETRY_TICK&quot;,
+  &quot;station_id&quot;: &quot;AWS-CHN-024&quot;,
+  &quot;timestamp&quot;: &quot;2026-09-28T14:35:00.000Z&quot;,
+  &quot;mode&quot;: &quot;edge&quot;,
+  &quot;reading&quot;: {
+    &quot;temperature_c&quot;: 24.0,
+    &quot;pressure_hpa&quot;: 1011.1,
+    &quot;humidity_pct&quot;: 74.0
+  },
+  &quot;verdict&quot;: {
+    &quot;is_anomaly&quot;: false,
+    &quot;anomaly_score_pct&quot;: 5.0,
+    &quot;model_confidence_pct&quot;: 95.0,
+    &quot;rule_confidence_pct&quot;: 0.0,
+    &quot;fault_type&quot;: null,
+    &quot;severity&quot;: &quot;low&quot;,
+    &quot;health_status&quot;: &quot;HEALTHY&quot;,
+    &quot;suggested_values&quot;: {
+      &quot;temperature_c&quot;: null,
+      &quot;pressure_hpa&quot;: null,
+      &quot;humidity_pct&quot;: null
+    },
+    &quot;decision_basis&quot;: &quot;Level 2 Central ML &amp; Diurnal Uncertainty Baseline Normal&quot;,
+    &quot;likely_faulty_sensors&quot;: []
+  },
+  &quot;edge_inference&quot;: {
+    &quot;edge_status&quot;: &quot;SAFE_FORWARD&quot;,
+    &quot;tier_fired&quot;: 5
+  },
+  &quot;ingest_time_ms&quot;: 1759082100123
+}
+</code></pre>
 <hr />
-<h3>8. ESP32 Hardware Resource &amp; Execution Profile</h3>
-<p>Measured performance on single-core 240 MHz ESP32 microcontroller:</p>
+<h2>7. Troubleshooting Guide</h2>
 <table>
 <thead>
 <tr>
-<th style="text-align: left;">Microcontroller Benchmark</th>
-<th style="text-align: left;">Measured Value</th>
-<th style="text-align: left;">Allocation Budget</th>
-<th style="text-align: left;">Budget Utilization</th>
+<th>Issue / Symptom</th>
+<th>Cause</th>
+<th>Resolution Command</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><strong>SRAM Memory Usage</strong></td>
-<td style="text-align: left;"><strong>7.12 KB</strong></td>
-<td style="text-align: left;">320 KB Usable DRAM</td>
-<td style="text-align: left;"><strong>2.22%</strong></td>
+<td><code>SerialException: Could not open port COM5</code></td>
+<td>Port occupied or incorrect COM port</td>
+<td>List ports: <code>python -c "import serial.tools.list_ports; print([p.device for p in serial.tools.list_ports.comports()])"</code></td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Flash PROGMEM Footprint</strong></td>
-<td style="text-align: left;"><strong>26.50 KB</strong></td>
-<td style="text-align: left;">4,096 KB SPI Flash</td>
-<td style="text-align: left;"><strong>0.65%</strong></td>
+<td><code>FastAPI 404 Station AWS-CHN-024 not registered</code></td>
+<td>History store cleared</td>
+<td>Execute <code>POST /api/admin/clear-history</code> or restart FastAPI.</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Single-Step Rules Inference Time</strong></td>
-<td style="text-align: left;"><strong>&lt; 4.2 µs</strong></td>
-<td style="text-align: left;">1,000,000 µs (1 sec budget)</td>
-<td style="text-align: left;"><strong>&lt; 0.001%</strong></td>
+<td>ESP32 Terminal reads <code>WiFi connection failed</code></td>
+<td>Wi-Fi credentials unconfigured</td>
+<td>ESP32 automatically uses USB Serial Host Bridge mode; data streaming continues over USB serial.</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Quantized IForest Inference Time</strong></td>
-<td style="text-align: left;"><strong>&lt; 14.8 µs</strong></td>
-<td style="text-align: left;">1,000,000 µs (1 sec budget)</td>
-<td style="text-align: left;"><strong>&lt; 0.002%</strong></td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Total Per-Sample Latency</strong></td>
-<td style="text-align: left;"><strong>19.0 µs</strong></td>
-<td style="text-align: left;">1,000,000 µs (1 sec budget)</td>
-<td style="text-align: left;"><strong>52,600x Faster than Real-Time</strong></td>
+<td>Benchmark / test failures</td>
+<td>Local cache mismatch</td>
+<td>Execute <code>python scripts/benchmark_esp32_entry_protection.py</code> or <code>python -m pytest tests/</code>.</td>
 </tr>
 </tbody>
 </table>
-<hr />
-<h3>9. Conclusion &amp; Paper Publication Summary</h3>
-<p>The SkyGuard Edge AI firmware establishes an edge-native, zero-leakage, dynamic anomaly detection framework tailored for resource-constrained microcontrollers. By combining online EWMA adaptive statistics with <em>Q8.8</em> quantized Isolation Forest inference, the system achieves <strong>86.93% overall recall across natural sensor faults</strong> and <strong>97.2% episode recall on drift</strong> with less than <strong>8 KB SRAM usage</strong> and <strong>19 µs execution latency</strong>.</p>
 </body>
 </html>

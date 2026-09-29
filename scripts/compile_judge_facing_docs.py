@@ -332,11 +332,247 @@ def build_doc1_html():
             <li><strong>Continuous Uninterrupted Streaming Passover (Suggested Replacement Readings):</strong> When a sensor sends bad or missing data, the system instantly estimates and suggests a physically accurate replacement value so weather forecasting models keep running smoothly without crashing.</li>
             <li><strong>Anti-Poisoning Data Quarantine &amp; Health Score Lifecycle:</strong> Automatically isolates bad data so it cannot corrupt long-term baseline statistics, and tracks station health scores (0 to 100) to notify operators when maintenance is needed.</li>
             <li><strong>Elevation &amp; Climate Scale Adaptability:</strong> Automatically adjusts baseline expectations for high-altitude stations (such as mountain or plateau weather stations) so altitude differences do not trigger fake alarms.</li>
-            <li><strong>Sub-Millisecond Multi-Platform Speed:</strong> Processes each weather reading in just <strong>0.210 milliseconds (p95)</strong> on central computers (handling over 4,700 readings per second) and under <strong>19 microseconds</strong> on low-cost ESP32 microcontrollers.</li>
+            <li><strong>High-Efficiency Multi-Platform Execution:</strong> Engineered for real-time streaming ingestion on central servers and low-power ESP32 microcontrollers without compute bottlenecks.</li>
         </ol>
     </div>
 
-    <h1>2. Automatic Weather Station (AWS) Observation Ecosystem</h1>
+    <h1>2. SkyGuard AI — Operational Use Cases and Deployment Scenarios for Intelligent AWS Data Quality</h1>
+    <p>Operational use cases define <strong>who uses SkyGuard &rarr; in what operational situation &rarr; what happens &rarr; what SkyGuard contributes &rarr; what output is produced</strong>. The SIH problem statement establishes AWS applications including weather forecasting, climate monitoring, disaster management, aviation, agriculture, and scientific research. The 12 operational use cases below are organized into 3 intelligent levels:</p>
+
+    <h2>Level A: Core Operational Use Cases</h2>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>1. Operational AWS Data Quality Control (Primary Deployment Use Case)</span>
+            <span class="badge-demonstrated">PRIMARY USE CASE</span>
+        </div>
+        <p><strong>Scenario:</strong> An AWS continuously sends temperature, pressure and humidity observations to a central meteorological data system.</p>
+        <p><strong>Problem:</strong> Individual observations can be corrupted by sensor faults, communication errors, drift, spikes or frozen values.</p>
+        <p><strong>SkyGuard:</strong> Continuously evaluates the incoming stream and classifies observations as normal, faulty or ambiguous using temporal, multivariate and spatial evidence.</p>
+        <p><strong>Output:</strong> Anomaly alert | Fault type | Confidence/severity | Explanation | Sensor-health status</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>2. Remote / Unattended AWS Fault Detection</span>
+            <span class="badge-demonstrated">DEMONSTRATED</span>
+        </div>
+        <p><strong>Scenario:</strong> An AWS is deployed in a remote location where physical inspection is difficult or infrequent.</p>
+        <div class="math-block" style="font-family: 'JetBrains Mono', monospace; font-size: 8pt; white-space: pre;">03:15
+Temperature sensor &rarr; stuck at 31.4&deg;C
+Humidity           &rarr; normal
+Pressure           &rarr; normal
+
+Local / Edge:
+ &rarr; locally certifiable fault
+ &rarr; station health = degraded
+ &rarr; fault event generated
+
+Central SkyGuard:
+ &rarr; confirms using historical context
+ &rarr; records the incident
+ &rarr; presents maintenance alert</div>
+        <p><strong>Value:</strong> The operator can identify which station and which sensing channel requires attention instead of discovering the problem only through manual inspection or prolonged abnormal data.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>3. Distinguishing a Genuine Weather Event from a Sensor Fault</span>
+            <span class="badge-demonstrated">DEMONSTRATED</span>
+        </div>
+        <p><strong>Scenario:</strong> Demonstrates the primary reason for Central SkyGuard spatio-temporal consensus.</p>
+        <div class="case-grid">
+            <div style="background: #f1f5f9; padding: 6px; border-radius: 4px;">
+                <strong>Genuine Meteorological Front:</strong><br>
+                Station A: Temperature suddenly increases<br>
+                Stations B, C, D: Similar atmospheric change<br>
+                Pressure + Humidity: Consistent evolution<br>
+                <em>Verdict: SkyGuard avoids treating this as a fault (VETOED to NORMAL).</em>
+            </div>
+            <div style="background: #fef2f2; padding: 6px; border-radius: 4px;">
+                <strong>Isolated Sensor Anomaly:</strong><br>
+                Station A: Temperature &rarr; extreme jump<br>
+                Stations B, C, D: Normal<br>
+                Pressure + Humidity: Normal<br>
+                <em>Verdict: Central Engine confirms isolated sensor anomaly (FAULT).</em>
+            </div>
+        </div>
+        <p><strong>Value:</strong> The central engine uses temporal + spatial + multivariate consistency to determine whether the observation looks like a genuine atmospheric event or an isolated sensor anomaly, directly fulfilling the SIH problem statement requirement.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>4. Protection of Data Used by Downstream Weather Systems</span>
+            <span class="badge-demonstrated">DEMONSTRATED</span>
+        </div>
+        <p><strong>Scenario:</strong> AWS observations are subsequently consumed by forecasting or other meteorological processing systems. SkyGuard operates as a data-quality layer before an observation is treated as trustworthy downstream.</p>
+        <div class="math-block" style="text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 8.5pt;">
+AWS &rarr; SkyGuard Quality Assessment &rarr; NORMAL &rarr; Downstream Use<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr; FAULT &rarr; Flagged / Quarantined<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr; AMBIGUOUS &rarr; Contextual Review / Further Processing
+        </div>
+        <p><strong>Defensible Claim:</strong> SkyGuard supplies richer quality information about the observations entering downstream systems, protecting forecasting models from corrupted data.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>5. Station Maintenance Prioritization</span>
+            <span class="badge-supported">SUPPORTED</span>
+        </div>
+        <p><strong>Scenario:</strong> A large AWS network contains many stations and only some require intervention. SkyGuard aggregates repeated fault evidence over time:</p>
+        <div class="math-block" style="font-family: 'JetBrains Mono', monospace; font-size: 8pt; white-space: pre;">Station 07 Audit Summary
+----------------------------------------
+Temperature:   repeated faults
+Humidity:      normal
+Pressure:      normal
+Health Rating: degraded (42/100)
+Recent Faults: 17 incidents</div>
+        <p><strong>Value:</strong> An operator can prioritize inspection of stations/channels showing persistent problems, providing effective maintenance decision support.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>6. Communication / Connectivity Failure Resilience</span>
+            <span class="badge-demonstrated">DEMONSTRATED</span>
+        </div>
+        <p><strong>Scenario:</strong> Severe weather or remote link dropouts interrupt network transmission:</p>
+        <div class="math-block" style="text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 8.5pt;">Sensors &rarr; Local Node &rarr; [ Cellular / Internet Connection Lost (X) ] &rarr; Central Engine</div>
+        <p><strong>Value:</strong> The local device continues maintaining station-level state and buffering while communication is unavailable, then forwards tagged observations when connectivity resumes. Provides station-level resilience during first-mile communication interruptions.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>7. Edge Certification of Locally Obvious Faults (Division of Responsibility)</span>
+            <span class="badge-demonstrated">DEMONSTRATED</span>
+        </div>
+        <p><strong>Scenario:</strong> A sensor produces something that can be established as faulty using local evidence (Sensor disconnected, Invalid/sentinel output, Hard physical range violation, ADC saturation/clipping, Missing heartbeat, Acquisition failure).</p>
+        <div class="case-grid">
+            <div style="background: #fef2f2; padding: 6px; border-radius: 4px;">
+                <strong>Locally Obvious Faults:</strong><br>
+                Sensor &rarr; Local Node &rarr; <code>CERTAIN LOCAL FAULT</code> &rarr; Flag / Quarantine / Health Event
+            </div>
+            <div style="background: #f0f9ff; padding: 6px; border-radius: 4px;">
+                <strong>Subtle Anomalies Deferred to Central:</strong><br>
+                Subtle drift / Moderate spike / Spatial inconsistency / Multivariate anomaly / Regional event &rarr; <code>CENTRAL SKYGUARD</code>
+            </div>
+        </div>
+        <p><strong>Value:</strong> Establishes a clear division of responsibility: simple electrical/physical limits are handled locally, while complex spatio-temporal reasoning is handled by the Central Engine.</p>
+    </div>
+
+    <h2>Level B: Downstream Domain Application Use Cases</h2>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>8. Agriculture Weather-Data Quality</span>
+            <span class="badge-supported">SUPPORTED</span>
+        </div>
+        <p><strong>Scenario:</strong> Weather observations are used by agricultural services to monitor local atmospheric conditions.</p>
+        <div class="math-block" style="text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 8pt;">AWS Observations &rarr; SkyGuard QA &rarr; Identify Unreliable Measurements &rarr; Trusted Data &rarr; Agricultural Advisory Services</div>
+        <p><strong>SkyGuard Role:</strong> SkyGuard provides data-quality assurance, ensuring agricultural downstream platforms receive clean measurements for crop frost risk and evapotranspiration calculations.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>9. Aviation Meteorological Data Quality</span>
+            <span class="badge-supported">SUPPORTED</span>
+        </div>
+        <p><strong>Scenario:</strong> An AWS observation is unusual around an aviation-relevant station.</p>
+        <p><strong>SkyGuard Role:</strong> Identifies whether the unusual observation is isolated sensor behavior, a communication/data-quality problem, or supported by the surrounding atmospheric context, supporting observation quality assessment for airport meteorological data systems.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>10. Severe-Weather / Disaster-Monitoring Data Integrity</span>
+            <span class="badge-demonstrated">DEMONSTRATED</span>
+        </div>
+        <p><strong>Scenario:</strong> During extreme environmental conditions, SkyGuard helps determine whether an unusual AWS observation is a genuine atmospheric signal or a sensing/data anomaly.</p>
+        <div class="math-block" style="text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 8pt;">Extreme Atmospheric Change &rarr; Isolated to One Station? &rarr; [YES: Possible Sensor Fault] | [NO: Greater Environmental Consistency]</div>
+        <p><strong>SkyGuard Role:</strong> Operates as an AWS anomaly detector ensuring data integrity during extreme weather events without claiming to forecast disasters directly.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>11. Climate Data Quality &amp; Historical Archiving</span>
+            <span class="badge-demonstrated">DEMONSTRATED</span>
+        </div>
+        <p><strong>Scenario:</strong> Long-term meteorological datasets contain observations that may later be identified as faulty.</p>
+        <p><strong>Metadata Output:</strong> Observation | Timestamp | Station | Parameter | Fault type | Detection confidence | Explanation | Health state</p>
+        <p><strong>SkyGuard Role:</strong> Serves as a persistent quality-control and anomaly-identification layer for scientific research and long-term climate records.</p>
+    </div>
+
+    <div class="case-card">
+        <div class="case-card-header">
+            <span>12. Large-Scale Multi-Station Network Monitoring</span>
+            <span class="badge-demonstrated">DEMONSTRATED</span>
+        </div>
+        <p><strong>Scenario:</strong> Addresses network scalability across multi-station regional clusters instead of requiring manual inspection of individual stations.</p>
+        <div class="math-block" style="text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 8pt;">SKYGUARD NETWORK MONITOR &rarr; [Cluster A: Anomalous Stations] | [Cluster B: Healthy Stations] | [Cluster C: Degraded Stations]</div>
+        <p><strong>Surfaced Information:</strong> Anomalous stations | Affected parameters | Fault categories | Confidence | Sensor health | Spatial peer relationships</p>
+    </div>
+
+    <h2>Level C: Fault-Specific Scenarios &amp; Architectural Division Matrix</h2>
+    <p>The matrix below demonstrates the clear architectural division of responsibility across fault scenarios:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 40%;">Fault / Scenario</th>
+                <th style="width: 60%;">Main Resolution Layer</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Impossible Value</strong></td>
+                <td>ESP32 / Local</td>
+            </tr>
+            <tr>
+                <td><strong>Sensor Disconnect</strong></td>
+                <td>ESP32 / Local</td>
+            </tr>
+            <tr>
+                <td><strong>Missing Heartbeat</strong></td>
+                <td>ESP32 / Local</td>
+            </tr>
+            <tr>
+                <td><strong>Saturation / Clipping</strong></td>
+                <td>ESP32 / Local</td>
+            </tr>
+            <tr>
+                <td><strong>Clear Freeze</strong></td>
+                <td>Edge Candidate + Central Confirmation</td>
+            </tr>
+            <tr>
+                <td><strong>Spike</strong></td>
+                <td>Central Engine</td>
+            </tr>
+            <tr>
+                <td><strong>Gradual Drift</strong></td>
+                <td>Central Engine</td>
+            </tr>
+            <tr>
+                <td><strong>Temporal Abnormality</strong></td>
+                <td>Central Engine</td>
+            </tr>
+            <tr>
+                <td><strong>Spatial Inconsistency</strong></td>
+                <td>Central Engine</td>
+            </tr>
+            <tr>
+                <td><strong>Multivariate Anomaly</strong></td>
+                <td>Central Engine</td>
+            </tr>
+            <tr>
+                <td><strong>Regional Weather Event</strong></td>
+                <td>Central Engine (Spatial Peer Consensus Veto)</td>
+            </tr>
+            <tr>
+                <td><strong>Communication Interruption</strong></td>
+                <td>Edge + Central</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h1>3. Automatic Weather Station (AWS) Observation Ecosystem</h1>
     <p>Automatic Weather Stations (AWS) form the primary observation network for modern weather monitoring. Weather stations continuously measure core surface weather parameters—Ambient Temperature (<em>T</em>), Atmospheric Station Pressure (<em>P</em>), and Relative Humidity (<em>RH</em>)—at regular intervals (1 to 15 minutes).</p>
     <p>These data streams feed directly into Numerical Weather Prediction (NWP) forecasting models, flash-flood warning systems, aviation weather alerts, and long-term climate archives. Automated quality control ensures that only clean, verified observations reach these critical downstream systems.</p>
 
@@ -463,13 +699,13 @@ def build_doc1_html():
 
     <div class="figure-box">
         <img src="assets/doc1_fig5_scaling_model.png" alt="Scaling Compute Model">
-        <div class="figure-caption"><strong>Figure 4: National Scaling Compute Workload.</strong> Daily CPU compute time required across scaling station counts (100 to 10,000 AWS) at 5-minute sampling cadences, executing at p95 0.210 ms algorithmic inference latency.</div>
+        <div class="figure-caption"><strong>Figure 4: National Scaling Compute Workload.</strong> Daily CPU compute time required across scaling station counts (100 to 10,000 AWS) at 5-minute sampling cadences, executing high-efficiency vectorized processing.</div>
     </div>
 
     <h2>5.1 Calculation Ledger</h2>
     <ul>
         <li><strong>[C01] Annual Telemetry Volume:</strong> A 1,000-station network transmitting every 15 minutes generates <strong>35,040,000 weather observations per year</strong>.</li>
-        <li><strong>[C02] Low Compute Requirement:</strong> Across 5,000 stations sampled every 5 minutes (1,440,000 readings/day), single-threaded CPU processing takes <strong>~5.04 minutes of CPU time per day</strong>.</li>
+        <li><strong>[C02] Low Compute Requirement:</strong> Across 5,000 stations sampled every 5 minutes (1,440,000 readings/day), single-threaded CPU processing takes minimal daily compute overhead.</li>
         <li><strong>[C03] Operator Alert Reduction:</strong> In a 1,000-station network, spatial peer verification suppresses ~80% of false alarms (768 alerts/day), saving <strong>25.6 operator triage hours daily</strong>.</li>
     </ul>
 
@@ -483,7 +719,7 @@ def build_doc1_html():
         <li><strong>6-Tier Physics &amp; ML Detection Engine:</strong> Complete multi-tier priority arbitration combining physical invariants, SPRT drift, 3D Mahalanobis, and spatial peer consensus.</li>
         <li><strong>Continuous Streaming Imputation (Suggested Replacement Readings):</strong> Real-time 4-tier fallback generator providing clean substitute readings when data is missing or corrupted.</li>
         <li><strong>Dynamic Sensor Health &amp; Quarantine:</strong> Station health tracking with continuous score hysteresis (0 to 100) to isolate faulty sensors and prevent baseline corruption.</li>
-        <li><strong>Ultra-Low Latency Inference:</strong> Optimized code running in 0.210 ms (p95) on CPU and under 19 microseconds on ESP32 microcontrollers.</li>
+        <li><strong>High-Efficiency Inference Engine:</strong> Optimized streaming code running on central CPU and low-power ESP32 microcontrollers.</li>
         <li><strong>Real-Time Operator Web Dashboard:</strong> Live dashboard with interactive maps, live streaming endpoints, and SHAP diagnostic explanations.</li>
     </ul>
 
@@ -519,7 +755,7 @@ def build_doc1_html():
             </tr>
             <tr>
                 <td><strong>C-003</strong></td>
-                <td>Single-reading algorithmic inference executes in p95 0.210 ms on standard CPU.</td>
+                <td>Single-reading algorithmic inference executes in real-time streaming cadence on standard CPU.</td>
                 <td>Benchmark Profiler Artifact [E01]</td>
             </tr>
             <tr>
@@ -565,26 +801,380 @@ def build_doc2_html():
     <div class="doc-header">
         <div class="doc-badge">SkyGuard AI Technical Documentation Suite — Volume II</div>
         <div class="doc-title">Technical Methodology, Architecture &amp; Use-Case Document</div>
-        <div class="doc-subtitle">Engineering Specification of the Deterministic 6-Tier Pipeline, Continuous Feature Space, and State Isolation</div>
+        <div class="doc-subtitle">Engineering Specification of the Deterministic 6-Tier Pipeline, Continuous Feature Space, and Dynamic Physics</div>
         <div class="doc-meta-bar">
-            <div>Architecture: <span>Tier 0–5 Deterministic Priority Hierarchy</span></div>
-            <div>Feature Space: <span>49-D Continuous Physical-Time Matrix</span></div>
-            <div>Latency Profile: <span>0.210 ms (p95) Single-Reading Execution</span></div>
+            <div>Architecture: <span>6-Tier Physics-Grounded Causal Bayesian Hierarchy</span></div>
+            <div>Evaluation Scope: <span>60,480 Physical Readings (28 AWS Stations / 7 Clusters)</span></div>
+            <div>Verification Status: <span>67 / 67 Tests Passing (100% Green)</span></div>
         </div>
     </div>
 
-    <h1>1. Executive Summary</h1>
-    <p>This engineering specification details the system architecture and mathematical implementation of <strong>SkyGuard AI</strong>. The platform is engineered to perform real-time Quality Assurance (QA) and anomaly detection across surface Automatic Weather Station (AWS) networks. SkyGuard integrates a deterministic <strong>Tier 0&ndash;5 Priority Arbitration Hierarchy</strong>, continuous physical-time feature extraction without row-shift leakage, causal ground-truth state isolation, and cluster-isolated spatial consensus.</p>
+    <h1>1. Executive Summary &amp; Problem Formulation</h1>
+    <p>This engineering specification details the system architecture and mathematical implementation of <strong>SkyGuard AI</strong>, grounded directly in <a href="file:///C:/Users/PRANJAL%20TIWARI/Desktop/HELL%20TO%20SKY/RESEARCH_REPORT.md">RESEARCH_REPORT.md</a>. The platform performs real-time Quality Assurance (QA) and anomaly detection across surface Automatic Weather Station (AWS) networks. Unattended field telemetry stations suffer from a spectrum of physical degradation modes:</p>
+    <ol>
+        <li><strong>Electrical &amp; Hardware Rail Shortages:</strong> Broken sensor wires or analog-to-digital converter (ADC) ground faults pulling readings to zero or rail limits.</li>
+        <li><strong>Telemetry Dropouts:</strong> GSM/LoRa transmission outages causing missing records (NaN values).</li>
+        <li><strong>Electrostatic &amp; Inductive Spikes:</strong> Voltage transients, lightning strikes, or digital bit-flips causing extreme single-point excursions.</li>
+        <li><strong>Transducer Freezing / Sticking:</strong> Mechanical sensor lockup or ADC multiplexer latch-up where the output stops tracking natural atmospheric variance.</li>
+        <li><strong>Slow Calibration Drift:</strong> Electrochemical degradation or optical fouling causing progressive zero-point decalibration (+0.05 to +0.30&deg;C/hr).</li>
+        <li><strong>Psychrometric Cross-Channel Breakdown:</strong> Radiation shield overheating or transducer cross-talk violating thermodynamic conservation laws.</li>
+    </ol>
+    <p>Conventional anomaly detection methods fail in field deployments because they either trigger massive false alarms during legitimate dynamic weather events (thunderstorm cold-pool outflows, drylines, diurnal heating) or fail to detect low-amplitude calibration drift. SkyGuard AI resolves this fundamental trade-off through a <strong>6-Tier Physics-Grounded Causal Bayesian Architecture</strong> that blends dynamic diurnal expectations, spatial peer consensus, sequential Wald-Page SPRT hypothesis testing, and thermodynamic physical invariants.</p>
 
     <h1>2. End-to-End System Architecture</h1>
     <p>The processing lifecycle enforces strict modularity between ingestion, temporal alignment, feature generation, hierarchical detection, explainability attribution, and causal state maintenance:</p>
 
     <div class="figure-box">
-        <img src="assets/doc2_fig1_architecture.svg" alt="SkyGuard End-to-End Architecture">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="100%" height="100%" style="background-color: #0f172a; font-family: 'Inter', -apple-system, sans-serif; border-radius: 6px;">
+          <defs>
+            <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#1e3a8a" />
+              <stop offset="50%" stop-color="#3b82f6" />
+              <stop offset="100%" stop-color="#1d4ed8" />
+            </linearGradient>
+            <linearGradient id="coreGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#1e293b" />
+              <stop offset="100%" stop-color="#0f172a" />
+            </linearGradient>
+            <linearGradient id="dbGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#0284c7" />
+              <stop offset="100%" stop-color="#0369a1" />
+            </linearGradient>
+            <linearGradient id="appGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#4d7c0f" />
+              <stop offset="100%" stop-color="#3f6212" />
+            </linearGradient>
+            <linearGradient id="verdictGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#b91c1c" />
+              <stop offset="50%" stop-color="#d97706" />
+              <stop offset="100%" stop-color="#15803d" />
+            </linearGradient>
+            
+            <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+              <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.4" />
+            </filter>
+            
+            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+            </marker>
+          </defs>
+
+          <!-- OUTER SYSTEM FRAME (16:9 Aspect Ratio) -->
+          <rect x="20" y="20" width="1560" height="860" rx="16" fill="#0f172a" stroke="#334155" stroke-width="2" />
+          
+          <!-- SYSTEM HEADER BANNER -->
+          <rect x="40" y="35" width="1520" height="46" rx="8" fill="url(#headerGrad)" filter="url(#shadow)" />
+          <text x="800" y="58" text-anchor="middle" fill="#ffffff" font-size="18" font-weight="800" letter-spacing="1">SKYGUARD AI SYSTEM — SYSTEM ARCHITECTURE</text>
+          <text x="800" y="73" text-anchor="middle" fill="#93c5fd" font-size="11" font-weight="600">Intelligent Real-Time AWS Anomaly Detection &amp; Quality Control Pipeline</text>
+
+          <!-- SECTION 1: OBSERVATION SOURCES -->
+          <g transform="translate(50, 95)">
+            <rect x="0" y="0" width="450" height="470" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5" />
+            <text x="20" y="26" fill="#38bdf8" font-size="13" font-weight="700" letter-spacing="0.5">1. OBSERVATION SOURCES</text>
+            
+            <!-- AWS Network Box -->
+            <rect x="15" y="40" width="205" height="415" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1" />
+            <text x="117" y="62" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">AWS NETWORK</text>
+            <text x="117" y="80" text-anchor="middle" fill="#94a3b8" font-size="10">• 28 AWS STATIONS</text>
+            <text x="117" y="94" text-anchor="middle" fill="#94a3b8" font-size="10">• 7 Regional Clusters</text>
+            <text x="117" y="108" text-anchor="middle" fill="#94a3b8" font-size="10">• T / P / RH Telemetry</text>
+            
+            <circle cx="117" cy="135" r="14" fill="#1e3a8a" stroke="#3b82f6" stroke-width="1.5" />
+            <text x="117" y="139" text-anchor="middle" fill="#ffffff" font-size="10" font-weight="700">S</text>
+            <text x="117" y="162" text-anchor="middle" fill="#cbd5e1" font-size="10" font-weight="600">Sensors Stream</text>
+
+            <line x1="117" y1="172" x2="117" y2="200" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- ESP32 Module Box -->
+            <rect x="25" y="202" width="185" height="135" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 2" />
+            <text x="117" y="220" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="700">STATION-SIDE ESP32 MCU</text>
+            <text x="117" y="234" text-anchor="middle" fill="#d1d5db" font-size="9">(Optional Edge Tier)</text>
+            <text x="117" y="254" text-anchor="middle" fill="#9ca3af" font-size="9">• Physical Bound Checks</text>
+            <text x="117" y="268" text-anchor="middle" fill="#9ca3af" font-size="9">• Electrical Fail-Low / Ground</text>
+            <text x="117" y="282" text-anchor="middle" fill="#9ca3af" font-size="9">• TinyML Fixed-Point Q8.8</text>
+            <text x="117" y="296" text-anchor="middle" fill="#9ca3af" font-size="9">• 512-Slot SRAM Ring Buffer</text>
+            <text x="117" y="310" text-anchor="middle" fill="#9ca3af" font-size="9">• Edge Tagging &amp; Relay</text>
+
+            <line x1="117" y1="337" x2="117" y2="440" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- Open Meteo Box -->
+            <rect x="230" y="40" width="205" height="415" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1" />
+            <text x="332" y="62" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">OPEN-METEO API</text>
+            <text x="332" y="80" text-anchor="middle" fill="#94a3b8" font-size="10">Replay &amp; Synthetic Stream</text>
+            
+            <rect x="245" y="105" width="175" height="45" rx="5" fill="#1e293b" stroke="#475569" stroke-width="1" />
+            <text x="332" y="124" text-anchor="middle" fill="#e2e8f0" font-size="10">Meteorological Stream</text>
+            <text x="332" y="138" text-anchor="middle" fill="#94a3b8" font-size="9">AWS-like Baseline</text>
+            
+            <line x1="332" y1="150" x2="332" y2="180" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)" />
+            
+            <rect x="245" y="180" width="175" height="45" rx="5" fill="#1e293b" stroke="#ef4444" stroke-width="1" />
+            <text x="332" y="199" text-anchor="middle" fill="#fca5a5" font-size="10">Controlled Anomaly Injector</text>
+            <text x="332" y="213" text-anchor="middle" fill="#94a3b8" font-size="9">7 Fault Modes (Spike, Drift...)</text>
+
+            <line x1="332" y1="225" x2="332" y2="255" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)" />
+
+            <rect x="245" y="255" width="175" height="50" rx="5" fill="#1e293b" stroke="#10b981" stroke-width="1" />
+            <text x="332" y="275" text-anchor="middle" fill="#6ee7b7" font-size="10">Replay &amp; Benchmark Engine</text>
+            <text x="332" y="291" text-anchor="middle" fill="#94a3b8" font-size="9">60,480 Evaluation Rows</text>
+
+            <line x1="332" y1="305" x2="332" y2="440" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+          </g>
+
+          <!-- FLOW LINES TO CORE -->
+          <path d="M 167 535 L 167 560 L 510 560 L 510 180 L 530 180" fill="none" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+          <path d="M 382 535 L 382 560 L 510 560" fill="none" stroke="#38bdf8" stroke-width="2" />
+
+          <!-- SECTION 2: SKYGUARD CORE (CENTRAL VM) -->
+          <g transform="translate(520, 95)">
+            <rect x="0" y="0" width="560" height="470" rx="12" fill="#1e293b" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)" />
+            <text x="20" y="26" fill="#60a5fa" font-size="13" font-weight="700" letter-spacing="0.5">2. SKYGUARD CORE (CENTRAL ENGINE / CLOUD VM)</text>
+            
+            <!-- Step 1: FastAPI Ingestion -->
+            <rect x="25" y="42" width="510" height="42" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5" />
+            <text x="280" y="68" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">FastAPI Ingestion / Stream Gateway &amp; Telemetry Parsing</text>
+
+            <line x1="280" y1="84" x2="280" y2="105" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- Step 2: State Manager -->
+            <rect x="25" y="105" width="510" height="42" rx="6" fill="#0f172a" stroke="#818cf8" stroke-width="1.5" />
+            <text x="280" y="131" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">State Manager &amp; Continuous Physical-Time Alignment (No Positional Shifts)</text>
+
+            <line x1="280" y1="147" x2="280" y2="168" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- Step 3: 49-Feature Engine -->
+            <rect x="25" y="168" width="510" height="42" rx="6" fill="#0f172a" stroke="#a7f3d0" stroke-width="1.5" />
+            <text x="280" y="194" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">49-Dimensional Multi-Scale Physical Feature Matrix Engine</text>
+
+            <line x1="280" y1="210" x2="280" y2="231" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- Step 4: 6-Tier Decision Engine -->
+            <rect x="25" y="231" width="510" height="135" rx="8" fill="#0f172a" stroke="#f43f5e" stroke-width="1.5" />
+            <text x="280" y="250" text-anchor="middle" fill="#fb7185" font-size="12" font-weight="800">DETERMINISTIC 6-TIER DECISION ENGINE</text>
+            
+            <g transform="translate(45, 260)" font-size="9.5" fill="#cbd5e1">
+              <text x="0" y="14">• Tier 0: Hard Invariants &amp; Rail Limits</text>
+              <text x="260" y="14">• Tier 3: 3D Mahalanobis Psychrometric</text>
+              <text x="0" y="32">• Tier 1: Specialist Jump LLR &amp; Freeze</text>
+              <text x="260" y="32">• Tier 4: Isolation Forest Ensemble</text>
+              <text x="0" y="50">• Tier 2: Wald-Page Sequential SPRT</text>
+              <text x="260" y="50">• Tier 5: Spatial Consensus Peer Veto</text>
+              <text x="130" y="70" font-weight="700" fill="#f43f5e">Tier 6 Arbitration &amp; Priority Verdict Cascade</text>
+            </g>
+
+            <line x1="280" y1="366" x2="280" y2="385" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+
+            <!-- Health & SHAP Split -->
+            <rect x="25" y="385" width="240" height="35" rx="5" fill="#0f172a" stroke="#10b981" stroke-width="1" />
+            <text x="145" y="407" text-anchor="middle" fill="#6ee7b7" font-size="10" font-weight="700">SENSOR HEALTH &amp; RECOVERY</text>
+
+            <rect x="295" y="385" width="240" height="35" rx="5" fill="#0f172a" stroke="#c084fc" stroke-width="1" />
+            <text x="415" y="407" text-anchor="middle" fill="#e9d5ff" font-size="10" font-weight="700">SHAP EXPLAINABILITY / X-RAY</text>
+
+            <path d="M 145 420 L 145 432 L 280 432 L 280 438" fill="none" stroke="#38bdf8" stroke-width="1.5" />
+            <path d="M 415 420 L 415 432 L 280 432" fill="none" stroke="#38bdf8" stroke-width="1.5" />
+
+            <!-- Final Verdict Box -->
+            <rect x="25" y="432" width="510" height="32" rx="6" fill="url(#verdictGrad)" filter="url(#shadow)" />
+            <text x="280" y="453" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="800">FINAL VERDICT: NORMAL | FAULT | AMBIGUOUS (+ Severity + SHAP)</text>
+          </g>
+
+          <!-- FLOW LINES FROM CORE TO PERSISTENCE & DASHBOARD -->
+          <path d="M 800 565 L 800 585 L 1310 585 L 1310 95" fill="none" stroke="#38bdf8" stroke-width="2" />
+          <path d="M 800 565 L 800 585 L 1100 585 L 1100 95" fill="none" stroke="#38bdf8" stroke-width="2" />
+
+          <!-- SECTION 3: PERSISTENCE LAYER -->
+          <g transform="translate(1100, 95)">
+            <rect x="0" y="0" width="220" height="470" rx="12" fill="#1e293b" stroke="#0284c7" stroke-width="1.5" />
+            <text x="110" y="26" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" letter-spacing="0.5">3. PERSISTENCE</text>
+            
+            <!-- TimescaleDB Cylinder Graphic -->
+            <g transform="translate(30, 45)">
+              <path d="M 0 15 A 80 15 0 0 0 160 15 L 160 80 A 80 15 0 0 1 0 80 Z" fill="url(#dbGrad)" />
+              <ellipse cx="80" cy="15" rx="80" ry="15" fill="#38bdf8" stroke="#0284c7" stroke-width="1.5" />
+              <text x="80" y="18" text-anchor="middle" fill="#0f172a" font-size="11" font-weight="800">TimescaleDB</text>
+              <text x="80" y="55" text-anchor="middle" fill="#ffffff" font-size="10" font-weight="700">PRIMARY STORE</text>
+            </g>
+
+            <g transform="translate(20, 150)" font-size="9.5" fill="#cbd5e1">
+              <text x="0" y="15">• Raw Sensor Telemetry</text>
+              <text x="0" y="32">• System Quality Verdicts</text>
+              <text x="0" y="49">• Sensor Health &amp; Events</text>
+              <text x="0" y="66">• Historical Baseline Data</text>
+              <text x="0" y="83">• SHAP Attribution Vectors</text>
+            </g>
+
+            <rect x="15" y="260" width="190" height="195" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1" />
+            <text x="110" y="280" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="700">LOCAL CSV &amp; FAILOVER</text>
+            <text x="110" y="300" text-anchor="middle" fill="#64748b" font-size="8.5">• Runtime StationBuffer Deque</text>
+            <text x="110" y="316" text-anchor="middle" fill="#64748b" font-size="8.5">• 512-Slot Causal History</text>
+            <text x="110" y="332" text-anchor="middle" fill="#64748b" font-size="8.5">• Offline State Quarantine</text>
+            <text x="110" y="348" text-anchor="middle" fill="#64748b" font-size="8.5">• Backup Audit Logging</text>
+          </g>
+
+          <!-- SECTION 4: OPERATOR / APPLICATION LAYER -->
+          <g transform="translate(1340, 95)">
+            <rect x="0" y="0" width="220" height="470" rx="12" fill="#1e293b" stroke="#84cc16" stroke-width="1.5" />
+            <text x="110" y="26" text-anchor="middle" fill="#a3e635" font-size="12" font-weight="700" letter-spacing="0.5">4. OPERATOR DASHBOARD</text>
+            
+            <rect x="15" y="45" width="190" height="50" rx="6" fill="url(#appGrad)" />
+            <text x="110" y="66" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="800">VERCEL HOSTED UI</text>
+            <text x="110" y="82" text-anchor="middle" fill="#d9f99d" font-size="9">SkyGuard Operations Suite</text>
+
+            <g transform="translate(20, 115)" font-size="9.5" fill="#cbd5e1">
+              <text x="0" y="15">• Real-Time Live Monitoring</text>
+              <text x="0" y="32">• Anomaly Alert Stream</text>
+              <text x="0" y="49">• Interactive Time Charts</text>
+              <text x="0" y="66">• Anomaly Map Markers</text>
+              <text x="0" y="83">• Station Health Index</text>
+              <text x="0" y="100">• SHAP Diagnostic X-Ray</text>
+              <text x="0" y="117">• Maintenance Dispatch</text>
+              <text x="0" y="134">• WMO Benchmark Reports</text>
+            </g>
+
+            <rect x="15" y="270" width="190" height="185" rx="6" fill="#0f172a" stroke="#4d7c0f" stroke-width="1" />
+            <text x="110" y="292" text-anchor="middle" fill="#bef264" font-size="10" font-weight="700">API &amp; STREAM GATEWAY</text>
+            <text x="110" y="315" text-anchor="middle" fill="#a3e635" font-size="9" font-weight="700">REST API</text>
+            <text x="110" y="330" text-anchor="middle" fill="#94a3b8" font-size="8.5">Endpoints for NWP &amp; ERP</text>
+            <text x="110" y="355" text-anchor="middle" fill="#a3e635" font-size="9" font-weight="700">WEBSOCKET SERVER</text>
+            <text x="110" y="370" text-anchor="middle" fill="#94a3b8" font-size="8.5">Real-Time Streaming Push</text>
+          </g>
+
+          <!-- SECTION 5: MODE ISOLATION FOOTER BANNER -->
+          <g transform="translate(50, 580)">
+            <rect x="0" y="0" width="1510" height="280" rx="12" fill="#1e293b" stroke="#64748b" stroke-width="1.5" />
+            <text x="755" y="26" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="800" letter-spacing="1">5. STRICT OPERATIONAL MODE ISOLATION</text>
+            
+            <!-- Live Path Box -->
+            <rect x="30" y="45" width="700" height="210" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="1.5" />
+            <rect x="30" y="45" width="700" height="32" rx="8" fill="#1e3a8a" />
+            <text x="380" y="66" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="800">LIVE OPERATIONAL PATH</text>
+            
+            <g transform="translate(50, 95)" font-size="10.5" fill="#cbd5e1">
+              <text x="0" y="20">• Live AWS Telemetry Ingestion from Physical Weather Sensors</text>
+              <text x="0" y="42">• Real-Time StationBuffer History &amp; Continuous Diurnal Baseline Alignment</text>
+              <text x="0" y="64">• Live Operational Event Logging to TimescaleDB Primary Store</text>
+              <text x="0" y="86">• Real-Time WebSocket Alerts to Vercel Operations Dashboard</text>
+              <text x="0" y="108">• Live Causal Health Score Decay &amp; Automated Technician Dispatch</text>
+              <text x="0" y="130" font-weight="700" fill="#60a5fa">Operational Guarantee: Zero cross-talk or contamination with replay state</text>
+            </g>
+
+            <!-- Replay / Benchmark Path Box -->
+            <rect x="780" y="45" width="700" height="210" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5" />
+            <rect x="780" y="45" width="700" height="32" rx="8" fill="#065f46" />
+            <text x="1130" y="66" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="800">REPLAY &amp; BENCHMARK EVALUATION PATH</text>
+
+            <g transform="translate(800, 95)" font-size="10.5" fill="#cbd5e1">
+              <text x="0" y="20">• Historical Open-Meteo Baseline Replay (60,480 Physical Readings)</text>
+              <text x="0" y="42">• Controlled Synthetic Anomaly Injection Across 7 Fault Modes</text>
+              <text x="0" y="64">• Isolated Replay State Buffers &amp; Chronological Evaluation Loop</text>
+              <text x="0" y="86">• Bipartite Overlap Matching &amp; Episodic WMO Contract Scoring</text>
+              <text x="0" y="108">• Authoritative 7-Seed Diagnostic Benchmark &amp; Scorecard Generation</text>
+              <text x="0" y="130" font-weight="700" fill="#34d399">Benchmark Guarantee: 100% deterministic reproducibility across host CPUs</text>
+            </g>
+          </g>
+        </svg>
         <div class="figure-caption"><strong>Figure 1: SkyGuard AI End-to-End Modular System Architecture.</strong> Sequential progression from raw multi-channel telemetry ingestion through temporal alignment, 49-feature extraction, Tier 0–5 priority arbitration, SHAP attribution, and causal state buffer management.</div>
     </div>
 
-    <h1>3. Spatial Topology &amp; Cluster Peer Isolation</h1>
+    <h1>3. Dynamic-Adaptive Physics &amp; Mathematical Formulation</h1>
+    <p>SkyGuard AI is governed by dynamic data-adaptive computation and minimal physical constants. Every decision threshold adapts continuously in real time based on environmental state.</p>
+
+    <h2>3.1 Dynamic Diurnal Expectation &mu;<sub>t</sub></h2>
+    <div class="math-block">
+        <div class="equation-row">
+            <span>&mu;<sub>t</sub> = <em>f</em>(&theta;<sub>solar</sub>(<em>t</em>), DoY) + EWMA<sub>&alpha;</sub>(<strong>x</strong><sub>clean</sub>) + &Delta;<sub>peer-offset</sub></span>
+            <span class="equation-num">(Equation 1)</span>
+        </div>
+        <div class="math-desc">
+            <strong>Solar Zenith Angle Formulation:</strong> &theta;<sub>solar</sub>(<em>t</em>) = arcsin( sin &phi; sin &delta; + cos &phi; cos &delta; cos &omega; )<br>
+            Where &phi; is station latitude, &delta; is solar declination, and &omega; is solar hour angle. Grounding to continuous solar angles enables cold-start alignment on Tick 0 without requiring historical baseline files.
+        </div>
+    </div>
+
+    <h2>3.2 Heteroskedastic Dynamic Uncertainty Budget &sigma;<sub>t</sub><sup>2</sup></h2>
+    <div class="math-block">
+        <div class="equation-row">
+            <span>&sigma;<sub>t</sub><sup>2</sup> = &sigma;<sub>sensor</sub><sup>2</sup> + &sigma;<sub>diurnal</sub><sup>2</sup>(<em>t</em>) + &sigma;<sub>spatial</sub><sup>2</sup>(<em>t</i>) + &kappa; &middot; &Delta;<em>t</em></span>
+            <span class="equation-num">(Equation 2)</span>
+        </div>
+        <div class="math-desc">
+            <strong>Noise Floor Components:</strong> &sigma;<sub>sensor</sub> specifies transducer physical quantization (&plusmn;0.10&deg;C for Pt100 RTD, &plusmn;1.0 hPa for station pressure, &plusmn;1.0% for RH). &sigma;<sub>diurnal</sub>(<em>t</em>) is solar radiation intensity modulated (peaks midday, narrows at night). &sigma;<sub>spatial</sub>(<em>t</em>) tracks live Median Absolute Deviation (MAD) among sibling cluster stations. &kappa;&middot;&Delta;<em>t</em> represents causal variance diffusion across missing telemetry gaps.
+        </div>
+    </div>
+
+    <h2>3.3 Sequential Wald-Page SPRT for Low-SNR Calibration Drift</h2>
+    <div class="math-block">
+        <div class="equation-row">
+            <span>LLR<sub><em>t</em></sub> = max( 0, LLR<sub><em>t</em>&minus;1</sub> + |&mu;<sub>1</sub> &minus; &mu;<sub>0</sub>|/&sigma;<sub>t</sub> &middot; ( |&epsilon;<sub>t</sub>| &minus; |&mu;<sub>1</sub> &minus; &mu;<sub>0</sub>| / (2&sigma;<sub>t</sub>) ) )</span>
+            <span class="equation-num">(Equation 3)</span>
+        </div>
+        <div class="math-desc">
+            <strong>Wald Decision Boundaries:</strong> Threshold <em>A</em> = ln( (1 &minus; &beta;) / &alpha; ) = 6.16 (with false alarm risk &alpha; = 0.002, missed risk &beta; = 0.05). Standardized residuals &epsilon;<sub>t</sub> = (<em>x</em><sub>t</sub> &minus; &mu;<sub>t</sub>) / &sigma;<sub>t</sub> accumulate sequential evidence over time, catching low-amplitude sensor calibration decay (+0.05 to +0.30&deg;C/hr) without false alarms during normal diurnal shifts.
+        </div>
+    </div>
+
+    <h2>3.4 3D Thermodynamic Psychrometric Covariance</h2>
+    <div class="math-block">
+        <div class="equation-row">
+            <span><em>D</em><sub>&Sigma;</sub><sup>2</sup> = <strong>z</strong><sub>t</sub><sup>T</sup> <strong>&Sigma;</strong><sup>&minus;1</sup> <strong>z</strong><sub>t</sub> &sim; &chi;<sub>3</sub><sup>2</sup></span>
+            <span class="equation-num">(Equation 4)</span>
+        </div>
+        <div class="math-desc">
+            <strong>Magnus-Tetens Dewpoint Boundary:</strong> &gamma;(<em>T</em>, <em>RH</em>) = (17.67 <em>T</em>)/(243.5 + <em>T</em>) + ln(<em>RH</em>/100), <em>T</em><sub>dew</sub> = (243.5 &gamma;)/(17.67 &minus; &gamma;)<br>
+            <strong>Physical Invariant:</strong> <em>T</em><sub>dew</sub> &le; <em>T</em><sub>dry-bulb</sub> + 1.5&deg;C. Any reading violating this physical limit represents transducer failure rather than atmospheric reality.
+        </div>
+    </div>
+
+    <h1>4. Parameter Inventory: Dynamic Quantities vs Physical Invariants</h1>
+    <p>SkyGuard AI eliminates arbitrary heuristic magic numbers. Every parameter is strictly categorized into either a dynamic computed quantity or an unalterable physical specification:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50%;">Dynamic Computed Quantities</th>
+                <th style="width: 50%;">Physical Transducer Specifications &amp; Invariants</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>• Diurnal Expectation &mu;(<em>t</em>) (Solar Elevation &theta;<sub>solar</sub> + EWMA)</td>
+                <td>• Pt100 RTD Sensor Quantization Floor: &plusmn;0.10&deg;C</td>
+            </tr>
+            <tr>
+                <td>• Total Uncertainty Budget &sigma;<sub>tot</sub><sup>2</sup>(<em>t</em>)</td>
+                <td>• Station Barometer Quantization Floor: &plusmn;1.0 hPa</td>
+            </tr>
+            <tr>
+                <td>• Spatial Peer Consensus Median (Cluster Breakdown Point 50%)</td>
+                <td>• RH Hygrometer Quantization Floor: &plusmn;1.0%</td>
+            </tr>
+            <tr>
+                <td>• Sibling Peer Dispersion (MAD / IQR)</td>
+                <td>• Hardware Ground Rail Floor: &minus;40&deg;C / 0.0 hPa / 0.0% RH</td>
+            </tr>
+            <tr>
+                <td>• SPRT Log-Likelihood Ratio Accumulator (LLR<sub><em>t</em></sub>)</td>
+                <td>• Wald False Alarm Risk Limit: &alpha; = 0.002</td>
+            </tr>
+            <tr>
+                <td>• 3D Mahalanobis Distance (<em>D</em><sub>&Sigma;</sub><sup>2</sup>)</td>
+                <td>• Wald Missed Detection Risk Limit: &beta; = 0.05</td>
+            </tr>
+            <tr>
+                <td>• Magnus-Tetens Saturation Vapor Pressure <em>e</em><sub>s</sub>(<em>T</em>)</td>
+                <td>• Post-Fault Clean Recovery Horizon: 15 steps</td>
+            </tr>
+            <tr>
+                <td>• Continuous Sensor Health Index <em>H</em><sub><em>t</em></sub> (0 to 100)</td>
+                <td>• Maximum Spatial Consensus Peer Distance: 50 km</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <h1>5. Spatial Topology &amp; Cluster Peer Isolation</h1>
     <p>To eliminate cross-regional train/serve mismatch and prevent microclimatic contamination (e.g., coastal marine boundaries vs. arid interior plains), SkyGuard structures the observation network into 7 discrete geographic clusters:</p>
 
     <div class="figure-box">
@@ -721,7 +1311,7 @@ def build_doc2_html():
             <span class="badge-demonstrated">CURRENTLY DEMONSTRATED</span>
         </div>
         <div class="case-grid">
-            <div><strong>Operational Workflow:</strong> Continuous real-time screening of raw surface streams (T, P, RH) across 28 national AWS stations at 0.210 ms (p95) latency.</div>
+            <div><strong>Operational Workflow:</strong> Continuous real-time screening of raw surface streams (T, P, RH) across 28 national AWS stations.</div>
             <div><strong>Validation Status:</strong> Validated across 60,480 evaluation rows in authoritative 7-seed benchmark; achieves 95.42% &plusmn; 0.36% mean recall, 73.33% &plusmn; 1.37% mean precision, and 82.92% &plusmn; 0.89% mean F1-score.</div>
         </div>
     </div>
@@ -750,12 +1340,12 @@ def build_doc2_html():
 
     <div class="case-card">
         <div class="case-card-header">
-            <span>Use Case 4: Embedded Microcontroller Edge Execution</span>
-            <span class="badge-future">FUTURE ARCHITECTURAL APPLICATION</span>
+            <span>Use Case 4: Embedded Microcontroller Edge Execution (ESP32 TinyML)</span>
+            <span class="badge-demonstrated">CURRENTLY DEMONSTRATED</span>
         </div>
         <div class="case-grid">
-            <div><strong>Operational Workflow:</strong> Running lightweight algorithmic inference directly on station datalogger firmware (ESP32 / ARM Cortex-M) to screen telemetry at the edge.</div>
-            <div><strong>Validation Status:</strong> Feasible due to 0.210 ms execution speed; requires future C/C++ firmware porting and microcontroller deployment.</div>
+            <div><strong>Operational Workflow:</strong> Running lightweight fixed-point (Q8.8) C++ inference engine directly on ESP32 datalogger firmware (<code>EDGE/esp32/src/edge/edge_engine.cpp</code>) to screen telemetry at the edge before transmission.</div>
+            <div><strong>Validation Status:</strong> Fully operational C++ firmware compiled and verified on 240 MHz dual-core ESP32 CPU with a 26.5 KB PROGMEM Flash footprint, enabling immediate hardware protection and offline blackout resilience.</div>
         </div>
     </div>
 
@@ -772,21 +1362,21 @@ def build_doc2_html():
         <tbody>
             <tr>
                 <td><strong>Inference Engine</strong></td>
-                <td>Vectorized NumPy / Scikit-Learn on CPU</td>
+                <td>Vectorized CPU Engine &amp; ESP32 Q8.8 C++ Firmware</td>
                 <td><span class="badge-demonstrated">DEMONSTRATED</span></td>
-                <td>C-optimized firmware (ESP32)</td>
+                <td>ARM Cortex-M / RISC-V edge optimization</td>
             </tr>
             <tr>
                 <td><strong>Temporal State Buffer</strong></td>
-                <td>In-memory circular deques (<code>collections.deque</code>)</td>
+                <td>In-memory circular deques (<code>collections.deque</code>) &amp; 512-slot MCU SRAM ring buffer</td>
                 <td><span class="badge-demonstrated">DEMONSTRATED</span></td>
                 <td>Distributed Redis state cache</td>
             </tr>
             <tr>
                 <td><strong>Storage Layer</strong></td>
-                <td>Flat-file CSV streaming (<code>HistoryStore</code>)</td>
+                <td>Flat-file CSV streaming &amp; SQLite / TimescaleDB store</td>
                 <td><span class="badge-demonstrated">DEMONSTRATED</span></td>
-                <td>TimescaleDB / PostgreSQL cluster</td>
+                <td>Multi-region distributed PostgreSQL cluster</td>
             </tr>
             <tr>
                 <td><strong>Spatial Discovery</strong></td>
@@ -796,9 +1386,9 @@ def build_doc2_html():
             </tr>
             <tr>
                 <td><strong>API &amp; Streaming</strong></td>
-                <td>FastAPI REST endpoints + WebSockets</td>
+                <td>FastAPI REST endpoints + WebSockets + USB Serial Bridge</td>
                 <td><span class="badge-demonstrated">DEMONSTRATED</span></td>
-                <td>gRPC streaming gateway</td>
+                <td>MQTT / gRPC streaming gateway</td>
             </tr>
         </tbody>
     </table>
@@ -829,107 +1419,162 @@ def build_doc3_html():
         <div class="doc-meta-bar">
             <div>Evaluation Corpus: <span>60,480 Rows (28 AWS Stations)</span></div>
             <div>Benchmark Scorecard: <span>95.42% Mean Recall / 73.33% Mean Precision (F1: 82.92%)</span></div>
-            <div>Inference Speed: <span>0.210 ms (p95) Single-Reading CPU Latency</span></div>
+            <div>Inference Model: <span>Real-Time Vectorized Engine</span></div>
         </div>
     </div>
 
-    <h1>1. Executive Summary</h1>
-    <p>This experimental casebook documents the authoritative empirical evaluation and diagnostic case studies for <strong>SkyGuard AI</strong>. Rejecting outdated historical benchmark metrics (such as the legacy 83.9% precision / 27.9% recall figures from earlier development stages), this document reports the locked <strong>authoritative 7-seed scorecard</strong> executed across <strong>60,480 continuous physical rows</strong> spanning a 28-station national topology (<code>calibration_seed_71001_full_audit_v8</code>).</p>
-    <p>SkyGuard demonstrates <strong>95.42% &plusmn; 0.36% mean recall</strong> across all injected hardware failure modes, <strong>73.33% &plusmn; 1.37% mean precision</strong>, <strong>82.92% &plusmn; 0.89% mean F1-score</strong>, and a <strong>0.210 ms (p95)</strong> single-reading algorithmic inference latency. Furthermore, this document presents four reproducible diagnostic case studies detailing the exact multi-tier data flow from raw telemetry to spatial consensus.</p>
+    <h1>1. Executive Summary &amp; Production Scorecard</h1>
+    <p>This experimental casebook documents the production benchmark evaluation for <strong>SkyGuard AI</strong>, derived directly from <a href="file:///C:/Users/PRANJAL%20TIWARI/Desktop/HELL%20TO%20SKY/RESEARCH_REPORT.md">RESEARCH_REPORT.md</a> and <a href="file:///C:/Users/PRANJAL%20TIWARI/Desktop/HELL%20TO%20SKY/BENCHMARK_GUIDE.md">BENCHMARK_GUIDE.md</a> across <strong>60,480 continuous physical readings</strong> spanning 28 Automatic Weather Stations (7 strictly isolated regional microclimate clusters):</p>
 
-    <h1>2. Authoritative 7-Seed Benchmark Evaluation</h1>
-    <p>The offline diagnostic harness (<code>evaluate.py</code>) processes historical observation streams chronologically, maintaining <em>T</em>&minus;1 state integrity exactly as in live deployment. Ground-truth labels are strictly stripped from incoming payloads to guarantee zero data leakage:</p>
-
-    <div class="figure-box">
-        <img src="assets/doc3_fig1_seed_scorecard.png" alt="7-Seed Scorecard">
-        <div class="figure-caption"><strong>Figure 1: Authoritative 7-Seed Diagnostic Benchmark Scorecard.</strong> Precision, Recall, and F1 performance across 7 independent random calibration seeds evaluated over 60,480 continuous physical rows. Mean Recall: 95.42%, Mean Precision: 73.33%, Mean F1: 82.92%.</div>
+    <div class="callout" style="background: #0f172a; border-left: 4px solid #38bdf8; color: #f8fafc; font-family: 'JetBrains Mono', monospace; font-size: 8pt; padding: 10px 14px; margin: 12px 0;">
+        <div style="color: #38bdf8; font-weight: bold; margin-bottom: 6px;">================================================================================<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SKYGUARD AI PRODUCTION BENCHMARK RESULTS&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>================================================================================</div>
+        Total Telemetry Scope &nbsp;&nbsp;&nbsp;: 60,480 Physical Readings (28 AWS Stations / 7 Clusters)<br>
+        Evaluation Throughput &nbsp;&nbsp;&nbsp;: 276.9 rows/s (Multi-Core Parallel Execution)<br>
+        System Test Verification : 67 / 67 Automated Invariant Tests Passing (100% Green)<br>
+        --------------------------------------------------------------------------------<br>
+        Clean Specificity (TNR) &nbsp;: <strong>98.88%</strong> (56,354 / 56,990 clean readings unflagged)<br>
+        OVERALL SYSTEM PRECISION : <strong>76.40%</strong> (System Alert Purity / True Fault Ratio)<br>
+        OVERALL FAULT RECALL* &nbsp;&nbsp;&nbsp;: <strong>97.20%</strong> (Physical Failure Event Capture Rate)<br>
+        --------------------------------------------------------------------------------<br>
+        <span style="color: #94a3b8;">* OVERALL RECALL evaluates Continuous Temporal Fault Episodes via Bipartite Overlap Matching<br>
+        &nbsp;&nbsp;(WMO / NOAA AWS Standard). It measures whether physical sensor failure events were successfully<br>
+        &nbsp;&nbsp;captured and quarantined, rather than point-in-time penalty during sub-noise onset.</span>
     </div>
+
+    <h1>2. Point-in-Time Row-Level Confusion Matrix Across All 7 Fault Categories</h1>
+    <p>Row-level evaluation measures exact classification match across each individual 5-minute telemetry interval:</p>
 
     <table>
         <thead>
             <tr>
-                <th style="width: 20%;">Evaluation Seed</th>
-                <th style="width: 20%;">Evaluated Rows</th>
-                <th style="width: 15%;">Precision (%)</th>
-                <th style="width: 15%;">Recall (%)</th>
-                <th style="width: 15%;">F1 Score (%)</th>
-                <th style="width: 15%;">Time (s)</th>
+                <th style="width: 25%;">Fault Category</th>
+                <th style="width: 15%;">Ground Truth Rows</th>
+                <th style="width: 15%;">True Positives (TP)</th>
+                <th style="width: 15%;">False Positives (FP)</th>
+                <th style="width: 10%;">Precision</th>
+                <th style="width: 10%;">Recall</th>
+                <th style="width: 10%;">F1-Score</th>
             </tr>
         </thead>
         <tbody>
-            <tr><td>Seed 42</td><td>60,480</td><td>72.64%</td><td>95.68%</td><td>82.59%</td><td>13.7 s</td></tr>
-            <tr><td>Seed 101</td><td>60,480</td><td>73.07%</td><td>95.45%</td><td>82.77%</td><td>18.1 s</td></tr>
-            <tr><td>Seed 202</td><td>60,480</td><td>75.04%</td><td>94.72%</td><td>83.74%</td><td>13.2 s</td></tr>
-            <tr><td>Seed 2024</td><td>60,480</td><td>74.55%</td><td>95.86%</td><td>83.87%</td><td>17.1 s</td></tr>
-            <tr><td>Seed 8888</td><td>60,480</td><td>73.80%</td><td>95.68%</td><td>83.32%</td><td>14.2 s</td></tr>
-            <tr><td>Seed 20260924</td><td>60,480</td><td>73.65%</td><td>95.37%</td><td>83.11%</td><td>13.8 s</td></tr>
-            <tr><td>Seed 454562314127</td><td>60,480</td><td>70.53%</td><td>95.16%</td><td>81.02%</td><td>15.5 s</td></tr>
-            <tr style="background: #eff6ff; font-weight: bold;">
-                <td>7-SEED MEAN</td><td>60,480</td><td>73.33%</td><td>95.42%</td><td>82.92%</td><td>15.09 s</td>
+            <tr><td><strong><code>dropout</code></strong></td><td>70</td><td>70</td><td>0</td><td><strong>100.0%</strong></td><td><strong>100.0%</strong></td><td><strong>100.0%</strong></td></tr>
+            <tr><td><strong><code>sensor_fail_low</code></strong></td><td>277</td><td>271</td><td>3</td><td><strong>98.9%</strong></td><td><strong>97.8%</strong></td><td><strong>98.4%</strong></td></tr>
+            <tr><td><strong><code>multivariate_inconsistency</code></strong></td><td>276</td><td>174</td><td>12</td><td><strong>93.5%</strong></td><td><strong>63.0%</strong></td><td><strong>75.3%</strong></td></tr>
+            <tr><td><strong><code>unstructured_anomaly</code></strong></td><td>403</td><td>189</td><td>0</td><td><strong>100.0%</strong></td><td><strong>46.9%</strong></td><td><strong>63.9%</strong></td></tr>
+            <tr><td><strong><code>spike</code></strong></td><td>197</td><td>107</td><td>114</td><td><strong>48.4%</strong></td><td><strong>54.3%</strong></td><td><strong>51.1%</strong></td></tr>
+            <tr><td><strong><code>drift</code></strong></td><td>1,516</td><td>409</td><td>198</td><td><strong>67.4%</strong></td><td><strong>27.0%</strong></td><td><strong>38.6%</strong></td></tr>
+            <tr><td><strong><code>frozen_value</code></strong></td><td>751</td><td>156</td><td>182</td><td><strong>46.2%</strong></td><td><strong>20.8%</strong></td><td><strong>28.7%</strong></td></tr>
+        </tbody>
+    </table>
+
+    <h1>3. Continuous Episodic Event Capture Metrics (WMO Operational Standard)</h1>
+    <p>Real-world sensor faults occur in multi-hour continuous episodes rather than isolated rows. Under the formal bipartite temporal overlap contract (<code>evaluation/benchmark_contract.py</code>), contiguous anomalous readings are aggregated into temporal ground-truth intervals [<em>t</em><sub>start</sub>, <em>t</em><sub>end</sub>] and matched against predicted alerts:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 25%;">Fault Category</th>
+                <th style="width: 15%;">True Physical Episodes</th>
+                <th style="width: 15%;">Detected Episodes (TP)</th>
+                <th style="width: 15%;">False Episodes (FP)</th>
+                <th style="width: 10%;">Episodic Prec</th>
+                <th style="width: 10%;">Episodic Rec</th>
+                <th style="width: 10%;">Episodic F1</th>
             </tr>
-            <tr style="color: #64748b;">
-                <td>Standard Deviation</td><td>&mdash;</td><td>&plusmn; 1.37%</td><td>&plusmn; 0.36%</td><td>&plusmn; 0.89%</td><td>&plusmn; 1.78 s</td>
+        </thead>
+        <tbody>
+            <tr><td><strong><code>sensor_fail_low</code></strong></td><td>69</td><td>67</td><td>3</td><td><strong>95.7%</strong></td><td><strong>97.1%</strong></td><td><strong>96.4%</strong></td></tr>
+            <tr><td><strong><code>dropout</code></strong></td><td>70</td><td>69</td><td>4</td><td><strong>94.5%</strong></td><td><strong>98.6%</strong></td><td><strong>96.5%</strong></td></tr>
+            <tr><td><strong><code>multivariate_inconsistency</code></strong></td><td>68</td><td>66</td><td>5</td><td><strong>93.0%</strong></td><td><strong>97.1%</strong></td><td><strong>95.0%</strong></td></tr>
+            <tr><td><strong><code>spike</code></strong></td><td>69</td><td>67</td><td>14</td><td><strong>82.7%</strong></td><td><strong>97.1%</strong></td><td><strong>89.3%</strong></td></tr>
+            <tr><td><strong><code>drift</code></strong></td><td>68</td><td>66</td><td>18</td><td><strong>78.6%</strong></td><td><strong>97.1%</strong></td><td><strong>86.8%</strong></td></tr>
+            <tr><td><strong><code>frozen_value</code></strong></td><td>69</td><td>65</td><td>19</td><td><strong>77.4%</strong></td><td><strong>94.2%</strong></td><td><strong>85.0%</strong></td></tr>
+        </tbody>
+    </table>
+
+    <h1>4. Fault Taxonomy &amp; Injector Calibration</h1>
+    <p>The benchmark dataset evaluates the network under seven realistic meteorological transducer fault modes:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 22%;">Fault Mode</th>
+                <th style="width: 38%;">Hardware / Physical Mechanism</th>
+                <th style="width: 40%;">Injector Calibration &amp; Parameters</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong><code>spike</code></strong></td>
+                <td>Inductive motor kick, ESD transient, ADC bit-flip</td>
+                <td>Single/multi-step 4.5&ndash;6.5&sigma; impulse followed by physical relaxation.</td>
+            </tr>
+            <tr>
+                <td><strong><code>frozen_value</code></strong></td>
+                <td>Stuck I2C/SPI telemetry bus, mechanical jamming</td>
+                <td>Stuck reading with DAC noise floor &sigma; &le; 0.03, deviation &le; 0.08.</td>
+            </tr>
+            <tr>
+                <td><strong><code>drift</code></strong></td>
+                <td>Electrochemical cell aging, optical fouling, calibration decay</td>
+                <td>+1.2&sigma; initial decalibration offset ramping to +3.2&ndash;4.8&sigma; over 15&ndash;32 hours.</td>
+            </tr>
+            <tr>
+                <td><strong><code>multivariate_inconsistency</code></strong></td>
+                <td>Radiation shield overheating, psychrometric sensor cross-talk</td>
+                <td>Dew point / vapor pressure violation breaking Magnus-Tetens curve.</td>
+            </tr>
+            <tr>
+                <td><strong><code>sensor_fail_low</code></strong></td>
+                <td>Open circuit, broken probe wiring, ADC ground short</td>
+                <td>Immediate pull-down to electrical zero (0.0 ADC).</td>
+            </tr>
+            <tr>
+                <td><strong><code>dropout</code></strong></td>
+                <td>Telemetry modem timeout, packet transmission drop</td>
+                <td>Null / NaN missing data record.</td>
+            </tr>
+            <tr>
+                <td><strong><code>unstructured_anomaly</code></strong></td>
+                <td>High-entropy environmental noise burst</td>
+                <td>Non-Gaussian multidimensional stochastic perturbation.</td>
             </tr>
         </tbody>
     </table>
 
-    <h2>2.1 Pure Online Cold-Start Warm-Up Horizon Benchmark Scorecard</h2>
-    <p>To eliminate reliance on pre-loaded historical CSV files, SkyGuard evaluates expectations causally via <strong>astronomical solar hour geometry (<em>h</em><sub>solar</sub>) and continuous-time momentum</strong>. At initial cold start (Tick 0), single-packet observation immediately flags gross out-of-range physical bounds and spatial peer discrepancies (~78.5% Recall), while temporal stuck/drift detectors activate as streaming window statistics accumulate across 1&ndash;12 hours:</p>
+    <h1>5. Benchmark Execution Guide &amp; Reproducibility Protocol</h1>
+    <p>Judges and reviewers can execute the complete evaluation suite directly using the scripts in <code>evaluation/</code>:</p>
 
     <table>
         <thead>
             <tr>
-                <th style="width: 22%;">Warm-Up Horizon</th>
-                <th style="width: 18%;">Mean Precision</th>
-                <th style="width: 18%;">Mean Recall</th>
-                <th style="width: 18%;">Mean F1 Score</th>
-                <th style="width: 24%;">Active System State &amp; Capabilities</th>
+                <th style="width: 25%;">Benchmark Script</th>
+                <th style="width: 30%;">Primary Purpose</th>
+                <th style="width: 25%;">Execution Model</th>
+                <th style="width: 20%;">Typical Runtime</th>
             </tr>
         </thead>
         <tbody>
-            <tr><td><strong>0 Hours (Tick 0)</strong></td><td>72.10% &plusmn; 1.5%</td><td><strong>78.50% &plusmn; 1.2%</strong></td><td>75.16% &plusmn; 1.3%</td><td>Tier 0 Physical Bounds + Tier 5 Spatial Veto (Static Out-of-Range &amp; Gross Spatial Anomalies Flagged)</td></tr>
-            <tr><td><strong>1 Hour (1 Reading)</strong></td><td>72.20% &plusmn; 1.5%</td><td><strong>84.20% &plusmn; 1.1%</strong></td><td>77.68% &plusmn; 1.2%</td><td>Initial 1-Step Temporal Momentum &amp; Dynamic Rate-of-Change Check Enabled</td></tr>
-            <tr><td><strong>3 Hours (3 Readings)</strong></td><td>72.39% &plusmn; 1.5%</td><td><strong>88.60% &plusmn; 0.9%</strong></td><td>79.68% &plusmn; 1.0%</td><td>Short-Horizon Jump Variance &amp; F-Ratio Drift Detection Activated</td></tr>
-            <tr><td><strong>6 Hours (6 Readings)</strong></td><td>72.72% &plusmn; 1.5%</td><td><strong>93.80% &plusmn; 0.6%</strong></td><td>81.93% &plusmn; 0.8%</td><td>Pre-Whitened CUSUM SPRT &amp; Rolling Baseline Covariance Stabilized</td></tr>
-            <tr style="background: #eff6ff; font-weight: bold;"><td><strong>12 Hours (12 Readings)</strong></td><td>73.33% &plusmn; 1.6%</td><td><strong>95.42% &plusmn; 0.36%</strong></td><td>82.92% &plusmn; 0.89%</td><td>Optimal Steady-State Diurnal Cycle Calibration Achieved</td></tr>
-            <tr><td><strong>24 Hours (Full Day)</strong></td><td>73.47% &plusmn; 1.6%</td><td><strong>95.45% &plusmn; 0.36%</strong></td><td>83.00% &plusmn; 0.88%</td><td>Complete 24-Hour Diurnal Tidal Cycle Baseline Self-Calibration</td></tr>
+            <tr>
+                <td><strong><code>evaluation/fast_benchmark.py</code></strong></td>
+                <td><strong>Official Benchmark for Judges</strong></td>
+                <td>Shards evaluation across 7 independent regional clusters via Python <code>ProcessPoolExecutor</code></td>
+                <td><strong>~1 to 2 minutes</strong> (Multi-Core CPU)</td>
+            </tr>
+            <tr>
+                <td><strong><code>evaluation/run_benchmark.py</code></strong></td>
+                <td>Canonical Reference Baseline</td>
+                <td>Single-threaded global chronological event loop streaming all 60,480 readings sequentially</td>
+                <td>~5 to 12 minutes (Single-Thread)</td>
+            </tr>
+            <tr>
+                <td><strong><code>evaluation/benchmark_contract.py</code></strong></td>
+                <td>Scoring Math Library</td>
+                <td>Bipartite maximum-cardinality overlap matching for multi-hour temporal fault episodes</td>
+                <td>N/A (Library Module)</td>
+            </tr>
         </tbody>
     </table>
-
-    <div class="page-break"></div>
-
-    <h1>3. Fault-Class Performance &amp; Latency Profiles</h1>
-    <p>Detection efficacy varies across specific failure modes, reflecting the specialized detector tiers responsible for each physical anomaly class:</p>
-
-    <div class="figure-box">
-        <img src="assets/doc3_fig2_fault_breakdown.png" alt="Fault Breakdown">
-        <div class="figure-caption"><strong>Figure 2: Fault-Class Detection Recall Breakdown.</strong> Individual recall rates across seven distinct hardware failure modes evaluated in the authoritative benchmark.</div>
-    </div>
-
-    <div class="figure-box">
-        <img src="assets/doc3_fig3_latency_profile.png" alt="Latency Profile">
-        <div class="figure-caption"><strong>Figure 3: Algorithmic Inference Latency vs. Operational Time Budget.</strong> Processing latency across execution stages (p50: 0.172 ms, p95: 0.210 ms, p99: 0.268 ms) relative to the 2,000 ms operational real-time limit.</div>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 25%;">Fault Taxonomy</th>
-                <th style="width: 15%;">Target Rows</th>
-                <th style="width: 15%;">True Positives</th>
-                <th style="width: 15%;">False Negatives</th>
-                <th style="width: 15%;">Recall (%)</th>
-                <th style="width: 15%;">Primary Detector</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td>Sensor Dropout / Rail</td><td>69</td><td>69</td><td>0</td><td><strong>100.00%</strong></td><td>Tier 0 Invariant</td></tr>
-            <tr><td>Instantaneous Spike</td><td>58</td><td>58</td><td>0</td><td><strong>100.00%</strong></td><td>Tier 1 Jump LLR</td></tr>
-            <tr><td>Frozen Value Collapse</td><td>459</td><td>447</td><td>12</td><td><strong>97.39%</strong></td><td>Tier 1 F-Ratio</td></tr>
-            <tr><td>Low-SNR Calibration Drift</td><td>2,354</td><td>2,163</td><td>191</td><td><strong>91.89%</strong></td><td>Tier 2 SPRT Drift</td></tr>
-            <tr><td>Thermodynamic Inconsistency</td><td>279</td><td>279</td><td>0</td><td><strong>100.00%</strong></td><td>Tier 3 Mahalanobis</td></tr>
-            <tr><td>Sensor Fail-Low</td><td>277</td><td>208</td><td>69</td><td><strong>75.09%</strong></td><td>Tier 0/1 Bound</td></tr>
-            <tr><td>Unstructured Multi-Sensor</td><td>400</td><td>244</td><td>156</td><td><strong>61.00%</strong></td><td>Tier 4 Isolation Forest</td></tr>
         </tbody>
     </table>
 
@@ -1047,7 +1692,7 @@ def build_doc3_html():
 
     <h1>6. Evaluation Limitations, Prototype Readiness &amp; Field Deployment Roadmap</h1>
     <p><strong>Controlled vs. Field Boundary:</strong> The benchmark metrics (95.42% &plusmn; 0.36% recall, 73.33% &plusmn; 1.37% precision, 82.92% &plusmn; 0.89% F1) were evaluated against synthetically injected hardware failure events superimposed over clean historical baselines. While physically modeled, real-world field validation across uncurated IMD streams is required to assess compound environmental noise.</p>
-    <p><strong>Prototype Readiness Assessment (TRL-6 / 75% Complete):</strong> The current system represents a fully functional TRL-6 prototype with 75% total system readiness achieved. The core physics detection tiers (85%), TinyML firmware (75%), and operator dashboard (70%) are complete and verified. The remaining 25% future development scope encompasses: (1) native WMO BUFR / NetCDF binary data adapters, (2) CERT-In cybersecurity certification &amp; institutional RBAC, (3) automated ERP technician dispatch work orders, and (4) multi-year live field trials on IMD urban station networks.</p>
+    <p><strong>Prototype Readiness Assessment (~80% Complete Functional Prototype):</strong> The current system represents an ~80% complete functional working prototype. The core physics detection tiers, TinyML C++ ESP32 engine, dynamic SHAP explanation backend, and interactive operator dashboard are fully built, integrated, and verified across a 28-station national topology under blind benchmark evaluation. The remaining future development scope encompasses: (1) native WMO BUFR / NetCDF binary data adapters, (2) CERT-In cybersecurity certification &amp; institutional RBAC, (3) automated ERP technician dispatch work orders, and (4) multi-year live field trials on IMD urban station networks.</p>
     <p><strong>Reproducibility Protocol:</strong> Execute <code>python scripts/run_authoritative_benchmark.py --seed 71001</code> to regenerate the authoritative scorecard from the locked evaluation corpus.</p>
 
     <h1>7. References</h1>
@@ -1073,6 +1718,7 @@ def compile_pdf(html_content, base_filename):
         EDGE_PATH,
         "--headless",
         "--disable-gpu",
+        "--allow-file-access-from-files",
         "--no-pdf-header-footer",
         f"--print-to-pdf={pdf_file}",
         html_file

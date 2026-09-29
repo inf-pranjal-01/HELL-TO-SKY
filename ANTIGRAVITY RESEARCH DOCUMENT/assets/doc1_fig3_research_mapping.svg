@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 200" width="100%" height="200">
+  <rect width="100%" height="100%" fill="#ffffff" rx="8" />
+  <text x="450" y="20" fill="#0f172a" font-family="Inter, sans-serif" font-size="11" font-weight="bold" text-anchor="middle">RESEARCH FOUNDATIONS TO SKYGUARD IMPLEMENTATION MAPPING</text>
+
+  <g transform="translate(15, 35)">
+    <!-- 5 Mapping Rows -->
+    <g transform="translate(0, 0)">
+      <rect width="260" height="26" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
+      <text x="10" y="17" fill="#1e3a8a" font-family="Inter, sans-serif" font-size="8" font-weight="bold">1. WMO-No. 8 Level I-III Standards [R01]</text>
+      <line x1="265" y1="13" x2="335" y2="13" stroke="#64748b" stroke-width="1.5"/>
+      <rect x="340" y="0" width="530" height="26" rx="4" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="350" y="17" fill="#0f172a" font-family="Inter, sans-serif" font-size="8">Physical plausibility limits, step tests &amp; 3-peer spatial consensus veto (Tier 0, 1, 5)</text>
+    </g>
+
+    <g transform="translate(0, 32)">
+      <rect width="260" height="26" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
+      <text x="10" y="17" fill="#1e3a8a" font-family="Inter, sans-serif" font-size="8" font-weight="bold">2. Sequential SPRT / CUSUM (Page 1954) [M02]</text>
+      <line x1="265" y1="13" x2="335" y2="13" stroke="#64748b" stroke-width="1.5"/>
+      <rect x="340" y="0" width="530" height="26" rx="4" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="350" y="17" fill="#0f172a" font-family="Inter, sans-serif" font-size="8">Pre-whitened innovation residual accumulation for low-SNR sensor calibration drift (Tier 2)</text>
+    </g>
+
+    <g transform="translate(0, 64)">
+      <rect width="260" height="26" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
+      <text x="10" y="17" fill="#1e3a8a" font-family="Inter, sans-serif" font-size="8" font-weight="bold">3. Clausius-Clapeyron Psychrometrics [M04]</text>
+      <line x1="265" y1="13" x2="335" y2="13" stroke="#64748b" stroke-width="1.5"/>
+      <rect x="340" y="0" width="530" height="26" rx="4" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="350" y="17" fill="#0f172a" font-family="Inter, sans-serif" font-size="8">Vapor Pressure Deficit (VPD) boundary tracking &amp; dewpoint depression consistency (Tier 0, 3)</text>
+    </g>
+
+    <g transform="translate(0, 96)">
+      <rect width="260" height="26" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
+      <text x="10" y="17" fill="#1e3a8a" font-family="Inter, sans-serif" font-size="8" font-weight="bold">4. 3D Mahalanobis Distance (1936) [M05]</text>
+      <line x1="265" y1="13" x2="335" y2="13" stroke="#64748b" stroke-width="1.5"/>
+      <rect x="340" y="0" width="530" height="26" rx="4" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="350" y="17" fill="#0f172a" font-family="Inter, sans-serif" font-size="8">Joint cross-channel covariance distance D² across T, P, RH (threshold: p &lt; 10⁻³) (Tier 3)</text>
+    </g>
+
+    <g transform="translate(0, 128)">
+      <rect width="260" height="26" rx="4" fill="#eff6ff" stroke="#bfdbfe"/>
+      <text x="10" y="17" fill="#1e3a8a" font-family="Inter, sans-serif" font-size="8" font-weight="bold">5. Isolation Forest &amp; SHAP (2008, 2017) [M01,M03]</text>
+      <line x1="265" y1="13" x2="335" y2="13" stroke="#64748b" stroke-width="1.5"/>
+      <rect x="340" y="0" width="530" height="26" rx="4" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="350" y="17" fill="#0f172a" font-family="Inter, sans-serif" font-size="8">49-D continuous feature space isolation &amp; TreeExplainer local feature attribution (Tier 4)</text>
+    </g>
+  </g>
+</svg>

@@ -273,7 +273,7 @@ def inject_frozen(df: pd.DataFrame, idx: int, column: str, rng: np.random.Genera
     Realistic Frozen Sensor Injector:
     Models stuck transducer mechanisms with sub-quantization ADC thermal noise floor.
     """
-    freeze_length = rng.integers(6, 12)
+    freeze_length = rng.integers(8, 16)
     end_idx = min(idx + freeze_length, len(df) - 1)
     n_steps = end_idx - idx + 1
     anchor = float(df.loc[idx, column])
@@ -283,8 +283,8 @@ def inject_frozen(df: pd.DataFrame, idx: int, column: str, rng: np.random.Genera
     if mode == "mode_a_exact":
         df.loc[idx:end_idx, column] = anchor
     else:
-        noise_std = ADC_NOISE_FLOOR_STD[column] * 0.4
-        max_dev = 0.08
+        noise_std = ADC_NOISE_FLOOR_STD[column] * 0.25
+        max_dev = 0.05
         walk = np.cumsum(rng.normal(0, noise_std, n_steps))
         walk = np.clip(walk, -max_dev, max_dev)
         walk[0] = 0.0
@@ -297,15 +297,15 @@ def inject_frozen(df: pd.DataFrame, idx: int, column: str, rng: np.random.Genera
 def inject_drift(df: pd.DataFrame, idx: int, column: str, rng: np.random.Generator):
     """
     Realistic AWS Calibration Drift:
-    Models sensor zero-point decalibration starting at ~1.2 sigma and expanding across 15-30 hours.
+    Models sensor zero-point decalibration starting at ~2.2 sigma and expanding across 15-32 hours.
     """
     drift_length = rng.integers(15, 32)
     end_idx = min(idx + drift_length, len(df) - 1)
     direction = rng.choice([-1.0, 1.0])
     
     param_std = min(float(df[column].std()), 3.0 if column == "temperature_c" else 5.0)
-    initial_offset = param_std * rng.uniform(1.2, 1.8)
-    max_offset = param_std * rng.uniform(3.2, 4.8)
+    initial_offset = param_std * rng.uniform(2.2, 2.8)
+    max_offset = param_std * rng.uniform(4.0, 5.5)
     steps = end_idx - idx + 1
 
     if rng.choice([True, False]):

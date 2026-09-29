@@ -215,10 +215,6 @@ class StationBuffer:
         # Causal Baseline Exclusion: only admit to clean baseline if healthy & non-anomalous
         if self.health.should_include_in_baseline() and not verdict.get("is_anomaly") and not self.recovery_active:
             self._clean_rows.append(row)
-            # Gradually decay SPRT accumulator on confirmed clean readings
-            for p in PARAMS:
-                self.sprt_state[p]["s_pos"] = max(0.0, self.sprt_state[p]["s_pos"] * 0.75)
-                self.sprt_state[p]["s_neg"] = max(0.0, self.sprt_state[p]["s_neg"] * 0.75)
 
     def reset_detection_state(self):
         """

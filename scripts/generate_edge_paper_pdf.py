@@ -233,7 +233,7 @@ DOC4_MD = r"""# SKYGUARD AI — DOCUMENT 4
 ---
 
 ### Abstract
-This paper presents the edge-native embedded software component of **SkyGuard AI**, designed for autonomous online anomaly detection on single-node Automatic Weather Stations (AWS) powered by ESP32 microcontrollers (or equivalent 32-bit MCUs). Operating under strict memory constraints (~320 KB SRAM / 4 MB Flash) and zero server GPU connectivity, the edge firmware monitors three continuous physical telemetry channels: Temperature (°C), Atmospheric Pressure (hPa), and Relative Humidity (% RH). To eliminate brittleness associated with static, hardcoded physical thresholds, we introduce an **Exponentially Weighted Moving Average (EWMA) adaptive signal processing framework** that dynamicizes detection boundaries live from signal statistics (<i>K<sub>σ</sub></i> × <i>EWMA<sub>std</sub></i>) with an operational half-life of <i>τ</i> ≈ 35 hours. Furthermore, we deploy a **quantized 30-tree Isolation Forest (<i>Q8.8</i> fixed-point arithmetic)** stored in microcontroller PROGMEM (26.5 KB Flash footprint, < 15 µs inference time) to catch unstructured pre-amplifier degradation. 
+This paper presents the edge-native embedded software component of **SkyGuard AI**, designed for autonomous online anomaly detection on single-node Automatic Weather Stations (AWS) powered by ESP32 microcontrollers (or equivalent 32-bit MCUs). Operating under strict memory constraints (~320 KB SRAM / 4 MB Flash) and zero server GPU connectivity, the edge firmware monitors three continuous physical telemetry channels: Temperature (°C), Atmospheric Pressure (hPa), and Relative Humidity (% RH). To eliminate brittleness associated with static, hardcoded physical thresholds, we introduce an **Exponentially Weighted Moving Average (EWMA) adaptive signal processing framework** that dynamicizes detection boundaries live from signal statistics (<i>K<sub>σ</sub></i> × <i>EWMA<sub>std</sub></i>) with an operational half-life of <i>τ</i> ≈ 35 hours. Furthermore, we deploy a **quantized 30-tree Isolation Forest (<i>Q8.8</i> fixed-point arithmetic)** stored in microcontroller PROGMEM (26.5 KB Flash footprint, high-efficiency fixed-point inference) to catch unstructured pre-amplifier degradation. 
 
 We report multi-seed empirical benchmark scorecards evaluated across 60,480 continuous observations across 28 station datasets across 7 independent calibration seeds. On natural transducer failures, the edge engine achieves **100% catch rate for dropouts**, **95.8% for unstructured anomalies**, **95.7% for sensor rail failures**, **95.4% for psychrometric multivariate violations**, **89.7% for spikes**, and **84.1% for calibration drift**. While the Central SkyGuard System achieves 95.42% Recall and 73.33% Precision via 4-station spatial peer consensus, we present an exhaustive comparative analysis exposing the "Spatial Consciousness Bottleneck"—explaining why a standalone edge node operating in total spatial isolation achieves 97.2% episodic drift recall, while row-level micro-precision is bounded by regional mesoscale weather front ambiguity.
 
@@ -262,7 +262,7 @@ Deploying anomaly detection directly on the ESP32 microcontroller is not an opti
 
 <div class="usecase-box">
   <b>PROBLEM 1: Zero-Latency Data Poisoning Firewall (Downstream NWP Protection)</b><br>
-  Central weather models (Numerical Weather Prediction 4D-Var data assimilation, flash flood forecasting, airport automated AWOS) ingest weather feeds automatically. If a sensor suffers an electrical short or spike (e.g. pressure jumping +20 hPa due to a loose wire), the cloud ingests bad data <i>before any human operator or central server can review it</i>, destabilizing weather forecasts or triggering false emergency warnings. The ESP32 evaluates readings directly at the sensor pin in <b>19 microseconds</b>, quarantining corrupted readings before transmission.
+  Central weather models (Numerical Weather Prediction 4D-Var data assimilation, flash flood forecasting, airport automated AWOS) ingest weather feeds automatically. If a sensor suffers an electrical short or spike (e.g. pressure jumping +20 hPa due to a loose wire), the cloud ingests bad data <i>before any human operator or central server can review it</i>, destabilizing weather forecasts or triggering false emergency warnings. The ESP32 evaluates readings directly at the sensor pin in real time, quarantining corrupted readings before transmission.
 </div>
 
 <div class="usecase-box">
@@ -326,12 +326,37 @@ Utilizing available ESP32 SRAM headroom, the firmware maintains a 512-slot circu
 2. **Multi-Day Slope Consistency:** Trend analysis across 24h and 48h windows.
 3. **Fixed-Size O(1) Memory Footprint:** Overwrites oldest entries using bitwise index masking: `idx = (head - 1 - offset) & 511`.
 
-#### 3.2 Quantized <i>Q8.8</i> TinyML Isolation Forest
-For high-dimensional, unstructured anomaly detection (e.g., pre-amplifier noise or partial bridge degradation), we train a 30-tree Isolation Forest on clean sensor data and quantize decision thresholds to *Q8.8* fixed-point integers (8 integer bits, 8 fractional bits):
+#### 3.2 Quantized <i>Q8.8</i> TinyML Isolation Forest & Mathematical Verification Proof
+For high-dimensional, unstructured anomaly detection (e.g., pre-amplifier noise or partial bridge degradation), we train a 30-tree Isolation Forest on clean sensor data and quantize decision thresholds to *Q8.8* fixed-point integers (1 sign bit + 7 integer bits + 8 fractional bits):
 
+* **Code Verification & Mathematical Proof:** As declared in `EDGE/esp32/src/edge/tinyml_iforest.h` (`int16_t threshold_q8`) and executed in `EDGE/esp32/src/edge/edge_engine.cpp` (`evaluate_tinyml`):
+  ```cpp
+  // Fixed-point Q8.8 feature quantization
+  float f = feats[i] * 256.0f; // Scale by 2^8 = 256
+  if (f > 32767.0f) f = 32767.0f;
+  if (f < -32768.0f) f = -32768.0f;
+  feats_q8[i] = (int16_t)f;
+  ```
+  Quantizing floating-point features by scaling by $2^8 = 256$ into a signed 16-bit integer (`int16_t`) allocates exactly 8 fractional bits and 8 signed integer bits ($1\text{ sign bit} + 7\text{ value bits} + 8\text{ fractional bits} = 16\text{ bits}$), proving 100% adherence to signed Q8.8 fixed-point quantization.
 * **Flash Footprint:** 4,514 total nodes stored in PROGMEM (`tinyml_iforest.h`) ⇒ **26.5 KB Flash**.
-* **Inference Arithmetic:** Pure integer arithmetic using bit-shifts (`>> 8`). Zero floating-point unit (FPU) overhead.
-* **Inference Speed:** Executed in **< 15 µs** on 240 MHz ESP32 CPU.
+* **Inference Arithmetic:** Pure integer comparison using fixed-point bit shifts (`>> 8`). Zero floating-point unit (FPU) overhead.
+* **Inference Speed:** High-efficiency fixed-point execution on 240 MHz ESP32 CPU.
+
+---
+
+### 3.3 Firmware Flashing, Testing Runners & Production Benchmarks
+
+#### Flashing Methods & Hardware Setup
+The firmware is target-built for dual-core ESP32 microcontrollers and supports two deployment workflows:
+1. **PlatformIO C++ Project (`EDGE/esp32`)**: Full C++17 modular build environment targeting ESP-IDF / FreeRTOS (`pio run --target upload`).
+2. **Arduino IDE Standalone Sketch (`EDGE/esp32_arduino/edge_engine.cpp`)**: Single-file C++ sketch for instant flashing via Arduino IDE (requiring `ArduinoJson` library).
+
+#### Telemetry Streaming & Simulation Runners
+* **Physical Hardware USB Streaming (`scripts/test_esp32_hardware.py`)**: Streams real-time AWS CSV records through the physical ESP32 MCU over USB Serial at 115200 baud, capturing real-time edge advisory tags (`SAFE_FORWARD`, `DEFER_TO_CENTRAL`, `CERTAIN_FAULT`).
+* **Virtual MCU Node Simulation (`scripts/virtual_esp32_node.py`)**: Simulates virtual ESP32 datalogger behavior for automated CI/CD evaluation without physical hardware attached.
+
+#### Fast Parallel Production Benchmark Engine (`evaluation/fast_benchmark.py`)
+To evaluate 60,480 physical telemetry rows across 28 stations, judges can execute `python evaluation/fast_benchmark.py`. The engine shards evaluation across the **7 independent regional clusters** using Python `ProcessPoolExecutor`. Because spatial consensus queries and station buffers never cross cluster boundaries, each 4-station cluster is an independent Markov state process, guaranteeing **100% bit-for-bit mathematical equivalence** to sequential execution (`evaluation/run_benchmark.py`) while reducing runtime to ~1–2 minutes. Formal temporal fault contracts are scored via bipartite overlap matching (`evaluation/benchmark_contract.py`).
 
 ---
 
@@ -453,35 +478,42 @@ Measured performance on single-core 240 MHz ESP32 microcontroller:
 | :--- | :--- | :--- | :--- |
 | **SRAM Memory Usage** | **7.12 KB** | 320 KB Usable DRAM | **2.22%** |
 | **Flash PROGMEM Footprint** | **26.50 KB** | 4,096 KB SPI Flash | **0.65%** |
-| **Single-Step Rules Inference Time** | **< 4.2 µs** | 1,000,000 µs (1 sec budget) | **< 0.001%** |
-| **Quantized IForest Inference Time** | **< 14.8 µs** | 1,000,000 µs (1 sec budget) | **< 0.002%** |
-| **Total Per-Sample Latency** | **19.0 µs** | 1,000,000 µs (1 sec budget) | **52,600x Faster than Real-Time** |
+| **Rule-Based Filtering** | **Active** | On-Device Memory | **Low Overhead** |
+| **Quantized IForest Engine** | **Active** | PROGMEM Table | **Low Overhead** |
 
 ---
 
 ### 9. Conclusion & Paper Publication Summary
 
-The SkyGuard Edge AI firmware establishes an edge-native, zero-leakage, dynamic anomaly detection framework tailored for resource-constrained microcontrollers. By combining online EWMA adaptive statistics with *Q8.8* quantized Isolation Forest inference, the system achieves **86.93% overall recall across natural sensor faults** and **97.2% episode recall on drift** with less than **8 KB SRAM usage** and **19 µs execution latency**.
+The SkyGuard Edge AI firmware establishes an edge-native, zero-leakage, dynamic anomaly detection framework tailored for resource-constrained microcontrollers. By combining online EWMA adaptive statistics with *Q8.8* quantized Isolation Forest inference, the system achieves **86.93% overall recall across natural sensor faults** and **97.2% episode recall on drift** with less than **8 KB SRAM usage** and real-time execution capability.
 """
 
 def build_pdf_and_md():
+    print("Reading primary manual from ESP32_DEMO_AND_RESEARCH_MANUAL.md...")
+    manual_path = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ESP32_DEMO_AND_RESEARCH_MANUAL.md"
+    if os.path.exists(manual_path):
+        with open(manual_path, "r", encoding="utf-8") as f:
+            doc_content = f.read()
+    else:
+        doc_content = DOC4_MD
+
     print("Writing updated Markdown documents...")
     md_path1 = os.path.join(DIR1, "SkyGuard_Document_4_Edge_AI_ESP32_Architecture_and_Empirical_Benchmarking.md")
     with open(md_path1, "w", encoding="utf-8") as f:
-        f.write(DOC4_MD)
+        f.write(doc_content)
         
     md_path2 = os.path.join(DIR2, "SkyGuard_Document_4_Edge_AI_ESP32_Architecture_and_Empirical_Benchmarking.md")
     with open(md_path2, "w", encoding="utf-8") as f:
-        f.write(DOC4_MD)
+        f.write(doc_content)
 
-    print("Converting Markdown to HTML with IEEE styling...")
-    html_body = markdown.markdown(DOC4_MD, extensions=["tables", "fenced_code"])
+    print("Converting Markdown to HTML with clean typography styling...")
+    html_body = markdown.markdown(doc_content, extensions=["tables", "fenced_code"])
     
     full_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>SkyGuard Document 4 - Edge AI Architecture</title>
+<title>SkyGuard Document 4 - Edge AI ESP32 Architecture & Empirical Benchmarking</title>
 <style>
 {CSS_STYLE}
 </style>
@@ -501,30 +533,26 @@ def build_pdf_and_md():
         f.write(full_html)
 
     print("Rendering PDF via Microsoft Edge Headless...")
-    pdf_path1 = os.path.join(DIR1, "Document_4_IEEE_Edge_AI_Firmware_v1.pdf")
-    pdf_path2 = os.path.join(DIR2, "Document_4_IEEE_Edge_AI_Firmware_v1.pdf")
-
-    cmd = [
-        EDGE_PATH,
-        "--headless",
-        "--disable-gpu",
-        f"--print-to-pdf={pdf_path1}",
-        html_path1
+    pdf_targets = [
+        os.path.join(DIR1, "SkyGuard_Document_4_Edge_AI_ESP32_Architecture_and_Empirical_Benchmarking.pdf"),
+        os.path.join(DIR1, "Document_4_IEEE_Edge_AI_Firmware_v1.pdf"),
+        os.path.join(DIR2, "SkyGuard_Document_4_Edge_AI_ESP32_Architecture_and_Empirical_Benchmarking.pdf"),
+        os.path.join(DIR2, "Document_4_IEEE_Edge_AI_Firmware_v1.pdf"),
     ]
-    subprocess.run(cmd, check=True)
-    print(f"Generated PDF 1: {pdf_path1}")
 
-    cmd2 = [
-        EDGE_PATH,
-        "--headless",
-        "--disable-gpu",
-        f"--print-to-pdf={pdf_path2}",
-        html_path2
-    ]
-    subprocess.run(cmd2, check=True)
-    print(f"Generated PDF 2: {pdf_path2}")
+    for pdf_path in pdf_targets:
+        cmd = [
+            EDGE_PATH,
+            "--headless",
+            "--disable-gpu",
+            "--no-pdf-header-footer",
+            f"--print-to-pdf={pdf_path}",
+            html_path1
+        ]
+        subprocess.run(cmd, check=True)
+        print(f"Generated PDF: {pdf_path}")
 
-    print("\nSUCCESS: Document 4 MD, HTML, and PDF generated in both directories!")
+    print("\nSUCCESS: Document 4 MD, HTML, and PDF generated in both research doc directories!")
 
 if __name__ == "__main__":
     build_pdf_and_md()
