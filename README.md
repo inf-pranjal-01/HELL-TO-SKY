@@ -84,12 +84,6 @@ For in-depth technical analysis, mathematical derivations, and hardware deployme
 
 ## 🏛️ System Architecture
 
-<div align="center">
-
-![SkyGuard AI System Architecture](docs/assets/architecture_diagram.png)
-
-</div>
-
 ```mermaid
 flowchart TD
     subgraph ObservationSources ["1. OBSERVATION & TELEMETRY SOURCES"]
