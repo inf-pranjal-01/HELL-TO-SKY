@@ -58,13 +58,20 @@ const resolvedMode: ApiMode = rawApiMode === 'real' ? 'real' : 'mock';
 
 const resolveBaseUrl = (): string => {
   if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) {
-    return String(import.meta.env.VITE_API_BASE_URL).replace(/\/+$/, '');
+    const customUrl = String(import.meta.env.VITE_API_BASE_URL).trim();
+    if (customUrl.length > 0) {
+      return customUrl.replace(/\/+$/, '');
+    }
   }
-  if (typeof window !== 'undefined' && window.location?.hostname) {
-    const host = window.location.hostname;
-    return `http://${host}:8000`;
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    // If running in local Vite development mode (e.g. port 5173), point to port 8000
+    if (window.location.port === '5173' || window.location.port === '3000') {
+      return `${window.location.protocol}//${window.location.hostname}:8000`;
+    }
+    // In production (served by Nginx on port 80/443), Nginx proxies /api and /docs directly at same origin
+    return window.location.origin;
   }
-  return 'http://34.93.226.151:8000';
+  return 'https://34-93-226-151.sslip.io';
 };
 
 const resolvedBaseUrl = resolveBaseUrl();
@@ -73,7 +80,9 @@ const resolveWsUrl = (): string => {
   if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WS_BASE_URL) {
     return import.meta.env.VITE_WS_BASE_URL;
   }
-  return resolvedBaseUrl.replace(/^http/, 'ws') + '/ws/live';
+  const wsProtocol = resolvedBaseUrl.startsWith('https') ? 'wss' : 'ws';
+  const cleanHost = resolvedBaseUrl.replace(/^https?:\/\//, '');
+  return `${wsProtocol}://${cleanHost}/ws/live`;
 };
 
 export const API_CONFIG: ApiConfig = {

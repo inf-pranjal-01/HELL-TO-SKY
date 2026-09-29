@@ -11,7 +11,7 @@
 [![Google Cloud](https://img.shields.io/badge/GCP-Cloud%20Run%20Ready-4285F4.svg?logo=googlecloud&logoColor=white)](https://cloud.google.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**[🌐 Live Demo Dashboard (GCP Cloud)](http://34.93.226.151)** • **[⚡ Backend API Docs](http://34.93.226.151:8000/docs)** • **[📊 Fast Benchmark Engine](evaluation/fast_benchmark.py)**
+**[🌐 Live Demo Dashboard (HTTPS Secure)](https://34-93-226-151.sslip.io)** • **[⚡ Backend API Docs](https://34-93-226-151.sslip.io/docs)** • **[📊 Fast Benchmark Engine](evaluation/fast_benchmark.py)**
 
 ---
 
@@ -252,14 +252,14 @@ gcloud compute ssh --zone "asia-south1-c" "skyguard-ai-recore-2026"
 git clone https://github.com/inf-pranjal-01/HELL-TO-SKY.git
 cd HELL-TO-SKY && git pull origin main
 
-# 3. Launch Backend & Frontend background services
-nohup ./venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
-sudo nohup serve -s frontend/dist -l 80 > frontend.log 2>&1 &
+# 3. Launch Backend with PM2 & Reload Nginx
+pm2 start "./venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000" --name "skyguard-backend"
+sudo systemctl restart nginx
 ```
 
-- **Live Production Dashboard:** [http://34.93.226.151](http://34.93.226.151)
-- **Live Interactive API Docs (Swagger):** [http://34.93.226.151:8000/docs](http://34.93.226.151:8000/docs)
-- **Live Station Health Telemetry:** [http://34.93.226.151:8000/api/stations](http://34.93.226.151:8000/api/stations)
+- **Live Production Dashboard (HTTPS):** [https://34-93-226-151.sslip.io](https://34-93-226-151.sslip.io)
+- **Live Interactive API Docs (Swagger):** [https://34-93-226-151.sslip.io/docs](https://34-93-226-151.sslip.io/docs)
+- **Live Station Health Telemetry:** [https://34-93-226-151.sslip.io/api/stations](https://34-93-226-151.sslip.io/api/stations)
 
 ---
 
