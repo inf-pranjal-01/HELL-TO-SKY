@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SkyGuard AI — Demonstration Script &amp; Visual Storyboard Blueprint</title>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    
+    @page {
+        size: A4 portrait;
+        margin: 14mm 14mm 14mm 14mm;
+        @bottom-center {
+            content: "Page " counter(page) " of " counter(pages);
+            font-family: 'Inter', sans-serif;
+            font-size: 8pt;
+            color: #64748b;
+        }
+    }
+    
+    body {
+        font-family: 'Inter', -apple-system, sans-serif;
+        font-size: 8.8pt;
+        line-height: 1.45;
+        color: #1e293b;
+        background: #ffffff;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .header-banner {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        color: #ffffff;
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 12px;
+    }
+    
+    .header-badge {
+        font-size: 7pt;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        background: rgba(255,255,255,0.2);
+        padding: 2px 6px;
+        border-radius: 3px;
+        display: inline-block;
+        margin-bottom: 4px;
+    }
+    
+    .header-title {
+        font-size: 16pt;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: -0.3px;
+    }
+    
+    .header-subtitle {
+        font-size: 9.5pt;
+        color: #93c5fd;
+        font-weight: 500;
+        margin-top: 2px;
+    }
+    
+    .script-box {
+        background: #f8fafc;
+        border: 1.5px solid #cbd5e1;
+        border-left: 4px solid #3b82f6;
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin-bottom: 12px;
+    }
+    
+    .script-label {
+        font-size: 8pt;
+        font-weight: 800;
+        color: #1e3a8a;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 4px;
+    }
+    
+    .script-text {
+        font-size: 9pt;
+        color: #0f172a;
+        font-style: italic;
+        line-height: 1.4;
+    }
+    
+    .figure-container {
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        border-radius: 6px;
+        padding: 10px;
+        text-align: center;
+        margin-bottom: 12px;
+    }
+    
+    .figure-container img {
+        width: 100%;
+        max-height: 340px;
+        object-fit: contain;
+        border-radius: 4px;
+    }
+    
+    .verdict-card {
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 8.5pt;
+        margin-top: 8px;
+    }
+    
+    .verdict-warn {
+        background: #fef2f2;
+        border: 1.5px solid #fecaca;
+        border-left: 4px solid #dc2626;
+        color: #7f1d1d;
+    }
+    
+    .verdict-pass {
+        background: #f0fdf4;
+        border: 1.5px solid #bbf7d0;
+        border-left: 4px solid #16a34a;
+        color: #14532d;
+    }
+    
+    .grid-2col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    
+    .info-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 8px 12px;
+    }
+    
+    .info-card h4 {
+        margin: 0 0 4px 0;
+        font-size: 8.5pt;
+        color: #1e3a8a;
+        font-weight: 700;
+    }
+    
+    .page-break {
+        page-break-before: always;
+    }
+    </style>
+</head>
+<body>
+
+    <!-- PAGE 1: SCENE 1 (SINGLE STATION ISOLATED VIEW) -->
+    <div class="header-banner">
+        <div class="header-badge">Demonstration Video Script &amp; Storyboard Blueprint — Page 1 of 2</div>
+        <div class="header-title">Scene 1: Isolated Single-Station Observation (The False Anomaly Trap)</div>
+        <div class="header-subtitle">Demonstrates how single-station threshold detectors trigger false disaster alerts during extreme local events</div>
+    </div>
+
+    <div class="script-box">
+        <div class="script-label">🎙️ Presenter Script &amp; Voiceover Narrative:</div>
+        <div class="script-text">
+            "Look at the live stream on screen. Here is <strong>Station 01</strong> monitoring surface Ambient Temperature, Station Pressure, and Relative Humidity. At timestamp <strong>T = 14:30</strong>, notice how the temperature reading suddenly spikes by <strong>+6.4°C</strong> in a single observation interval! In isolation, traditional single-station algorithms look at this sharp excursion and immediately flag it as a sensor failure or hardware glitch. But is it really a fault?"
+        </div>
+    </div>
+
+    <div class="figure-container">
+        <img src="assets/scene1_single_station.png" alt="Scene 1 Single Station Graph">
+    </div>
+
+    <div class="verdict-card verdict-warn">
+        <strong style="font-size: 9.5pt;">🚨 Traditional Single-Station Detector Verdict: FAULT DETECTED (FALSE ALARM)</strong><br>
+        <strong>Why it fails:</strong> Single-station algorithms evaluate observations in total isolation. Without regional context, a sharp physical temperature jump is algorithmically indistinguishable from an electrical spike or sensor latch-up.
+    </div>
+
+    <div class="grid-2col">
+        <div class="info-card">
+            <h4>Physical Telemetry Parameters (Station 01)</h4>
+            <ul style="margin: 0; padding-left: 16px; font-size: 8pt;">
+                <li><strong>Ambient Temperature (T):</strong> 28.1°C &rarr; 34.5°C at T = 14:30</li>
+                <li><strong>Station Pressure (P):</strong> 1010.2 hPa &rarr; 1004.1 hPa (Barometric Dip)</li>
+                <li><strong>Relative Humidity (RH):</strong> 65.0% &rarr; 84.0% (Moisture Inflow)</li>
+            </ul>
+        </div>
+        <div class="info-card">
+            <h4>Demonstrated System Limitation</h4>
+            <p style="margin: 0; font-size: 8pt;">Demonstrates why simple single-point rules trigger massive operator alert fatigue during dynamic weather events, proving the absolute necessity of spatial peer consensus.</p>
+        </div>
+    </div>
+
+    <!-- PAGE 2: SCENE 2 (MULTI-STATION SPATIAL CONSENSUS VIEW) -->
+    <div class="page-break"></div>
+
+    <div class="header-banner" style="background: linear-gradient(135deg, #065f46 0%, #059669 100%);">
+        <div class="header-badge">Demonstration Video Script &amp; Storyboard Blueprint — Page 2 of 2</div>
+        <div class="header-title">Scene 2: Zoomed-Out Multi-Station Spatial Peer Consensus View</div>
+        <div class="header-subtitle">SkyGuard AI's Tier 5 Spatial Engine cross-checks regional peers to distinguish genuine weather fronts from faults</div>
+    </div>
+
+    <div class="script-box" style="border-left-color: #059669;">
+        <div class="script-label" style="color: #065f46;">🎙️ Presenter Script &amp; Voiceover Narrative:</div>
+        <div class="script-text">
+            "Now let's zoom out on screen to get broader spatial context! We bring in two neighboring stations from the same 50 km microclimate cluster: <strong>Station 02</strong> (12 km North) and <strong>Station 03</strong> (24 km East). Notice that at the exact same timestamp <strong>T = 14:30</strong>, both Station 02 and Station 03 record the exact same rapid thermodynamic shift! Because multiple independent physical sensors agree, this is NOT a hardware fault—it is a <strong>genuine regional weather event</strong>, such as an approaching storm front or gust outflow! <strong>SkyGuard AI's Tier 5 Spatial Consensus Engine</strong> automatically cross-checks regional peers and <strong>VETOES the false alert back to NORMAL</strong>."
+        </div>
+    </div>
+
+    <div class="figure-container">
+        <img src="assets/scene2_multi_station.png" alt="Scene 2 Multi Station Graph">
+    </div>
+
+    <div class="verdict-card verdict-pass">
+        <strong style="font-size: 9.5pt;">✅ SkyGuard AI Tier 5 Spatial Consensus Verdict: VETOED TO NORMAL (GENUINE METEOROLOGICAL FRONT)</strong><br>
+        <strong>SkyGuard Resolution:</strong> Alert Vetoed | System Status: NORMAL | Spatial Consensus: 3 / 3 Cluster Stations Agree | Action: Telemetry passed clean to NWP forecast models without false maintenance dispatch.
+    </div>
+
+    <div class="grid-2col">
+        <div class="info-card">
+            <h4>Spatial Peer Cluster Verification (50 km Horizon)</h4>
+            <ul style="margin: 0; padding-left: 16px; font-size: 8pt;">
+                <li><strong>Station 01 (Primary Node):</strong> Temp spike +6.4°C (Confirmed)</li>
+                <li><strong>Station 02 (12 km Peer):</strong> Temp spike +6.1°C (Directionally Aligned)</li>
+                <li><strong>Station 03 (24 km Peer):</strong> Temp spike +5.8°C (Directionally Aligned)</li>
+            </ul>
+        </div>
+        <div class="info-card">
+            <h4>Core Value Proposition for SIH Judges</h4>
+            <p style="margin: 0; font-size: 8pt;">SkyGuard AI does not just flag anomalies—it intelligently distinguishes between true sensor hardware failures and genuine extreme meteorological events, directly addressing the core requirement of the SIH AWS problem statement.</p>
+        </div>
+    </div>
+
+</body>
+</html>
