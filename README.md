@@ -11,12 +11,12 @@
 [![Google Cloud](https://img.shields.io/badge/GCP-Cloud%20Run%20Ready-4285F4.svg?logo=googlecloud&logoColor=white)](https://cloud.google.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**[🌐 Live Demo Dashboard (Cloud Trial)](https://preview.skyguard.ai)** • **[⚡ Backend API Docs](https://api.skyguard.ai/docs)** • **[📊 Fast Benchmark Engine](evaluation/fast_benchmark.py)**
+**[🌐 Live Demo Dashboard (GCP Cloud)](http://34.93.226.151)** • **[⚡ Backend API Docs](http://34.93.226.151:8000/docs)** • **[📊 Fast Benchmark Engine](evaluation/fast_benchmark.py)**
 
 ---
 
 ### 📚 Official Project Documentation
-[**1. Benchmark & Evaluation Guide**](https://docs.skyguard.ai/benchmark-guide) • [**2. Scientific Research & Physics Report**](https://docs.skyguard.ai/research-report) • [**3. Architecture & API Specification**](https://docs.skyguard.ai/api-architecture) • [**4. ESP32 Setup & Edge Field Report**](https://docs.skyguard.ai/esp32-setup-report)
+[**1. External Research Impact (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQASBZignVrFRoMYC5b5WJVFAfV-ghAvuNpoc0-y8F6W6Mo?e=LY430r) • [**2. Technical Methodology & Architecture (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQD_FsEHaKwFT7Wfm4cQsGgLAftP2txmCJrQxgIpIJXdNUw?e=IAfyC1) • [**3. Experimental Performance Casebook (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQDSQYAGIDHhS5f7SIgnwKhtAVboqVnNghDWWUAkIoZj6-I?e=wWg8Ny) • [**4. Edge AI ESP32 Architecture (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQBTdSgyCfbwT6Vy0p0166tpAbaZ1pELUb_bp6A8-Cm8jTk?e=iWgqSL)
 
 </div>
 
@@ -32,7 +32,7 @@
 - [Production Benchmark Evaluation & Results](#-production-benchmark-evaluation--results)
 - [Repository Structure](#-repository-structure)
 - [Deployment & Getting Started](#-deployment--getting-started)
-  - [Google Cloud Platform (GCP Trial Deployment)](#-google-cloud-platform-gcp-trial-deployment)
+  - [Google Cloud Platform (Live VM Deployment)](#-google-cloud-platform-live-vm-deployment)
   - [Local Docker Compose Setup](#-local-docker-compose-setup)
   - [Local Python & Node Setup](#-local-python--node-setup)
 - [Running the Benchmark (Judges' Guide)](#-running-the-benchmark-judges-guide)
@@ -61,12 +61,12 @@ SkyGuard AI solves this with a **continuous-time, multi-scale causal detection a
 
 For in-depth technical analysis, mathematical derivations, and hardware deployment blueprints, refer to our official documentation suite:
 
-| Document | Primary Focus | Direct Link |
+| Document | Primary Focus | Official PDF Link |
 | :--- | :--- | :--- |
-| **Doc 1: Benchmark & Evaluation Guide** | Complete guide for judges and reviewers to execute parallel benchmarks, understand confusion matrices, and evaluate throughput. | [**View Guide**](https://docs.skyguard.ai/benchmark-guide) |
-| **Doc 2: Scientific Research & Physics Report** | Formal mathematical derivations for dynamic diurnal baselines, Wald-Page SPRT drift, 3D Mahalanobis covariance, and thermodynamic invariants. | [**View Report**](https://docs.skyguard.ai/research-report) |
-| **Doc 3: Architecture & API Specification** | Detailed component breakdown, REST endpoints, WebSocket streaming protocols, and causal state buffer mechanics. | [**View Architecture**](https://docs.skyguard.ai/api-architecture) |
-| **Doc 4: ESP32 Setup & Edge Field Report** | MicroPython / C++ embedded sensor edge agent setup, LoRa/GSM telemetry payload encoding, and hardware field trial results. | [**View ESP32 Report**](https://docs.skyguard.ai/esp32-setup-report) |
+| **Doc 1: External Research Impact** | Comprehensive socio-economic impact analysis, agricultural resilience, disaster early warning, and meteorological quality benchmarks. | [**Open Document 1 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQASBZignVrFRoMYC5b5WJVFAfV-ghAvuNpoc0-y8F6W6Mo?e=LY430r) |
+| **Doc 2: Technical Methodology & Architecture** | Formal mathematical derivations for dynamic diurnal baselines, Wald-Page SPRT drift, 3D Mahalanobis covariance, and thermodynamic invariants. | [**Open Document 2 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQD_FsEHaKwFT7Wfm4cQsGgLAftP2txmCJrQxgIpIJXdNUw?e=IAfyC1) |
+| **Doc 3: Experimental Performance Casebook** | Empirical evaluation casebook, 60,480 telemetry benchmark breakdown, confusion matrices, and episodic temporal matching analysis. | [**Open Document 3 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQDSQYAGIDHhS5f7SIgnwKhtAVboqVnNghDWWUAkIoZj6-I?e=wWg8Ny) |
+| **Doc 4: Edge AI ESP32 Architecture** | MicroPython / C++ embedded sensor edge firmware, TinyML quantization, LoRa/GSM telemetry framing, and hardware field trial results. | [**Open Document 4 (PDF)**](https://1drv.ms/b/c/60115d4b10b633da/IQBTdSgyCfbwT6Vy0p0166tpAbaZ1pELUb_bp6A8-Cm8jTk?e=iWgqSL) |
 
 ---
 
@@ -240,37 +240,26 @@ HELL-TO-SKY/
 
 ## 🚀 Deployment & Getting Started
 
-### ☁️ Google Cloud Platform (GCP Trial Deployment)
+### ☁️ Google Cloud Platform (Live VM Deployment)
 
-SkyGuard AI is architected for containerized deployment on **Google Cloud Platform (GCP)** using **Cloud Run** or **Compute Engine (GCE)**:
+SkyGuard AI is deployed in production on a **Google Cloud Platform (GCP) Compute Engine** Ubuntu VM (`skyguard-ai-recore-2026`) in `asia-south1-c` (Mumbai):
 
 ```bash
-# 1. Authenticate with Google Cloud
-gcloud auth login
-gcloud config set project skyguard-ai-trial
+# 1. SSH into the GCP VM
+gcloud compute ssh --zone "asia-south1-c" "skyguard-ai-recore-2026"
 
-# 2. Build and push container images to Google Artifact Registry
-gcloud builds submit --tag gcr.io/skyguard-ai-trial/skyguard-backend:latest -f docker/Dockerfile.backend .
-gcloud builds submit --tag gcr.io/skyguard-ai-trial/skyguard-frontend:latest -f docker/Dockerfile.frontend .
+# 2. Clone and pull latest repository
+git clone https://github.com/inf-pranjal-01/HELL-TO-SKY.git
+cd HELL-TO-SKY && git pull origin main
 
-# 3. Deploy to Google Cloud Run (Serverless Container Instance)
-gcloud run deploy skyguard-backend \
-  --image gcr.io/skyguard-ai-trial/skyguard-backend:latest \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --port 8000
-
-gcloud run deploy skyguard-frontend \
-  --image gcr.io/skyguard-ai-trial/skyguard-frontend:latest \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --port 80
+# 3. Launch Backend & Frontend background services
+nohup ./venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+sudo nohup serve -s frontend/dist -l 80 > frontend.log 2>&1 &
 ```
 
-- **Live Trial Dashboard:** [https://preview.skyguard.ai](https://preview.skyguard.ai)
-- **Live Trial API:** [https://api.skyguard.ai](https://api.skyguard.ai)
+- **Live Production Dashboard:** [http://34.93.226.151](http://34.93.226.151)
+- **Live Interactive API Docs (Swagger):** [http://34.93.226.151:8000/docs](http://34.93.226.151:8000/docs)
+- **Live Station Health Telemetry:** [http://34.93.226.151:8000/api/stations](http://34.93.226.151:8000/api/stations)
 
 ---
 
