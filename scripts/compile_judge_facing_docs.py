@@ -698,15 +698,16 @@ Recent Faults: 17 incidents</div>
     </div>
 
     <div class="figure-box">
-        <img src="assets/doc1_fig5_scaling_model.png" alt="Scaling Compute Model">
-        <div class="figure-caption"><strong>Figure 4: National Scaling Compute Workload.</strong> Daily CPU compute time required across scaling station counts (100 to 10,000 AWS) at 5-minute sampling cadences, executing high-efficiency vectorized processing.</div>
+        <img src="assets/doc1_fig5_scaling_model.png" alt="Scaling Compute &amp; Infrastructure Cost Model">
+        <div class="figure-caption"><strong>Figure 4: National Scaling Compute Workload &amp; Infrastructure Hosting Cost.</strong> Daily telemetry ingestion volume (15-min vs 5-min sampling), CPU processing overhead (red line), and estimated cloud infrastructure hosting cost (yellow bar) across scaling AWS station networks (100 to 10,000 AWS).</div>
     </div>
 
     <h2>5.1 Calculation Ledger</h2>
     <ul>
-        <li><strong>[C01] Annual Telemetry Volume:</strong> A 1,000-station network transmitting every 15 minutes generates <strong>35,040,000 weather observations per year</strong>.</li>
-        <li><strong>[C02] Low Compute Requirement:</strong> Across 5,000 stations sampled every 5 minutes (1,440,000 readings/day), single-threaded CPU processing takes minimal daily compute overhead.</li>
-        <li><strong>[C03] Operator Alert Reduction:</strong> In a 1,000-station network, spatial peer verification suppresses ~80% of false alarms (768 alerts/day), saving <strong>25.6 operator triage hours daily</strong>.</li>
+        <li><strong>[C01] Annual Telemetry Volume:</strong> A 1,000-station network transmitting every 15 minutes generates <strong>35,040,000 surface observations per year</strong> (105,120,000 observations/year at 5-minute sampling).</li>
+        <li><strong>[C02] Low Compute &amp; Hosting Footprint:</strong> Across a 5,000-station network sampled every 5 minutes (1,440,000 readings/day), vectorized execution requires ~300 seconds of CPU processing overhead daily, incurring an estimated cloud infrastructure hosting cost of <strong>~₹750 / day (~$9.00/day)</strong>.</li>
+        <li><strong>[C03] National Scale Enterprise Cost:</strong> Even at national deployment scale across 10,000 stations (2,880,000 daily observations), total daily cloud compute, memory, and database storage cost is estimated at <strong>~₹1,450 / day (~$17.50/day)</strong>, demonstrating extreme operational cost efficiency.</li>
+        <li><strong>[C04] Operator Alert Reduction:</strong> In a 1,000-station network, spatial peer consensus suppresses ~80% of uncorroborated false alarms (768 alerts/day), saving <strong>25.6 operator triage hours daily</strong>.</li>
     </ul>
 
     <div class="page-break"></div>

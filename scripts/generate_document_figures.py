@@ -276,33 +276,35 @@ def gen_doc1_scale_chart():
     stations = [100, 500, 1000, 2000, 5000, 10000]
     daily_obs_15m = [s * 96 for s in stations]
     daily_obs_5m = [s * 288 for s in stations]
+    daily_cost_inr = [25, 85, 160, 310, 750, 1450]  # ₹ / Day estimated cloud infrastructure & compute cost
     cpu_time_5m = [obs * 0.000210 for obs in daily_obs_5m]  # seconds
     
-    fig, ax1 = plt.subplots(figsize=(9, 3.8), dpi=200)
+    fig, ax1 = plt.subplots(figsize=(9.5, 4.0), dpi=300)
     
     x = np.arange(len(stations))
-    width = 0.35
+    width = 0.26
     
-    rects1 = ax1.bar(x - width/2, [obs/1000 for obs in daily_obs_15m], width, label='15-Min Ingestion (Thousand Obs/Day)', color='#3b82f6', edgecolor='#1d4ed8')
-    rects2 = ax1.bar(x + width/2, [obs/1000 for obs in daily_obs_5m], width, label='5-Min Ingestion (Thousand Obs/Day)', color='#6366f1', edgecolor='#4338ca')
+    rects1 = ax1.bar(x - width, [obs/1000 for obs in daily_obs_15m], width, label='15-Min Ingestion (Thousand Obs/Day)', color='#3b82f6', edgecolor='#1d4ed8')
+    rects2 = ax1.bar(x, [obs/1000 for obs in daily_obs_5m], width, label='5-Min Ingestion (Thousand Obs/Day)', color='#6366f1', edgecolor='#4338ca')
+    rects3 = ax1.bar(x + width, daily_cost_inr, width, label='Est. Daily Compute & Cloud Cost (₹ / Day)', color='#eab308', edgecolor='#ca8a04')
     
     ax1.set_xlabel('AWS Operational Network Scale (Station Count)', fontsize=9, fontweight='bold', color='#1e293b')
-    ax1.set_ylabel('Daily Ingestion Volume (x1,000 Obs)', fontsize=9, fontweight='bold', color='#1e293b')
-    ax1.set_title('National Scaling Model: Ingestion Volume vs. Single-Threaded CPU Compute Time', fontsize=10.5, fontweight='bold', color='#0f172a', pad=10)
+    ax1.set_ylabel('Daily Ingestion (x1,000 Obs) / Cost (₹)', fontsize=9, fontweight='bold', color='#1e293b')
+    ax1.set_title('National Scaling Model: Telemetry Volume, Compute Cost & Processing Overhead', fontsize=10.5, fontweight='bold', color='#0f172a', pad=10)
     ax1.set_xticks(x)
     ax1.set_xticklabels([f'{s:,} AWS' for s in stations], fontsize=8.5, color='#334155')
-    ax1.grid(True, axis='y')
+    ax1.grid(True, axis='y', linestyle=':', alpha=0.6)
     
     ax2 = ax1.twinx()
-    ax2.plot(x + width/2, cpu_time_5m, color='#dc2626', marker='o', linewidth=2.0, label='Daily CPU Inference Time (Seconds @ p95 0.210ms)')
-    ax2.set_ylabel('Daily CPU Time (Seconds)', color='#dc2626', fontsize=9, fontweight='bold')
+    ax2.plot(x, cpu_time_5m, color='#dc2626', marker='o', linewidth=2.2, label='Daily CPU Processing Time (Seconds)')
+    ax2.set_ylabel('Daily CPU Processing Time (Seconds)', color='#dc2626', fontsize=9, fontweight='bold')
     ax2.tick_params(axis='y', labelcolor='#dc2626')
     ax2.set_ylim(0, 700)
     
     # Combined legend
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, frameon=True, facecolor='#ffffff', edgecolor='#e2e8f0', fontsize=7.5, loc='upper left')
+    ax1.legend(lines1 + lines2, labels1 + labels2, frameon=True, facecolor='#ffffff', edgecolor='#cbd5e1', fontsize=7.5, loc='upper left')
     
     fig.tight_layout()
     out_path = os.path.join(ASSETS_DIR, "doc1_fig5_scaling_model.png")
