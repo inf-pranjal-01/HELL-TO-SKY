@@ -56,22 +56,35 @@ const rawApiMode = (
 ).toLowerCase();
 const resolvedMode: ApiMode = rawApiMode === 'real' ? 'real' : 'mock';
 
+const resolveBaseUrl = (): string => {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) {
+    return String(import.meta.env.VITE_API_BASE_URL).replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const host = window.location.hostname;
+    return `http://${host}:8000`;
+  }
+  return 'http://34.93.226.151:8000';
+};
+
+const resolvedBaseUrl = resolveBaseUrl();
+
+const resolveWsUrl = (): string => {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WS_BASE_URL) {
+    return import.meta.env.VITE_WS_BASE_URL;
+  }
+  return resolvedBaseUrl.replace(/^http/, 'ws') + '/ws/live';
+};
+
 export const API_CONFIG: ApiConfig = {
-  // Mode switch: 'mock' (default for Level 0) or 'real' (for future FastAPI backend)
+  // Mode switch: 'mock' or 'real' (FastAPI backend)
   mode: resolvedMode,
   
-  // Base URL for backend requests (only used when mode === 'real')
-  baseUrl: (
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:8000'
-  ).replace(/\/+$/, ''),
+  // Base URL for backend requests (auto-resolves to http://34.93.226.151:8000)
+  baseUrl: resolvedBaseUrl,
 
   // WebSocket Live Push URL
-  wsUrl: (
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WS_BASE_URL) ||
-    ((typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:8000')
-      .replace(/^http/, 'ws')
-      .replace(/\/+$/, '') + '/ws/live'
-  ),
+  wsUrl: resolveWsUrl(),
   
   // Default network request timeout (10 seconds)
   timeoutMs: 10000,
