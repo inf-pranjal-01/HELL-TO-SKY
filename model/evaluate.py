@@ -1,14 +1,5 @@
-"""Offline evaluation for production replay and oracle-clean diagnostics.
-
-Production mode uses the live StateManager/DecisionEngine path and never sends
-ground-truth labels to detection. Oracle mode uses an offline-only vectorized
-feature pass whose rolling baselines mask labeled fault rows, then scores every
-row through the same score_reading detector. Oracle scores are diagnostic; they
-are not the production acceptance benchmark.
-"""
 
 from __future__ import annotations
-
 import argparse
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import json
@@ -16,19 +7,15 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-
 import joblib
 import numpy as np
 import pandas as pd
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-
 from evaluation.benchmark_contract import episodic_metrics, pooled_row_metrics
 from model.detect import PARAM_PREFIXES, _cusum_evidence_series, score_reading
 from model.features import build_feature_matrix
 from model.state import RAW_HISTORY_MAXLEN_HOURS, StateManager
-
 DATA_DIR = PROJECT_ROOT / "data"
 ARTIFACTS_PATH = PROJECT_ROOT / "model_artifacts" / "isolation_forest.pkl"
 RESULTS_DIR = PROJECT_ROOT / "evaluation" / "results"
@@ -37,14 +24,10 @@ LABEL_COLUMNS = {
     "fault_parameters", "fault_events", "__source_file",
 }
 EPISODIC_TYPES = {"frozen_value", "drift"}
-
-
 def _label_bool(values: pd.Series) -> pd.Series:
     if pd.api.types.is_bool_dtype(values):
         return values.fillna(False)
     return values.astype(str).str.strip().str.lower().isin({"true", "1", "yes", "y"})
-
-
 def _load_inputs(labeled_files: list[Path]) -> pd.DataFrame:
     frames = []
     for path in sorted(map(Path, labeled_files)):
@@ -67,25 +50,14 @@ def _load_inputs(labeled_files: list[Path]) -> pd.DataFrame:
         duplicate = full.loc[full.duplicated(["station_id", "timestamp"], keep=False), ["station_id", "timestamp"]].head(1)
         raise ValueError(f"Duplicate station/timestamp row in labeled inputs: {duplicate.to_dict('records')}")
     return full.sort_values(["timestamp", "station_id"], kind="mergesort").reset_index(drop=True)
-
-
 def _raw_reading(row: dict) -> dict:
-    """Strip all labels and evaluation-only columns before detector ingress."""
     return {key: value for key, value in row.items() if key not in LABEL_COLUMNS}
-
-
 def _timestamp_ns(values) -> np.ndarray:
-    """Return UTC timestamps as nanoseconds, independent of pandas' input resolution."""
     timestamps = pd.to_datetime(values, utc=True, errors="raise")
     return timestamps.to_numpy(dtype="datetime64[ns]").view("int64")
-
-
 def _latest_position_at_or_before(timestamp_ns: np.ndarray, timestamp) -> int:
-    """Find the latest causal history row without mixing datetime resolutions."""
     target_ns = int(_timestamp_ns([timestamp])[0])
     return int(np.searchsorted(timestamp_ns, target_ns, side="right") - 1)
-
-
 def _event_parameters(verdict: dict, fault_type: str) -> list[str]:
     parameters = set()
     for rule in verdict.get("rules_fired", []) or []:
@@ -94,10 +66,7 @@ def _event_parameters(verdict: dict, fault_type: str) -> list[str]:
     if not parameters:
         parameters.update(str(param) for param in verdict.get("likely_faulty_sensors", []) or [] if param)
     return sorted(parameters)
-
-
 def _predicted_events(predictions: pd.DataFrame) -> list[dict]:
-    """Make predicted frozen/drift episodes; adjacent readings form one event."""
     if predictions.empty:
         return []
     events = []
@@ -108,7 +77,7 @@ def _predicted_events(predictions: pd.DataFrame) -> list[dict]:
             continue
         params = json.loads(row.fault_parameters_pred_json)
         if not params:
-            params = ["__unknown_parameter__"]  # remains unmatched, counts as a predicted FP episode
+            params = ["__unknown_parameter__"]
         for parameter in params:
             key = (row.station_id, row.fault_type_pred, parameter)
             current = active_by_key.get(key)
@@ -130,8 +99,6 @@ def _predicted_events(predictions: pd.DataFrame) -> list[dict]:
     for event in events:
         event.pop("last_sequence", None)
     return events
-
-
 def _load_event_ledger(labeled_files: list[Path], explicit_path: Path | None = None) -> list[dict] | None:
     candidates = [Path(explicit_path)] if explicit_path else sorted({Path(p).parent / "fault_events.csv" for p in labeled_files})
     existing = [path for path in candidates if path.exists()]
@@ -140,8 +107,6 @@ def _load_event_ledger(labeled_files: list[Path], explicit_path: Path | None = N
     if len(existing) != 1:
         raise ValueError("All labeled inputs in one evaluation must use exactly one fault_events.csv ledger")
     return pd.read_csv(existing[0]).to_dict("records")
-
-
 def _metrics(predictions: pd.DataFrame, truth_events: list[dict] | None) -> dict:
     row = pooled_row_metrics(
         predictions["is_anomaly_gt"].tolist(), predictions["is_anomaly_pred"].tolist(),
@@ -157,7 +122,6 @@ def _metrics(predictions: pd.DataFrame, truth_events: list[dict] | None) -> dict
         precision = tp / (tp + fp) if tp + fp else 0.0
         recall = tp / (tp + fn) if tp + fn else 0.0
         by_type[fault_type] = {"tp": tp, "fp": fp, "fn": fn, "precision": precision, "recall": recall}
-
     episodic = None
     if truth_events is not None:
         predicted_events = _predicted_events(predictions)
@@ -169,13 +133,9 @@ def _metrics(predictions: pd.DataFrame, truth_events: list[dict] | None) -> dict
     return {"rows": int(len(predictions)), "row_level": row, "by_fault_type": by_type,
             "episodic": episodic, "prediction_diagnostics": diagnostics,
             "episodic_note": None if episodic is not None else "unavailable: no event ledger was supplied"}
-
-
 def _prediction_diagnostics(predictions: pd.DataFrame, truth_events: list[dict] | None) -> dict:
-    """Explain row and episodic errors without changing the benchmark metrics."""
     if predictions.empty:
         return {"false_alarms": {}, "missed_rows": {}, "episodic_confirmation": {}}
-
     fp = predictions[ predictions["is_anomaly_pred"] & ~predictions["is_anomaly_gt"] ]
     fn = predictions[ predictions["is_anomaly_gt"] & ~predictions["is_anomaly_pred"] ]
     false_alarms = {
@@ -195,17 +155,14 @@ def _prediction_diagnostics(predictions: pd.DataFrame, truth_events: list[dict] 
         "count": int(len(fn)),
         "by_true_type": {str(k): int(v) for k, v in fn["fault_type_gt"].value_counts(dropna=False).items()},
     }
-
     episode_diagnostics = {}
     if truth_events is not None:
         matched_by_type = {}
-        # Reuse the exact predicted episode builder and one-to-one benchmark matcher.
         predicted_events = _predicted_events(predictions)
         from evaluation.benchmark_contract import _overlaps
         for fault_type in sorted(EPISODIC_TYPES):
             truths = [event for event in truth_events if event.get("fault_type") == fault_type]
             preds = [event for event in predicted_events if event.get("fault_type") == fault_type]
-            # This mapping mirrors episodic_metrics' maximum-cardinality assignment.
             candidates = [[i for i, truth in enumerate(truths) if _overlaps(truth, pred, fault_type)] for pred in preds]
             true_to_pred = {}
             def assign(pred_index: int, seen: set[int]) -> bool:
@@ -271,8 +228,6 @@ def _prediction_diagnostics(predictions: pd.DataFrame, truth_events: list[dict] 
             }
     return {"false_alarms": false_alarms, "missed_rows": missed_rows,
             "episodic_confirmation": episode_diagnostics}
-
-
 def _event_parameters_from_ledger(event: dict) -> list[str]:
     value = event.get("parameters", event.get("affected_parameters", []))
     if isinstance(value, str):
@@ -281,21 +236,14 @@ def _event_parameters_from_ledger(event: dict) -> list[str]:
         except json.JSONDecodeError:
             value = [value]
     return [str(item) for item in (value or [])]
-
-
 class _NullHistoryStore:
     def append(self, *args, **kwargs):
         pass
-
     def mark_spike(self, *args, **kwargs):
         pass
-
     def get_all(self, *args, **kwargs):
         return pd.DataFrame()
-
-
 def _remove_ground_truth_row(state_manager: StateManager, station_id: str, timestamp) -> bool:
-    """Oracle-only: discard a just-ingested labeled-fault row from future baselines."""
     buffer = state_manager.buffers[station_id]
     if not buffer._raw_rows:
         return False
@@ -306,10 +254,7 @@ def _remove_ground_truth_row(state_manager: StateManager, station_id: str, times
     buffer._raw_rows.pop()
     buffer._cache_dirty = True
     return True
-
-
 def _make_oracle_feature_cache(frame: pd.DataFrame, artifact: dict) -> tuple[dict, dict, dict, dict]:
-    """Vectorize causal features, model scores, and CUSUM evidence once."""
     featured = build_feature_matrix(frame.copy())
     groups = {}
     positions = {}
@@ -322,7 +267,6 @@ def _make_oracle_feature_cache(frame: pd.DataFrame, artifact: dict) -> tuple[dic
         groups[station_id] = group.drop(columns=list(LABEL_COLUMNS), errors="ignore")
         for position, timestamp in enumerate(group["timestamp"]):
             positions[(station_id, timestamp)] = position
-
         model_features = groups[station_id][artifact["feature_columns"]].to_numpy(dtype=float)
         complete = ~pd.isna(model_features).any(axis=1)
         raw_scores = {}
@@ -345,7 +289,6 @@ def _make_oracle_feature_cache(frame: pd.DataFrame, artifact: dict) -> tuple[dic
             else:
                 station_model_results.append((None, "UNAVAILABLE_MISSING_FEATURES"))
         model_results[station_id] = station_model_results
-
         station_cusum = {}
         for parameter, prefix in PARAM_PREFIXES.items():
             station_cusum[parameter] = _cusum_evidence_series(
@@ -354,19 +297,13 @@ def _make_oracle_feature_cache(frame: pd.DataFrame, artifact: dict) -> tuple[dic
             )
         cusum_results[station_id] = station_cusum
     return groups, positions, model_results, cusum_results
-
-
 def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: list[dict] | None,
                                  progress_every: int = 5000,
                                  metadata: pd.DataFrame | None = None) -> tuple[pd.DataFrame, dict]:
-    """Fast offline diagnostic: label-masked baselines, every row scored."""
     metadata = metadata if metadata is not None else pd.read_csv(DATA_DIR / "stations_metadata.csv")
     manager = StateManager(metadata, artifact, history_store=_NullHistoryStore())
     manager.explainer = None
     feature_groups, feature_positions, model_results, cusum_results = _make_oracle_feature_cache(frame, artifact)
-    # Keep raw histories as prebuilt per-station frames. The former loop
-    # rebuilt a DataFrame from a deque for every target and every peer at
-    # every timestamp, dominating replay time with pandas object creation.
     raw_groups = {}
     raw_timestamp_ns = {}
     for station_id, group in frame.groupby("station_id", sort=False):
@@ -380,7 +317,6 @@ def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: li
     results = []
     started = time.perf_counter()
     processed = 0
-
     for timestamp, timestamp_group in frame.groupby("timestamp", sort=True):
         row_records = []
         current_time = pd.to_datetime(timestamp, utc=True)
@@ -389,7 +325,6 @@ def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: li
             raw = _raw_reading(row)
             reading_time = pd.to_datetime(row["timestamp"], utc=True)
             row_records.append((row, station_id, raw, reading_time))
-
         for row, station_id, raw, reading_time in row_records:
             group = feature_groups.get(station_id)
             position = feature_positions.get((station_id, reading_time))
@@ -413,7 +348,6 @@ def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: li
                     peer_feature_group = feature_groups.get(neighbor_id)
                     if peer_feature_group is not None:
                         neighbor_features[neighbor_id] = peer_feature_group.iloc[peer_position]
-
             feature_row = group.iloc[position]
             history_start = max(0, position + 1 - RAW_HISTORY_MAXLEN_HOURS)
             history_features = group.iloc[history_start:position + 1]
@@ -433,7 +367,6 @@ def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: li
                 )
             except Exception as exc:
                 raise RuntimeError(f"oracle evaluation failed at {station_id} {reading_time}: {exc!r}") from exc
-
             fault_type_pred = verdict.get("fault_type") or "none"
             results.append({
                 "station_id": station_id,
@@ -456,11 +389,9 @@ def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: li
             })
             station_sequences[station_id] = station_sequences.get(station_id, 0) + 1
             processed += 1
-
         if progress_every and processed and processed % progress_every < len(row_records):
             elapsed = time.perf_counter() - started
             print(f"  oracle: processed {processed:,}/{len(frame):,} rows in {elapsed:.1f}s")
-
     predictions = pd.DataFrame(results)
     elapsed = time.perf_counter() - started
     report = _metrics(predictions, ledger)
@@ -468,15 +399,10 @@ def _evaluate_oracle_fast_serial(frame: pd.DataFrame, artifact: dict, ledger: li
     report["rows_per_second"] = round(len(predictions) / elapsed, 2) if elapsed else None
     report["evaluation_path"] = "vectorized_label_masked_diagnostic"
     return predictions, report
-
-
 def _oracle_cluster_worker(payload):
     frame, artifact, metadata, progress_every = payload
     return _evaluate_oracle_fast_serial(frame, artifact, None, progress_every, metadata)
-
-
 def _evaluate_production_cluster(payload) -> pd.DataFrame:
-    """Replay one independent network cluster through the live StateManager path."""
     frame, artifact, metadata, progress_every = payload
     manager = StateManager(metadata, artifact, history_store=_NullHistoryStore())
     manager.explainer = None
@@ -484,7 +410,6 @@ def _evaluate_production_cluster(payload) -> pd.DataFrame:
     results = []
     started = time.perf_counter()
     processed = 0
-
     for _, timestamp_group in frame.groupby("timestamp", sort=True):
         network_snapshot = {}
         row_records = []
@@ -494,7 +419,6 @@ def _evaluate_production_cluster(payload) -> pd.DataFrame:
             reading_time = pd.to_datetime(row["timestamp"], utc=True)
             network_snapshot[station_id] = (raw, reading_time)
             row_records.append((row, station_id, raw, reading_time))
-
         for row, station_id, raw, reading_time in row_records:
             verdict = manager.ingest_reading(
                 station_id, raw, reading_time, network_snapshot,
@@ -524,18 +448,13 @@ def _evaluate_production_cluster(payload) -> pd.DataFrame:
             })
             station_sequences[station_id] += 1
             processed += 1
-
         if progress_every and processed and processed % progress_every < len(row_records):
             elapsed = time.perf_counter() - started
             cluster_id = metadata["cluster_id"].iloc[0]
             print(f"  production[{cluster_id}]: processed {processed:,}/{len(frame):,} rows in {elapsed:.1f}s")
-
     return pd.DataFrame(results)
-
-
 def _evaluate_production_parallel(frame: pd.DataFrame, artifact: dict, workers: int,
                                   progress_every: int = 5000) -> tuple[pd.DataFrame, int]:
-    """Parallelize only across disjoint station clusters, never within a stream."""
     metadata = pd.read_csv(DATA_DIR / "stations_metadata.csv")
     frame_stations = set(frame["station_id"].astype(str))
     tasks = []
@@ -548,13 +467,11 @@ def _evaluate_production_parallel(frame: pd.DataFrame, artifact: dict, workers: 
         cluster_stations = set(cluster_metadata["station_id"].astype(str))
         cluster_frame = frame[frame["station_id"].astype(str).isin(cluster_stations)].copy()
         tasks.append((cluster_frame, artifact, cluster_metadata, progress_every))
-
     if not tasks:
         raise ValueError("No evaluation rows matched stations in stations_metadata.csv")
     worker_count = max(1, min(int(workers), len(tasks)))
     if worker_count == 1:
         return _evaluate_production_cluster(tasks[0]), worker_count, "sequential"
-
     model = artifact.get("model")
     original_n_jobs = getattr(model, "n_jobs", None)
     if original_n_jobs is not None:
@@ -565,9 +482,6 @@ def _evaluate_production_parallel(frame: pd.DataFrame, artifact: dict, workers: 
                 predictions = list(pool.map(_evaluate_production_cluster, tasks))
             backend = "process"
         except PermissionError:
-            # Some Windows sandboxes deny named-pipe creation required by
-            # multiprocessing. Threads preserve cluster independence and
-            # decision parity, with lower CPU throughput under the GIL.
             with ThreadPoolExecutor(max_workers=worker_count) as pool:
                 predictions = list(pool.map(_evaluate_production_cluster, tasks))
             backend = "thread_fallback"
@@ -577,11 +491,8 @@ def _evaluate_production_parallel(frame: pd.DataFrame, artifact: dict, workers: 
     merged = pd.concat(predictions, ignore_index=True)
     merged = merged.sort_values(["timestamp", "station_id"], kind="mergesort").reset_index(drop=True)
     return merged, worker_count, backend
-
-
 def _evaluate_oracle_fast(frame: pd.DataFrame, artifact: dict, ledger: list[dict] | None,
                           progress_every: int = 5000, workers: int = 1) -> tuple[pd.DataFrame, dict]:
-    """Run independent station clusters in parallel, then score the merged predictions."""
     metadata = pd.read_csv(DATA_DIR / "stations_metadata.csv")
     cluster_groups = list(metadata.groupby("cluster_id", sort=True))
     workers = max(1, min(int(workers), len(cluster_groups)))
@@ -589,7 +500,6 @@ def _evaluate_oracle_fast(frame: pd.DataFrame, artifact: dict, ledger: list[dict
         predictions, report = _evaluate_oracle_fast_serial(frame, artifact, ledger, progress_every, metadata)
         report["cluster_workers"] = 1
         return predictions, report
-
     started = time.perf_counter()
     tasks = []
     for _, cluster_metadata in cluster_groups:
@@ -617,8 +527,6 @@ def _evaluate_oracle_fast(frame: pd.DataFrame, artifact: dict, ledger: list[dict
     report["evaluation_path"] = "vectorized_label_masked_diagnostic"
     report["cluster_workers"] = min(workers, len(tasks))
     return predictions, report
-
-
 def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: list[dict] | None,
                      progress_every: int = 5000, workers: int = 1) -> tuple[pd.DataFrame, dict]:
     if mode == "oracle":
@@ -643,7 +551,6 @@ def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: lis
     results = []
     started = time.perf_counter()
     processed = 0
-
     for timestamp, timestamp_group in frame.groupby("timestamp", sort=True):
         network_snapshot = {}
         row_records = []
@@ -653,7 +560,6 @@ def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: lis
             reading_time = pd.to_datetime(row["timestamp"], utc=True)
             network_snapshot[station_id] = (raw, reading_time)
             row_records.append((row, station_id, raw, reading_time))
-
         for row, station_id, raw, reading_time in row_records:
             try:
                 verdict = manager.ingest_reading(
@@ -662,11 +568,9 @@ def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: lis
                 )
             except Exception as exc:
                 raise RuntimeError(f"{mode} evaluation failed at {station_id} {reading_time}: {exc!r}") from exc
-
             ground_truth = bool(row["is_anomaly"])
             if mode == "oracle" and ground_truth:
                 _remove_ground_truth_row(manager, station_id, reading_time)
-
             fault_type_pred = verdict.get("fault_type") or "none"
             parameters = _event_parameters(verdict, fault_type_pred)
             results.append({
@@ -690,11 +594,9 @@ def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: lis
             })
             station_sequences[station_id] = station_sequences.get(station_id, 0) + 1
             processed += 1
-
         if progress_every and processed and processed % progress_every < len(row_records):
             elapsed = time.perf_counter() - started
             print(f"  {mode}: processed {processed:,}/{len(frame):,} rows in {elapsed:.1f}s")
-
     predictions = pd.DataFrame(results)
     elapsed = time.perf_counter() - started
     report = _metrics(predictions, ledger)
@@ -702,8 +604,6 @@ def _evaluate_stream(frame: pd.DataFrame, artifact: dict, mode: str, ledger: lis
     report["rows_per_second"] = round(len(predictions) / elapsed, 2) if elapsed else None
     report["evaluation_path"] = "sequential_state_manager"
     return predictions, report
-
-
 def _new_output_dir(output_dir: Path | None) -> Path:
     if output_dir is None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
@@ -711,8 +611,6 @@ def _new_output_dir(output_dir: Path | None) -> Path:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
     return output_dir
-
-
 def _detector_config_snapshot() -> dict:
     import config
     names = (
@@ -724,8 +622,6 @@ def _detector_config_snapshot() -> dict:
         "DRIFT_MIN_MODEL_CORROBORATION",
     )
     return {name: getattr(config, name) for name in names}
-
-
 def evaluate_all(
     labeled_files: list[Path],
     artifact: dict,
@@ -745,7 +641,6 @@ def evaluate_all(
     print(f"Rows: {len(frame):,}; stations: {frame['station_id'].nunique()}; output: {output_dir}")
     print("Production: ground-truth columns are stripped before StateManager ingress.")
     print("Oracle: ground-truth faults mask offline causal baselines; every row is scored by the shared detector (diagnostic only).")
-
     modes = ("production", "oracle") if mode == "both" else (mode,)
     results = {}
     for run_mode in modes:
@@ -765,7 +660,6 @@ def evaluate_all(
             for fault_type, metrics in summary["episodic"].items():
                 print(f"  {fault_type}: P={metrics['precision']:.1%} R={metrics['recall']:.1%} "
                       f"TP={metrics['tp']} FP={metrics['fp']} FN={metrics['fn']}")
-
     manifest = {
         "mode": mode,
         "input_files": [str(path) for path in labeled_files],
@@ -782,8 +676,6 @@ def evaluate_all(
     (output_dir / "summary.json").write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
     print(f"\nSummary saved to {output_dir / 'summary.json'}")
     return {"output_dir": str(output_dir), **results}
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate Skyguard without overwriting existing evaluation outputs.")
     parser.add_argument("--input-dir", type=Path, default=DATA_DIR)

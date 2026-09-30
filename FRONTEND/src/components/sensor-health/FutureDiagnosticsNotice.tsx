@@ -1,11 +1,9 @@
 import React from 'react';
 import { Cpu } from 'lucide-react';
 import './FutureDiagnosticsNotice.css';
-
 export interface FutureDiagnosticsNoticeProps {
   className?: string;
 }
-
 export const FutureDiagnosticsNotice: React.FC<FutureDiagnosticsNoticeProps> = ({
   className = '',
 }) => {

@@ -2,7 +2,6 @@ import React from 'react';
 import { Inbox } from 'lucide-react';
 import { Button } from './Button';
 import './EmptyState.css';
-
 export interface EmptyStateProps {
   title?: string;
   description?: string;
@@ -10,7 +9,6 @@ export interface EmptyStateProps {
   onAction?: () => void;
   icon?: React.ReactNode;
 }
-
 export const EmptyState: React.FC<EmptyStateProps> = ({
   title = 'No Telemetry Data Found',
   description = 'There are no active records matching the current meteorological filter.',

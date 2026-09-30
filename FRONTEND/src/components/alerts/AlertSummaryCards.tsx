@@ -5,13 +5,11 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { LatestAnomaly, RecentAnomalyItem } from '../../types';
 import './AlertSummaryCards.css';
-
 export interface AlertSummaryCardsProps {
   latestAnomaly: LatestAnomaly | null;
   recentAnomalies: RecentAnomalyItem[];
   isLoading?: boolean;
 }
-
 export const AlertSummaryCards: React.FC<AlertSummaryCardsProps> = ({
   latestAnomaly,
   recentAnomalies,
@@ -34,8 +32,6 @@ export const AlertSummaryCards: React.FC<AlertSummaryCardsProps> = ({
       </div>
     );
   }
-
-  // Determine highest severity among latest or recent
   let highestSeverity: 'critical' | 'high' | 'medium' | 'low' | 'none' = 'none';
   if (latestAnomaly) {
     highestSeverity = latestAnomaly.severity;
@@ -46,14 +42,12 @@ export const AlertSummaryCards: React.FC<AlertSummaryCardsProps> = ({
     else if (severities.includes('medium')) highestSeverity = 'medium';
     else highestSeverity = 'low';
   }
-
   const hasActiveAnomaly = !!latestAnomaly;
   const scorePct = latestAnomaly ? Math.round(latestAnomaly.anomaly_score_pct) : 0;
   const totalAlerts = recentAnomalies.length;
-
   return (
     <div className="sg-alert-summary-grid" role="region" aria-label="Anomaly summary statistics">
-      {/* 1. Active Anomaly Status */}
+      {}
       <Card variant="glass" className="sg-alert-summary-card">
         <div className="sg-alert-summary-card__header">
           <span className="sg-alert-summary-card__label">Active State</span>
@@ -76,8 +70,7 @@ export const AlertSummaryCards: React.FC<AlertSummaryCardsProps> = ({
           />
         </div>
       </Card>
-
-      {/* 2. Highest Severity */}
+      {}
       <Card variant="glass" className="sg-alert-summary-card">
         <div className="sg-alert-summary-card__header">
           <span className="sg-alert-summary-card__label">Highest Severity</span>
@@ -114,8 +107,7 @@ export const AlertSummaryCards: React.FC<AlertSummaryCardsProps> = ({
           )}
         </div>
       </Card>
-
-      {/* 3. Total Recent Alerts */}
+      {}
       <Card variant="glass" className="sg-alert-summary-card">
         <div className="sg-alert-summary-card__header">
           <span className="sg-alert-summary-card__label">Recent Alerts</span>
@@ -128,8 +120,7 @@ export const AlertSummaryCards: React.FC<AlertSummaryCardsProps> = ({
           <span className="sg-alert-summary-card__subtitle">events logged</span>
         </div>
       </Card>
-
-      {/* 4. Latest Anomaly Score */}
+      {}
       <Card variant="glass" className="sg-alert-summary-card">
         <div className="sg-alert-summary-card__header">
           <span className="sg-alert-summary-card__label">Anomaly Score</span>

@@ -4,24 +4,20 @@ import { HelpCircle, ArrowRight, AlertTriangle, ShieldCheck } from 'lucide-react
 import { StatusBadge } from '../common/StatusBadge';
 import { LatestAnomaly } from '../../types';
 import './AnomalyContextNotice.css';
-
 export interface AnomalyContextNoticeProps {
   latestAnomaly: LatestAnomaly | null;
   className?: string;
 }
-
 export const AnomalyContextNotice: React.FC<AnomalyContextNoticeProps> = ({
   latestAnomaly,
   className = '',
 }) => {
   const navigate = useNavigate();
-
   const hasAnomaly = !!latestAnomaly;
   let severityBadge: 'low' | 'moderate' | 'high' | 'critical' = 'low';
   if (latestAnomaly?.severity === 'critical') severityBadge = 'critical';
   else if (latestAnomaly?.severity === 'high') severityBadge = 'high';
   else if (latestAnomaly?.severity === 'medium') severityBadge = 'moderate';
-
   return (
     <div className={`sg-anomaly-context ${className}`} role="note" aria-label="System concept distinction">
       <div className="sg-anomaly-context__left">
@@ -35,7 +31,6 @@ export const AnomalyContextNotice: React.FC<AnomalyContextNoticeProps> = ({
           </p>
         </div>
       </div>
-
       <div className="sg-anomaly-context__right">
         {hasAnomaly ? (
           <div className="sg-anomaly-context__badge-group">
@@ -53,7 +48,6 @@ export const AnomalyContextNotice: React.FC<AnomalyContextNoticeProps> = ({
             <span>Anomaly Status: Nominal</span>
           </div>
         )}
-
         <button
           type="button"
           className="sg-anomaly-context__link-btn"

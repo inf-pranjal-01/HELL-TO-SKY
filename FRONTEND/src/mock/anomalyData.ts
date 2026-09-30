@@ -1,9 +1,4 @@
 import { AnomalyRecord, LatestAnomaly, RecentAnomalyItem } from '../types';
-
-/**
- * [MOCK FIXTURES]
- * Isolated anomaly event record fixtures.
- */
 export const MOCK_ANOMALIES: AnomalyRecord[] = [
   {
     anomaly_id: 'ANOM-2026-0891',
@@ -30,15 +25,10 @@ export const MOCK_ANOMALIES: AnomalyRecord[] = [
     affected_metrics: ['humidity_pct'],
   },
 ];
-
-/**
- * [MOCK DATA]
- * Latest anomaly records per station matching: [API: GET /api/anomalies/latest — INTEGRATED]
- */
 export const MOCK_LATEST_ANOMALIES: Record<string, LatestAnomaly | null> = {
   'ST-HYD-004': {
     anomaly_id: 'ANOM-001',
-    timestamp: new Date(Date.now() - 150000).toISOString(), // 2.5 mins ago
+    timestamp: new Date(Date.now() - 150000).toISOString(),
     station_id: 'ST-HYD-004',
     anomaly_score_pct: 91,
     severity: 'critical',
@@ -48,7 +38,7 @@ export const MOCK_LATEST_ANOMALIES: Record<string, LatestAnomaly | null> = {
   },
   'ST-MUM-002': {
     anomaly_id: 'ANOM-002',
-    timestamp: new Date(Date.now() - 900000).toISOString(), // 15 mins ago
+    timestamp: new Date(Date.now() - 900000).toISOString(),
     station_id: 'ST-MUM-002',
     anomaly_score_pct: 78,
     severity: 'high',
@@ -56,15 +46,10 @@ export const MOCK_LATEST_ANOMALIES: Record<string, LatestAnomaly | null> = {
     root_cause: 'High humidity drift',
     description: 'Sustained humidity above 84% exceeding 3-sigma seasonal baseline.',
   },
-  'ST-NDL-001': null, // Healthy station — returns null (204/no content)
-  'ST-BLR-003': null, // Healthy station
-  'ST-KOL-005': null, // Offline station
+  'ST-NDL-001': null,
+  'ST-BLR-003': null,
+  'ST-KOL-005': null,
 };
-
-/**
- * [MOCK DATA]
- * Recent anomalies list matching: [API: GET /api/anomalies/recent — INTEGRATED]
- */
 export const MOCK_RECENT_ANOMALIES: Record<string, RecentAnomalyItem[]> = {
   'ST-HYD-004': [
     {
@@ -104,11 +89,6 @@ export const MOCK_RECENT_ANOMALIES: Record<string, RecentAnomalyItem[]> = {
   'ST-BLR-003': [],
   'ST-KOL-005': [],
 };
-
-/**
- * [MOCK DATA]
- * Anomaly explainability / feature contributions matching: [API: GET /api/explain/{anomaly_id} — INTEGRATED]
- */
 export const MOCK_ANOMALY_EXPLANATIONS: Record<string, import('../types').AnomalyExplanation> = {
   'ANOM-001': {
     anomaly_id: 'ANOM-001',
@@ -140,4 +120,3 @@ export const MOCK_ANOMALY_EXPLANATIONS: Record<string, import('../types').Anomal
     ],
   },
 };
-

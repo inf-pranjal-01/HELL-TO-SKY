@@ -7,16 +7,11 @@ import { StatusBadge } from '../common/StatusBadge';
 import { EmptyState } from '../common/EmptyState';
 import { RecentAnomalyItem, AnomalySeverity } from '../../types';
 import './AnomalyTimeline.css';
-
 export interface AnomalyTimelineProps {
   anomalies: RecentAnomalyItem[];
   isLoading?: boolean;
   className?: string;
 }
-
-/**
- * Maps anomaly_type snake_case to a readable label.
- */
 function formatAnomalyType(type: string): string {
   const map: Record<string, string> = {
     spike: 'Spike',
@@ -27,11 +22,6 @@ function formatAnomalyType(type: string): string {
   };
   return map[type] ?? type.replace(/_/g, ' ');
 }
-
-/**
- * Maps AnomalySeverity to StatusBadge status values.
- * AnomalySeverity is lowercase: 'critical' | 'high' | 'medium' | 'low'
- */
 function severityToStatus(
   severity: AnomalySeverity
 ): 'critical' | 'high' | 'moderate' | 'low' | 'optimal' {
@@ -48,7 +38,6 @@ function severityToStatus(
       return 'low';
   }
 }
-
 const AnomalyTimelineSkeleton: React.FC = () => (
   <Card variant="glass" className="sg-anomaly-timeline-card">
     <div className="sg-anomaly-timeline__header">
@@ -67,17 +56,13 @@ const AnomalyTimelineSkeleton: React.FC = () => (
     </div>
   </Card>
 );
-
-// [FRONTEND ONLY] [DERIVED FROM EXISTING DATA]
 export const AnomalyTimeline: React.FC<AnomalyTimelineProps> = ({
   anomalies,
   isLoading = false,
   className = '',
 }) => {
   const navigate = useNavigate();
-
   if (isLoading) return <AnomalyTimelineSkeleton />;
-
   return (
     <Card
       variant="glass"
@@ -92,7 +77,6 @@ export const AnomalyTimeline: React.FC<AnomalyTimelineProps> = ({
         </div>
         <span className="sg-anomaly-timeline__notice">[FRONTEND ONLY] [DERIVED FROM EXISTING DATA]</span>
       </div>
-
       {anomalies.length === 0 ? (
         <EmptyState
           title="No Anomalies Recorded"

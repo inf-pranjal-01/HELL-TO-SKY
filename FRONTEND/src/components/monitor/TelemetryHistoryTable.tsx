@@ -4,14 +4,12 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { TelemetryHistoryRecord } from '../../types';
 import './TelemetryHistoryTable.css';
-
 export interface TelemetryHistoryTableProps {
   records?: TelemetryHistoryRecord[];
   isLoading?: boolean;
   isPaused?: boolean;
   className?: string;
 }
-
 export const TelemetryHistoryTable: React.FC<TelemetryHistoryTableProps> = ({
   records = [],
   isLoading = false,
@@ -35,7 +33,6 @@ export const TelemetryHistoryTable: React.FC<TelemetryHistoryTableProps> = ({
       </Card>
     );
   }
-
   return (
     <Card variant="glass" className={`sg-telemetry-history-card ${className}`}>
       <div className="sg-history-header">
@@ -56,7 +53,6 @@ export const TelemetryHistoryTable: React.FC<TelemetryHistoryTableProps> = ({
           </span>
         </div>
       </div>
-
       <div className="sg-history-body">
         {records.length === 0 ? (
           <div className="sg-history-empty">
@@ -81,12 +77,10 @@ export const TelemetryHistoryTable: React.FC<TelemetryHistoryTableProps> = ({
                     minute: '2-digit',
                     second: '2-digit',
                   });
-
                   let statusBadgeType: 'optimal' | 'warning' | 'critical' | 'offline' = 'optimal';
                   if (rec.status === 'WARNING') statusBadgeType = 'warning';
                   else if (rec.status === 'CRITICAL') statusBadgeType = 'critical';
                   else if (rec.status === 'OFFLINE') statusBadgeType = 'offline';
-
                   return (
                     <tr
                       key={rec.id || index}
@@ -114,7 +108,6 @@ export const TelemetryHistoryTable: React.FC<TelemetryHistoryTableProps> = ({
           </div>
         )}
       </div>
-
       <div className="sg-history-footer">
         <span className="sg-history-limit-note">
           Displaying up to 150 live samples in local buffer memory (● LIVE BACKEND telemetry stream)

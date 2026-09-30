@@ -3,14 +3,12 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Construction } from 'lucide-react';
-
 export interface PlaceholderPageProps {
   title: string;
   description: string;
   category: string;
   backendEndpointRef?: string;
 }
-
 export const PlaceholderPage: React.FC<PlaceholderPageProps> = ({
   title,
   description,
@@ -26,7 +24,6 @@ export const PlaceholderPage: React.FC<PlaceholderPageProps> = ({
         </div>
         <StatusBadge status="active" label="ROUTE LOADED" />
       </div>
-
       <div style={{ marginTop: '1.5rem' }}>
         <Card
           title={
@@ -52,7 +49,6 @@ export const PlaceholderPage: React.FC<PlaceholderPageProps> = ({
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.925rem' }}>
               The application routing and visual shell foundation for <strong>{title}</strong> is active and fully functional.
             </p>
-
             <div
               style={{
                 padding: '1rem',

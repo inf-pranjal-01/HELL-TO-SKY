@@ -8,14 +8,12 @@ import { Skeleton } from '../common/Skeleton';
 import { SuggestedValues } from '../common/SuggestedValues';
 import { suggestedFromRecord, formatSuggestedList } from '../../utils/suggestedValues';
 import './ExplainabilityCommandCenter.css';
-
 export interface ExplainabilityCommandCenterProps {
   anomalies: RecentAnomalyItem[];
   isLoading?: boolean;
   className?: string;
   initialAnomalyId?: string;
 }
-
 const displayParameter = (value: string) => {
   const lower = value.toLowerCase();
   if (lower.includes('vapor_pressure_consistency') || lower.includes('vapor pressure consistency')) {
@@ -29,7 +27,6 @@ const displayParameter = (value: string) => {
   }
   return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
-
 function explainFeature(name: string): string {
   const value = name.toLowerCase();
   if (value.includes('vapor_pressure_consistency') || value.includes('vapor pressure consistency')) {
@@ -48,7 +45,6 @@ function explainFeature(name: string): string {
   if (value.includes('hour') || value.includes('doy')) return `The ${sensor} reading was anomalous for this time of day or seasonal period.`;
   return `The ${sensor} reading contributed significant evidence to the anomaly detection score.`;
 }
-
 export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterProps> = ({
   anomalies,
   isLoading = false,
@@ -62,12 +58,10 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
   const effectiveAnomalies = useMemo(() => {
     return anomalies;
   }, [anomalies]);
-
   const selected = useMemo(() => {
     if (selectedId) {
       const found = effectiveAnomalies.find((anomaly) => anomaly.anomaly_id === selectedId);
       if (found) return found;
-      // Deep-linked anomaly not yet in the active list: provide placeholder using explanation data
       return {
         anomaly_id: selectedId,
         station_id: explanation?.station_id || '',
@@ -82,15 +76,11 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
     }
     return effectiveAnomalies[0] ?? null;
   }, [effectiveAnomalies, selectedId, explanation]);
-
-  // Ensure selectedId is populated once selected anomaly is resolved
   useEffect(() => {
     if (selected && selected.anomaly_id !== selectedId && !selectedId) {
       setSelectedId(selected.anomaly_id);
     }
   }, [selected, selectedId]);
-
-  // Fetch explanation whenever selected anomaly ID changes
   useEffect(() => {
     if (!selected) {
       setExplanation(null);
@@ -111,21 +101,17 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
       });
     return () => { active = false; };
   }, [selected?.anomaly_id]);
-
-  // Ensure current selected anomaly is available in the pill selectors
   const selectorList = useMemo(() => {
     if (selected && selected.timestamp && !effectiveAnomalies.some((a) => a.anomaly_id === selected.anomaly_id)) {
       return [selected, ...effectiveAnomalies];
     }
     return effectiveAnomalies;
   }, [effectiveAnomalies, selected]);
-
   const features = useMemo(() => {
     return [...(explanation?.features ?? [])]
       .sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact))
       .slice(0, 3);
   }, [explanation?.features]);
-
   const top = features[0];
   const implicated = explanation?.affected_parameters?.length
     ? explanation.affected_parameters
@@ -133,8 +119,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
   const observed = suggestedFromRecord(explanation?.observed_values ?? selected?.observed_values);
   const suggested = suggestedFromRecord(explanation?.suggested_values ?? selected?.suggested_values);
   const score = explanation?.anomaly_score_pct ?? (selected?.anomaly_score_pct ?? 0);
-
-  // ALL HOOKS EXECUTED UNCONDITIONALLY ABOVE
   if (isLoading && effectiveAnomalies.length === 0 && !selected) {
     return (
       <Card variant="glass" className={`sg-explain-card ${className}`}>
@@ -143,7 +127,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
       </Card>
     );
   }
-
   if (!selected) {
     return (
       <Card variant="glass" className={`sg-explain-card ${className}`}>
@@ -155,7 +138,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
       </Card>
     );
   }
-
   return (
     <Card variant="glass" className={`sg-explain-card ${className}`} role="region" aria-label="Plain-language anomaly explanation">
       <div className="sg-explain-card__header">
@@ -166,7 +148,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
         </div>
         <span className="sg-explain-card__score"><Gauge size={16} /> {Math.round(score)}% evidence strength</span>
       </div>
-
       <div className="sg-explain-card__selector-wrapper">
         <div className="sg-explain-card__selector" aria-label="Choose an anomaly to explain">
           {selectorList.slice(0, 6).map((anomaly) => {
@@ -194,7 +175,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
           <ExternalLink size={12} aria-hidden="true" />
         </Link>
       </div>
-
       {loadingExplanation ? (
         <Skeleton width="100%" height="180px" />
       ) : error ? (
@@ -233,7 +213,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
               )}
             </div>
           </div>
-
           <div className="sg-explain-card__body">
             <section>
               <h4><ShieldAlert size={15} /> Station Context</h4>
@@ -254,7 +233,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                   UNKNOWN_INSUFFICIENT_DATA: 'Context unavailable — station still in warm-up period (insufficient history).',
                   UNKNOWN_CONTEXT_FAILURE: 'Context classification failed — check system logs.',
                 };
-
                 if (isMultivariate || thermo?.is_violation) {
                   return (
                     <>
@@ -267,7 +245,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                     </>
                   );
                 }
-
                 return (
                   <>
                     <p className="sg-explain-card__muted">Regime: <strong>{regime ? regime.replace(/_/g, ' ') : 'Unknown'}</strong></p>
@@ -276,13 +253,11 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                 );
               })()}
             </section>
-
             <section>
               <h4><ShieldAlert size={15} /> Network Evidence</h4>
               {(() => {
                 const corr = explanation?.network_corroboration || selected?.network_corroboration;
                 const spatial = explanation?.spatial_context;
-
                 if (spatial) {
                   const isMinimalSpatial = spatial.spatial_impact?.toLowerCase().includes('minimal') || spatial.spatial_impact?.toLowerCase().includes('agreement');
                   const pillClass = corr === 'REGIONAL'
@@ -305,7 +280,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                           <span className="sg-spatial-impact-badge">{spatial.spatial_impact}</span>
                         )}
                       </div>
-
                       <div className="sg-spatial-narrative">
                         {spatial.analysis_text.split('\n').map((line, idx) => (
                           <p key={idx} className="sg-explain-card__muted" style={{ margin: '0.2rem 0', color: idx === 0 ? '#f1f5f9' : '#cbd5e1' }}>
@@ -313,7 +287,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                           </p>
                         ))}
                       </div>
-
                       {spatial.thermodynamic_context?.explanation && (
                         <div style={{
                           margin: '0.45rem 0',
@@ -331,7 +304,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                           {spatial.thermodynamic_context.explanation}
                         </div>
                       )}
-
                       <div className="sg-spatial-peers">
                         <div className="sg-spatial-peer is-target">
                           <span className="sg-spatial-peer__label">{spatial.target_station.name} (Target)</span>
@@ -348,7 +320,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                           </div>
                         ))}
                       </div>
-
                       {spatial.recommended_action && (
                         <div className="sg-spatial-recommendation">
                           <CheckCircle2 size={14} style={{ color: '#38bdf8', flexShrink: 0, marginTop: '2px' }} />
@@ -358,7 +329,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                     </div>
                   );
                 }
-
                 if (!corr) return <p className="sg-explain-card__muted">Network analysis not performed (no anomaly detected).</p>;
                 const labels: Record<string, string> = {
                   REGIONAL: 'Nearby stations show similar changes — regional environmental event possible. Sensor should not be blamed immediately.',
@@ -373,7 +343,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                 );
               })()}
             </section>
-
             <section>
               <h4><ShieldAlert size={15} /> {features.length ? 'Model evidence' : 'Rule evidence'}</h4>
               {features.length ? (
@@ -401,13 +370,11 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                 <p className="sg-explain-card__muted">Model explanation unavailable — this event was assessed by deterministic safety rules only. Rule evidence is not a probability estimate.</p>
               )}
             </section>
-
             <section>
               <h4><ChevronRight size={15} /> Operator-ready conclusion</h4>
               {(() => {
                 const isMultivariate = selected?.type === 'multivariate_inconsistency' || explanation?.fault_type === 'multivariate_inconsistency';
                 const thermo = explanation?.spatial_context?.thermodynamic_context;
-
                 if (isMultivariate || thermo?.is_violation) {
                   return (
                     <div style={{ marginBottom: '0.5rem' }}>
@@ -420,7 +387,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                     </div>
                   );
                 }
-
                 return (
                   <p className="sg-explain-card__conclusion">
                     {implicated.length
@@ -429,7 +395,6 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                   </p>
                 );
               })()}
-
               {observed.length > 0 && <p><strong>Observed:</strong> {formatSuggestedList(observed)}</p>}
               <SuggestedValues items={suggested} emptyLabel="Suggested replacement becomes available after the baseline warm-up." />
               <p className="sg-explain-card__action">

@@ -1,7 +1,6 @@
 import React from 'react';
 import { SuggestedReading } from '../../utils/suggestedValues';
 import './SuggestedValues.css';
-
 export interface SuggestedValuesProps {
   items: SuggestedReading[];
   compact?: boolean;
@@ -9,7 +8,6 @@ export interface SuggestedValuesProps {
   emptyLabel?: string;
   className?: string;
 }
-
 export const SuggestedValues: React.FC<SuggestedValuesProps> = ({
   items,
   compact = false,
@@ -21,7 +19,6 @@ export const SuggestedValues: React.FC<SuggestedValuesProps> = ({
     if (!emptyLabel) return null;
     return <span className={`sg-suggested sg-suggested--empty ${className}`}>{emptyLabel}</span>;
   }
-
   return (
     <div className={`sg-suggested ${compact ? 'sg-suggested--compact' : ''} ${className}`}>
       {(!compact || showHeading) && <span className="sg-suggested__heading">Suggested replacement</span>}

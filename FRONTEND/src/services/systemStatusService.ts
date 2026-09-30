@@ -6,7 +6,6 @@ import { validateNetworkStatus } from './validators';
 import { stationService } from './stationService';
 import { summarizeNetworkStatus } from '../utils/networkStatus';
 import { MOCK_ANOMALIES } from '../mock/anomalyData';
-
 export const systemStatusService = {
   async get(options?: RequestOptions): Promise<SystemStreamStatus> {
     if (isMockMode()) {
@@ -27,7 +26,6 @@ export const systemStatusService = {
       is_pre_warming: typeof status.is_pre_warming === 'boolean' ? status.is_pre_warming : false,
     };
   },
-
   async switchToLive(options?: RequestOptions): Promise<SystemStreamStatus> {
     if (isMockMode()) {
       return { mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60 };
@@ -38,12 +36,10 @@ export const systemStatusService = {
     }
     return { mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60 };
   },
-
   async refreshLive(options?: RequestOptions): Promise<void> {
     if (isMockMode()) return;
     await apiClient.post<unknown>(API_CONFIG.endpoints.refreshLive, undefined, options);
   },
-
   async getNetworkStatus(options?: RequestOptions): Promise<SystemStatusSummary> {
     if (isMockMode()) {
       const stations = await stationService.getAllStations(options);
@@ -55,7 +51,6 @@ export const systemStatusService = {
     const data = await apiClient.get<unknown>(API_CONFIG.endpoints.networkStatus, undefined, options);
     return validateNetworkStatus(data);
   },
-
   async clearHistory(target: 'all' | 'replay' = 'all', options?: RequestOptions): Promise<{ success: boolean; message: string }> {
     if (isMockMode()) {
       return { success: true, message: 'Mock data purged.' };

@@ -6,7 +6,6 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { SensorHealth, RepairSensorResponse } from '../../types';
 import './SensorHealthHero.css';
-
 export interface SensorHealthHeroProps {
   health: SensorHealth | null;
   lastUpdated?: Date | null;
@@ -20,7 +19,6 @@ export interface SensorHealthHeroProps {
   repairError?: string | null;
   className?: string;
 }
-
 export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
   health,
   lastUpdated,
@@ -50,7 +48,6 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className={`sg-health-hero sg-health-hero--critical ${className}`}>
@@ -69,15 +66,12 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
       </Card>
     );
   }
-
   const score = health ? health.sensor_health_pct : 0;
   const status = health ? health.sensor_health_status : 'OFFLINE';
-
   const isHealthy = status === 'HEALTHY';
   const isWarning = status === 'WARNING';
   const isCritical = status === 'CRITICAL';
   const isOffline = status === 'OFFLINE';
-
   const heroModifier = isHealthy
     ? 'sg-health-hero--healthy'
     : isWarning
@@ -85,7 +79,6 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
     : isCritical
     ? 'sg-health-hero--critical'
     : 'sg-health-hero--offline';
-
   const indicatorClass = isHealthy
     ? 'sg-health-hero__indicator--healthy'
     : isWarning
@@ -93,8 +86,6 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
     : isCritical
     ? 'sg-health-hero__indicator--critical'
     : 'sg-health-hero__indicator--offline';
-
-  // Human-facing operational summary copy
   let statusCopy = 'All meteorological sensor channels operating within nominal hardware tolerance.';
   if (isWarning) {
     statusCopy = 'Potential sensor reliability concern — Telemetry variance or baseline drift detected.';
@@ -103,18 +94,13 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
   } else if (isOffline) {
     statusCopy = 'No current sensor data available — Station telemetry disconnected.';
   }
-
-  // SVG Circular Gauge calculation (radius = 50, circumference = 2 * PI * 50 = 314.159)
   const radius = 50;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (score / 100) * circumference;
-
   const accessibleText = `Sensor health is ${score} percent. Current status is ${status}. ${statusCopy}`;
-
   const formattedTime = lastUpdated
     ? lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : 'Pending';
-
   return (
     <Card
       variant="glass"
@@ -124,7 +110,7 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
     >
       <div className="sg-health-hero__container">
         <div className="sg-health-hero__main">
-          {/* Circular Progress Gauge */}
+          {}
           <div
             className="sg-health-hero__meter"
             role="progressbar"
@@ -149,8 +135,7 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
               <span className="sg-health-hero__score-unit">Health</span>
             </div>
           </div>
-
-          {/* Operational Status & Description */}
+          {}
           <div className="sg-health-hero__details">
             <div className="sg-health-hero__title-row">
               {isHealthy && <ShieldCheck size={22} className="text-optimal" aria-hidden="true" />}
@@ -167,8 +152,7 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
               />
             </div>
             <p className="sg-health-hero__description">{statusCopy}</p>
-
-            {/* Repair / Recovery Action & Status */}
+            {}
             {(onRepair || onForceRecover) && (
               <div className="sg-health-hero__repair-section">
                 <div className="sg-health-hero__repair-actions">
@@ -201,7 +185,6 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
                 <p className="sg-health-hero__repair-hint">
                   Mark Repaired waits for 3 clean readings. Force Recovery instantly clears a stuck sensor.
                 </p>
-
                 {repairResult && (
                   <div className="sg-health-hero__recovery-notice" role="status">
                     <div className="sg-health-hero__recovery-header">
@@ -222,7 +205,6 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
                     <p className="sg-health-hero__recovery-msg">{repairResult.message}</p>
                   </div>
                 )}
-
                 {repairError && (
                   <p className="sg-health-hero__repair-error" role="alert">
                     {repairError}
@@ -232,8 +214,7 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
             )}
           </div>
         </div>
-
-        {/* Aside / Metadata */}
+        {}
         <div className="sg-health-hero__aside">
           <span className="sg-health-hero__timestamp">Last Check: {formattedTime}</span>
           <span className="sg-health-hero__notice">

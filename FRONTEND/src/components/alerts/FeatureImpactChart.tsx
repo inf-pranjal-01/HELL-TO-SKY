@@ -3,14 +3,12 @@ import { Sparkles } from 'lucide-react';
 import { Skeleton } from '../common/Skeleton';
 import { ExplanationFeature } from '../../types';
 import './FeatureImpactChart.css';
-
 export interface FeatureImpactChartProps {
   features: ExplanationFeature[];
   isLoading?: boolean;
   error?: string | null;
   className?: string;
 }
-
 export const FeatureImpactChart: React.FC<FeatureImpactChartProps> = ({
   features = [],
   isLoading = false,
@@ -33,7 +31,6 @@ export const FeatureImpactChart: React.FC<FeatureImpactChartProps> = ({
       </div>
     );
   }
-
   if (error) {
     return (
       <div className={`sg-feature-impact ${className}`}>
@@ -46,7 +43,6 @@ export const FeatureImpactChart: React.FC<FeatureImpactChartProps> = ({
       </div>
     );
   }
-
   if (!features || features.length === 0) {
     return (
       <div className={`sg-feature-impact ${className}`}>
@@ -59,10 +55,7 @@ export const FeatureImpactChart: React.FC<FeatureImpactChartProps> = ({
       </div>
     );
   }
-
-  // Find max absolute value for proportional scaling (minimum scale factor 0.5 to prevent single tiny bar filling 100%)
   const maxAbsImpact = Math.max(...features.map((f) => Math.abs(f.impact)), 0.5);
-
   return (
     <div className={`sg-feature-impact ${className}`} role="region" aria-label="Feature contribution breakdown">
       <div className="sg-feature-impact__header">
@@ -80,7 +73,6 @@ export const FeatureImpactChart: React.FC<FeatureImpactChartProps> = ({
           Positive values push toward anomaly; negative values push toward normal baseline.
         </p>
       </div>
-
       <div className="sg-feature-impact__legend" aria-hidden="true">
         <div className="sg-feature-impact__legend-item">
           <span className="sg-feature-impact__legend-dot sg-feature-impact__legend-dot--positive" />
@@ -91,15 +83,13 @@ export const FeatureImpactChart: React.FC<FeatureImpactChartProps> = ({
           <span>Stabilizes Toward Normal (-)</span>
         </div>
       </div>
-
       <div className="sg-feature-impact__chart" role="list" aria-label="Feature impact list">
         {features.map((feature, idx) => {
           const isPositive = feature.impact >= 0;
           const absVal = Math.abs(feature.impact);
-          const barPct = Math.min((absVal / maxAbsImpact) * 50, 50); // max 50% from center axis
+          const barPct = Math.min((absVal / maxAbsImpact) * 50, 50);
           const sign = isPositive ? '+' : '';
           const displayImpact = `${sign}${(feature.impact * 100).toFixed(0)}%`;
-
           return (
             <div
               key={idx}
@@ -110,7 +100,6 @@ export const FeatureImpactChart: React.FC<FeatureImpactChartProps> = ({
               <span className="sg-feature-impact__feature-name" title={feature.name}>
                 {feature.name}
               </span>
-
               <div className="sg-feature-impact__bar-track" aria-hidden="true">
                 <div className="sg-feature-impact__axis-center" />
                 {isPositive ? (
@@ -125,7 +114,6 @@ export const FeatureImpactChart: React.FC<FeatureImpactChartProps> = ({
                   />
                 )}
               </div>
-
               <span
                 className={`sg-feature-impact__value ${
                   isPositive ? 'sg-feature-impact__value--positive' : 'sg-feature-impact__value--negative'

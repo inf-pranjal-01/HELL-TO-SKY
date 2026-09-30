@@ -8,13 +8,11 @@ import { FeatureImpactChart } from './FeatureImpactChart';
 import { LatestAnomaly, RecentAnomalyItem, ExplanationFeature } from '../../types';
 import { anomalyService } from '../../services/anomalyService';
 import './AnomalyDetailModal.css';
-
 export interface AnomalyDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   anomaly: LatestAnomaly | RecentAnomalyItem | null;
 }
-
 export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
   isOpen,
   onClose,
@@ -25,7 +23,6 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
   const [isLoadingExplanation, setIsLoadingExplanation] = useState<boolean>(false);
   const [explanationError, setExplanationError] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
-
   useEffect(() => {
     if (!isOpen || !anomaly) {
       setFeatures([]);
@@ -34,11 +31,9 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
       setCopied(false);
       return;
     }
-
     let isMounted = true;
     setIsLoadingExplanation(true);
     setExplanationError(null);
-
     anomalyService
       .getAnomalyExplanation(anomaly.anomaly_id)
       .then((explanation) => {
@@ -58,18 +53,14 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
       .finally(() => {
         if (isMounted) setIsLoadingExplanation(false);
       });
-
     return () => {
       isMounted = false;
     };
   }, [isOpen, anomaly]);
-
   if (!anomaly) return null;
-
   const suggestedReading = Object.entries(anomaly.suggested_values ?? {})
     .map(([parameter, value]) => `${parameter.replace(/_/g, ' ')}: ${value.toFixed(2)}`)
     .join(' · ');
-
   const handleCopySummary = () => {
     const text = [
       `SkyGuard AI — Incident Report: ${anomaly.anomaly_id}`,
@@ -82,18 +73,15 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
       `Description: ${anomaly.description}`,
       ...(suggestedReading ? [`Suggested replacement: ${suggestedReading}`] : []),
     ].join('\n');
-
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     });
   };
-
   const formattedDate = new Date(anomaly.timestamp).toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'medium',
   });
-
   const modalFooter = (
     <div className="sg-anomaly-modal__footer-actions">
       <div>
@@ -141,7 +129,6 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
       </div>
     </div>
   );
-
   return (
     <Modal
       isOpen={isOpen}
@@ -151,7 +138,7 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
       footer={modalFooter}
     >
       <div className="sg-anomaly-modal">
-        {/* Header Hero Banner */}
+        {}
         <div className="sg-anomaly-modal__hero">
           <div className="sg-anomaly-modal__hero-info">
             <span className="sg-anomaly-modal__type">{anomaly.type.replace('_', ' ')}</span>
@@ -183,19 +170,16 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
             </span>
           </div>
         </div>
-
-        {/* Root Cause Section */}
+        {}
         <div className="sg-anomaly-modal__section">
           <h4 className="sg-anomaly-modal__section-title">Anomaly Indication</h4>
           <p className="sg-anomaly-modal__root-cause">{anomaly.root_cause}</p>
         </div>
-
-        {/* Description Section */}
+        {}
         <div className="sg-anomaly-modal__section">
           <h4 className="sg-anomaly-modal__section-title">Meteorological Context & Description</h4>
           <p className="sg-anomaly-modal__description">{anomaly.description}</p>
         </div>
-
         {(anomaly.regime || anomaly.network_corroboration || anomaly.decision_basis) && (
           <div className="sg-anomaly-modal__section" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px' }}>
             {anomaly.regime && (
@@ -224,15 +208,13 @@ export const AnomalyDetailModal: React.FC<AnomalyDetailModalProps> = ({
             )}
           </div>
         )}
-
         {suggestedReading && (
           <div className="sg-anomaly-modal__section">
             <h4 className="sg-anomaly-modal__section-title">Estimated Replacement (Temporal Baseline — Not a Correction)</h4>
             <p className="sg-anomaly-modal__description">{suggestedReading}</p>
           </div>
         )}
-
-        {/* Feature Explainability Section */}
+        {}
         <div className="sg-anomaly-modal__section">
           <FeatureImpactChart
             features={features}

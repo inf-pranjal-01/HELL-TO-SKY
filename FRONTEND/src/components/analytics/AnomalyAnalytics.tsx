@@ -4,21 +4,17 @@ import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { AnalyticsSummary, SeverityDistribution, AnomalyTypeDistribution } from '../../types';
 import './AnomalyAnalytics.css';
-
 export interface AnomalyAnalyticsProps {
   analyticsSummary: AnalyticsSummary | null;
   isLoading?: boolean;
   className?: string;
 }
-
-// ── Severity distribution bar rows ────────────────────────────────────────────
 interface SeverityRowProps {
   label: string;
   count: number;
   total: number;
   barClass: string;
 }
-
 const SeverityRow: React.FC<SeverityRowProps> = ({ label, count, total, barClass }) => {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
@@ -45,14 +41,11 @@ const SeverityRow: React.FC<SeverityRowProps> = ({ label, count, total, barClass
     </div>
   );
 };
-
-// ── Type distribution bar rows ─────────────────────────────────────────────────
 interface TypeRowProps {
   label: string;
   count: number;
   total: number;
 }
-
 const TypeRow: React.FC<TypeRowProps> = ({ label, count, total }) => {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
@@ -79,8 +72,6 @@ const TypeRow: React.FC<TypeRowProps> = ({ label, count, total }) => {
     </div>
   );
 };
-
-// ── Loading skeleton ───────────────────────────────────────────────────────────
 const AnomalyAnalyticsSkeleton: React.FC = () => (
   <div className="sg-anomaly-analytics-grid">
     {[0, 1].map((i) => (
@@ -100,8 +91,6 @@ const AnomalyAnalyticsSkeleton: React.FC = () => (
     ))}
   </div>
 );
-
-// ── Main component ─────────────────────────────────────────────────────────────
 export const AnomalyAnalytics: React.FC<AnomalyAnalyticsProps> = ({
   analyticsSummary,
   isLoading = false,
@@ -110,14 +99,12 @@ export const AnomalyAnalytics: React.FC<AnomalyAnalyticsProps> = ({
   if (isLoading) {
     return <AnomalyAnalyticsSkeleton />;
   }
-
   const sevDist: SeverityDistribution = analyticsSummary?.severityDistribution ?? {
     critical: 0,
     high: 0,
     medium: 0,
     low: 0,
   };
-
   const typeDist: AnomalyTypeDistribution = analyticsSummary?.typeDistribution ?? {
     spike: 0,
     frozen_value: 0,
@@ -126,7 +113,6 @@ export const AnomalyAnalytics: React.FC<AnomalyAnalyticsProps> = ({
     sensor_fail_low: 0,
     multivariate_inconsistency: 0,
   };
-
   const totalSev = sevDist.critical + sevDist.high + sevDist.medium + sevDist.low;
   const totalType =
     typeDist.spike +
@@ -135,12 +121,10 @@ export const AnomalyAnalytics: React.FC<AnomalyAnalyticsProps> = ({
     typeDist.dropout +
     typeDist.sensor_fail_low +
     typeDist.multivariate_inconsistency;
-
   const hasData = totalSev > 0 || totalType > 0;
-
   return (
     <div className={`sg-anomaly-analytics-grid ${className}`}>
-      {/* Severity Distribution Card */}
+      {}
       <Card
         variant="glass"
         className="sg-anomaly-analytics-card"
@@ -152,9 +136,8 @@ export const AnomalyAnalytics: React.FC<AnomalyAnalyticsProps> = ({
             <AlertTriangle size={16} aria-hidden="true" />
             <h3 className="sg-anomaly-analytics-card__title">Severity Distribution</h3>
           </div>
-          {/* [FRONTEND ONLY] [DERIVED FROM EXISTING DATA] */}
+          {}
         </div>
-
         {!hasData ? (
           <p className="sg-anomaly-analytics-card__empty">
             No anomalies detected in this observation window.
@@ -188,8 +171,7 @@ export const AnomalyAnalytics: React.FC<AnomalyAnalyticsProps> = ({
           </div>
         )}
       </Card>
-
-      {/* Type Distribution Card */}
+      {}
       <Card
         variant="glass"
         className="sg-anomaly-analytics-card"
@@ -201,9 +183,8 @@ export const AnomalyAnalytics: React.FC<AnomalyAnalyticsProps> = ({
             <Activity size={16} aria-hidden="true" />
             <h3 className="sg-anomaly-analytics-card__title">Anomaly Type Breakdown</h3>
           </div>
-          {/* [FRONTEND ONLY] [DERIVED FROM EXISTING DATA] */}
+          {}
         </div>
-
         {!hasData ? (
           <p className="sg-anomaly-analytics-card__empty">
             No anomaly type data available for this window.

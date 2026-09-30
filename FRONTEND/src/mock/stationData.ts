@@ -1,10 +1,4 @@
 import { Station } from '../types';
-
-/**
- * [MOCK DATA]
- * Isolated meteorological station fixtures for mock mode.
- * Matches exact station API contract specification: [API: GET /api/stations — INTEGRATED]
- */
 export const MOCK_STATIONS: Station[] = [
   {
     station_id: 'ST-NDL-001',

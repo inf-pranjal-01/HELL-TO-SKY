@@ -1,14 +1,3 @@
-/**
- * SkyGuard AI — Runtime API Response Validators & Type Guards
- *
- * Protects frontend React components and charts from malformed or incomplete
- * backend responses when real FastAPI endpoints are integrated.
- *
- * Rules:
- * - No `any` is allowed anywhere in this file.
- * - All backend field normalization happens here (not in components or hooks).
- * - Invalid required fields must throw ApiError.validationError — never silently default.
- */
 
 import {
   Station,
@@ -31,11 +20,6 @@ import {
   SystemOverallStatus,
 } from '../types';
 import { ApiError } from './apiError';
-
-// ---------------------------------------------------------------------------
-// Allowed constant sets
-// ---------------------------------------------------------------------------
-
 const VALID_SEVERITIES: readonly AnomalySeverity[] = ['low', 'medium', 'high', 'critical'];
 const VALID_ANOMALY_TYPES: readonly AnomalyType[] = [
   'spike',
@@ -47,15 +31,9 @@ const VALID_ANOMALY_TYPES: readonly AnomalyType[] = [
   'physical_bounds',
   'statistical_anomaly',
 ];
-
-// ---------------------------------------------------------------------------
-// Private helpers
-// ---------------------------------------------------------------------------
-
 function isObject(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
-
 function optionalObservedValues(value: unknown): Record<string, number | null> | undefined {
   if (!isObject(value)) return undefined;
   const readings: Record<string, number | null> = {};
@@ -64,12 +42,10 @@ function optionalObservedValues(value: unknown): Record<string, number | null> |
   }
   return readings;
 }
-
 function optionalAffectedParameters(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.filter((parameter): parameter is string => typeof parameter === 'string');
 }
-
 function optionalNetworkCorroboration(value: unknown): NetworkCorroborationState | undefined {
   const validStates: readonly NetworkCorroborationState[] = [
     'LOCALIZED',
@@ -80,25 +56,16 @@ function optionalNetworkCorroboration(value: unknown): NetworkCorroborationState
     ? value as NetworkCorroborationState
     : undefined;
 }
-
-// ---------------------------------------------------------------------------
-// 1. Validate GET /api/stations response
-//    Backend only returns: NORMAL | WARNING | OFFLINE (no CRITICAL from this endpoint)
-//    CRITICAL is retained in UI types but must not be accepted from the API response.
-// ---------------------------------------------------------------------------
 export function validateStations(data: unknown): Station[] {
   if (!Array.isArray(data)) {
     throw ApiError.validationError('Stations response must be an array.');
   }
-
   const allowedStatuses = ['NORMAL', 'WARNING', 'OFFLINE'] as const;
   type AllowedStatus = (typeof allowedStatuses)[number];
-
   return data.map((item, idx) => {
     if (!isObject(item)) {
       throw ApiError.validationError(`Station at index ${idx} is not an object.`);
     }
-
     if (
       typeof item.station_id !== 'string' ||
       typeof item.name !== 'string' ||
@@ -109,7 +76,6 @@ export function validateStations(data: unknown): Station[] {
         `Station at index ${idx} is missing required fields (station_id, name, lat, lon).`
       );
     }
-
     if (
       typeof item.status !== 'string' ||
       !allowedStatuses.includes(item.status as AllowedStatus)
@@ -118,9 +84,7 @@ export function validateStations(data: unknown): Station[] {
         `Station at index ${idx} has an invalid or unrecognised status: "${String(item.status)}".`
       );
     }
-
     const status = item.status as Station['status'];
-
     return {
       station_id: String(item.station_id),
       name: String(item.name),
@@ -132,26 +96,19 @@ export function validateStations(data: unknown): Station[] {
     };
   });
 }
-
-// ---------------------------------------------------------------------------
-// 2. Validate GET /api/current-reading response
-// ---------------------------------------------------------------------------
 export function validateCurrentReading(data: unknown): CurrentSensorReading {
   if (!isObject(data)) {
     throw ApiError.validationError('Current reading response must be an object.');
   }
-
   if (typeof data.station_id !== 'string' || data.station_id.trim() === '') {
     throw ApiError.validationError('Current reading missing valid station_id string.');
   }
-
   if (typeof data.timestamp !== 'string' || data.timestamp.trim() === '') {
     throw ApiError.validationError('Current reading missing valid timestamp string.');
   }
   if (Number.isNaN(new Date(data.timestamp).getTime())) {
     throw ApiError.validationError('Current reading has an invalid timestamp.');
   }
-
   const validateMetric = (metric: unknown, name: string) => {
     if (
       !isObject(metric) ||
@@ -171,14 +128,11 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
       normal_max: Number(metric.normal_max),
     };
   };
-
   if (typeof data.anomaly_score_pct !== 'number') {
     throw ApiError.validationError('Current reading missing numeric anomaly_score_pct.');
   }
-
   const validRiskLevels = ['low', 'medium', 'high', 'critical'] as const;
   type RiskLevelValue = (typeof validRiskLevels)[number];
-
   if (
     typeof data.risk_level !== 'string' ||
     !validRiskLevels.includes(data.risk_level as RiskLevelValue)
@@ -188,14 +142,11 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
     );
   }
   const riskLevel = data.risk_level as RiskLevelValue;
-
   if (typeof data.sensor_health_pct !== 'number') {
     throw ApiError.validationError('Current reading missing numeric sensor_health_pct.');
   }
-
   const validHealthStatuses = ['HEALTHY', 'WARNING', 'CRITICAL', 'OFFLINE'] as const;
   type HealthStatus = (typeof validHealthStatuses)[number];
-
   if (
     typeof data.sensor_health_status !== 'string' ||
     !validHealthStatuses.includes(data.sensor_health_status as HealthStatus)
@@ -205,7 +156,6 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
     );
   }
   const healthStatus = data.sensor_health_status as HealthStatus;
-
   return {
     station_id: String(data.station_id),
     timestamp: String(data.timestamp),
@@ -224,41 +174,31 @@ export function validateCurrentReading(data: unknown): CurrentSensorReading {
     ...(typeof data.model_status === 'string' ? { model_status: data.model_status } : {}),
   };
 }
-
-// ---------------------------------------------------------------------------
-// 3. Validate GET /api/trends response
-// ---------------------------------------------------------------------------
 export function validateTrends(data: unknown, fallbackHours: number = 6): TrendsResponse {
   if (!isObject(data)) {
     throw ApiError.validationError('Trends response must be an object.');
   }
-
   if (typeof data.station_id !== 'string' || data.station_id.trim() === '') {
     throw ApiError.validationError('Trends response missing valid station_id string.');
   }
-
   if (!Array.isArray(data.points)) {
     throw ApiError.validationError('Trends response points must be an array.');
   }
-
   const parsedPoints: TrendPoint[] = data.points.map((pt: unknown, idx: number) => {
     if (!isObject(pt)) {
       throw ApiError.validationError(`Trend point at index ${idx} is not an object.`);
     }
-
     if (typeof pt.timestamp !== 'string' || pt.timestamp.trim() === '') {
       throw ApiError.validationError(`Trend point at index ${idx} is missing valid timestamp string.`);
     }
     if (Number.isNaN(new Date(pt.timestamp).getTime())) {
       throw ApiError.validationError(`Trend point at index ${idx} has an invalid timestamp.`);
     }
-
     const parseNumber = (val: unknown, fallback: number = 0): number => {
       if (typeof val === 'number' && !Number.isNaN(val)) return Number(val);
       const n = Number(val);
       return !Number.isNaN(n) ? n : fallback;
     };
-
     return {
       timestamp: String(pt.timestamp),
       temperature_c: parseNumber(pt.temperature_c, 25.0),
@@ -279,11 +219,6 @@ export function validateTrends(data: unknown, fallbackHours: number = 6): Trends
       ...(pt.source === 'live' || pt.source === 'replay' ? { source: pt.source } : {}),
     };
   });
-
-  // Keep every distinct observation.  Earlier versions collapsed all live
-  // readings inside a 30-minute bucket, which silently discarded legitimate
-  // samples and made the right-most chart timestamp appear to change between
-  // refreshes.  An API/WS duplicate is identified by its exact timestamp.
   const pointMap = new Map<string, TrendPoint>();
   for (const point of parsedPoints) {
     const timestamp = new Date(point.timestamp).getTime();
@@ -294,7 +229,6 @@ export function validateTrends(data: unknown, fallbackHours: number = 6): Trends
   const points = Array.from(pointMap.values()).sort(
     (left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime()
   );
-
   let anomaly_windows: AnomalyWindow[] | undefined;
   if (Array.isArray(data.anomaly_windows)) {
     anomaly_windows = data.anomaly_windows
@@ -306,9 +240,7 @@ export function validateTrends(data: unknown, fallbackHours: number = 6): Trends
       }))
       .filter((w) => w.start !== '' && w.end !== '');
   }
-
   const hours = typeof data.hours === 'number' ? data.hours : fallbackHours;
-
   return {
     station_id: String(data.station_id),
     hours,
@@ -316,41 +248,30 @@ export function validateTrends(data: unknown, fallbackHours: number = 6): Trends
     ...(anomaly_windows && anomaly_windows.length > 0 ? { anomaly_windows } : {}),
   };
 }
-
-// ---------------------------------------------------------------------------
-// 4. Validate GET /api/anomalies/latest response
-// ---------------------------------------------------------------------------
 export function validateLatestAnomaly(data: unknown, expectedStationId?: string): LatestAnomaly | null {
   if (data === null || data === undefined) {
     return null;
   }
-
   if (!isObject(data)) {
     throw ApiError.validationError('Latest anomaly response must be an object or null.');
   }
-
   if (typeof data.anomaly_id !== 'string' || data.anomaly_id.trim() === '') {
     throw ApiError.validationError('Latest anomaly missing valid anomaly_id string.');
   }
-
   if (typeof data.station_id !== 'string' || data.station_id.trim() === '') {
     throw ApiError.validationError('Latest anomaly missing valid station_id string.');
   }
-
   if (expectedStationId && data.station_id !== expectedStationId) {
     throw ApiError.validationError(
       `Latest anomaly station_id mismatch: expected "${expectedStationId}", got "${data.station_id}".`
     );
   }
-
   if (typeof data.timestamp !== 'string' || data.timestamp.trim() === '') {
     throw ApiError.validationError('Latest anomaly missing valid timestamp string.');
   }
-
   if (typeof data.anomaly_score_pct !== 'number') {
     throw ApiError.validationError('Latest anomaly missing numeric anomaly_score_pct.');
   }
-
   if (
     typeof data.severity !== 'string' ||
     !(VALID_SEVERITIES as readonly string[]).includes(data.severity)
@@ -360,22 +281,17 @@ export function validateLatestAnomaly(data: unknown, expectedStationId?: string)
     );
   }
   const severity = data.severity as AnomalySeverity;
-
   if (typeof data.type !== 'string' || data.type.trim() === '') {
     throw ApiError.validationError('Latest anomaly missing valid type string.');
   }
   const type = data.type as AnomalyType;
-
   if (typeof data.root_cause !== 'string' || data.root_cause.trim() === '') {
     throw ApiError.validationError('Latest anomaly missing valid root_cause string.');
   }
-
   const description =
     typeof data.description === 'string' && data.description.trim() !== ''
       ? data.description
       : `${data.root_cause} detected at ${data.station_id}.`;
-
-  // Normalise suggested_values: backend returns a dict of string→number or {}
   let suggested_values: Record<string, number> | undefined;
   if (isObject(data.suggested_values)) {
     suggested_values = {};
@@ -388,7 +304,6 @@ export function validateLatestAnomaly(data: unknown, expectedStationId?: string)
   const observed_values = optionalObservedValues(data.observed_values);
   const affected_parameters = optionalAffectedParameters(data.affected_parameters);
   const network_corroboration = optionalNetworkCorroboration(data.network_corroboration);
-
   return {
     anomaly_id: String(data.anomaly_id),
     timestamp: String(data.timestamp),
@@ -407,47 +322,34 @@ export function validateLatestAnomaly(data: unknown, expectedStationId?: string)
     ...(typeof data.model_status === 'string' ? { model_status: data.model_status } : {}),
   };
 }
-
-// ---------------------------------------------------------------------------
-// 5. Validate GET /api/anomalies/recent response
-//    Normalization: backend returns `score_pct` → frontend field `anomaly_score_pct`
-//                   backend returns `label`     → frontend field `root_cause`
-// ---------------------------------------------------------------------------
 export function validateRecentAnomalies(data: unknown, expectedStationId?: string): RecentAnomalyItem[] {
   if (!Array.isArray(data)) {
     throw ApiError.validationError('Recent anomalies response must be an array.');
   }
-
   return data.map((item: unknown, idx) => {
     if (!isObject(item)) {
       throw ApiError.validationError(`Recent anomaly at index ${idx} is not an object.`);
     }
-
     if (typeof item.anomaly_id !== 'string' || item.anomaly_id.trim() === '') {
       throw ApiError.validationError(
         `Recent anomaly at index ${idx} missing valid anomaly_id string.`
       );
     }
-
     if (typeof item.station_id !== 'string' || item.station_id.trim() === '') {
       throw ApiError.validationError(
         `Recent anomaly at index ${idx} missing valid station_id string.`
       );
     }
-
     if (expectedStationId && item.station_id !== expectedStationId) {
       throw ApiError.validationError(
         `Recent anomaly at index ${idx} station_id mismatch: expected "${expectedStationId}", got "${item.station_id}".`
       );
     }
-
     if (typeof item.timestamp !== 'string' || item.timestamp.trim() === '') {
       throw ApiError.validationError(
         `Recent anomaly at index ${idx} missing valid timestamp string.`
       );
     }
-
-    // Backend sends `score_pct`; normalise to `anomaly_score_pct`
     const rawScore = item.score_pct !== undefined ? item.score_pct : item.anomaly_score_pct;
     if (typeof rawScore !== 'number') {
       throw ApiError.validationError(
@@ -455,7 +357,6 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
       );
     }
     const anomaly_score_pct = Number(rawScore);
-
     if (
       typeof item.severity !== 'string' ||
       !(VALID_SEVERITIES as readonly string[]).includes(item.severity)
@@ -465,15 +366,12 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
       );
     }
     const severity = item.severity as AnomalySeverity;
-
     if (typeof item.type !== 'string' || item.type.trim() === '') {
       throw ApiError.validationError(
         `Recent anomaly at index ${idx} missing valid type string.`
       );
     }
     const type = item.type as AnomalyType;
-
-    // Backend sends `label`; normalise to `root_cause`
     const rawLabel = item.label !== undefined ? item.label : item.root_cause;
     if (typeof rawLabel !== 'string' || rawLabel.trim() === '') {
       throw ApiError.validationError(
@@ -481,13 +379,10 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
       );
     }
     const root_cause = String(rawLabel);
-
     const description =
       typeof item.description === 'string' && item.description.trim() !== ''
         ? item.description
         : `${root_cause} detected at ${item.station_id}.`;
-
-    // Normalise suggested_values
     let suggested_values: Record<string, number> | undefined;
     if (isObject(item.suggested_values)) {
       suggested_values = {};
@@ -500,7 +395,6 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
     const observed_values = optionalObservedValues(item.observed_values);
     const affected_parameters = optionalAffectedParameters(item.affected_parameters);
     const network_corroboration = optionalNetworkCorroboration(item.network_corroboration);
-
     return {
       anomaly_id: String(item.anomaly_id),
       timestamp: String(item.timestamp),
@@ -520,10 +414,6 @@ export function validateRecentAnomalies(data: unknown, expectedStationId?: strin
     };
   });
 }
-
-// ---------------------------------------------------------------------------
-// 6. Validate GET /api/explain/{anomaly_id} response
-// ---------------------------------------------------------------------------
 export function validateAnomalyExplanation(
   data: unknown,
   expectedAnomalyId?: string
@@ -531,42 +421,34 @@ export function validateAnomalyExplanation(
   if (!isObject(data)) {
     throw ApiError.validationError('Anomaly explanation response must be an object.');
   }
-
   if (typeof data.anomaly_id !== 'string' || data.anomaly_id.trim() === '') {
     throw ApiError.validationError('Anomaly explanation missing valid anomaly_id string.');
   }
-
   if (expectedAnomalyId && data.anomaly_id !== expectedAnomalyId) {
     throw ApiError.validationError(
       `Anomaly explanation anomaly_id mismatch: expected "${expectedAnomalyId}", got "${data.anomaly_id}".`
     );
   }
-
   if (!Array.isArray(data.features)) {
     throw ApiError.validationError('Anomaly explanation features must be an array.');
   }
-
   const features: ExplanationFeature[] = data.features.map((f: unknown, idx: number) => {
     if (!isObject(f)) {
       throw ApiError.validationError(`Explanation feature at index ${idx} is not an object.`);
     }
-
     if (typeof f.name !== 'string' || f.name.trim() === '') {
       throw ApiError.validationError(`Explanation feature at index ${idx} missing valid name string.`);
     }
-
     if (typeof f.impact !== 'number' || isNaN(f.impact)) {
       throw ApiError.validationError(
         `Explanation feature "${String(f.name)}" at index ${idx} missing valid numeric impact.`
       );
     }
-
     return {
       name: String(f.name),
       impact: Number(f.impact),
     };
   });
-
   let likely_faulty_sensors: string[] | undefined;
   if (data.likely_faulty_sensors !== undefined) {
     if (!Array.isArray(data.likely_faulty_sensors)) {
@@ -597,7 +479,6 @@ export function validateAnomalyExplanation(
   const fault_type = typeof data.fault_type === 'string' && (VALID_ANOMALY_TYPES as readonly string[]).includes(data.fault_type)
     ? data.fault_type as AnomalyType : undefined;
   const network_corroboration = optionalNetworkCorroboration(data.network_corroboration);
-
   return {
     anomaly_id: String(data.anomaly_id),
     features,
@@ -617,45 +498,31 @@ export function validateAnomalyExplanation(
     ...(isObject(data.spatial_context) ? { spatial_context: data.spatial_context as any } : {}),
   };
 }
-
-// ---------------------------------------------------------------------------
-// 7. Validate GET /api/sensor-health response
-//    Normalization: backend returns `health_pct` → frontend field `sensor_health_pct`
-//                   backend returns `status`     → frontend field `sensor_health_status`
-// ---------------------------------------------------------------------------
 export function validateSensorHealth(data: unknown, expectedStationId?: string): SensorHealth {
   if (!isObject(data)) {
     throw ApiError.validationError('Sensor health response must be an object.');
   }
-
   if (typeof data.station_id !== 'string' || !data.station_id.trim()) {
     throw ApiError.validationError('Sensor health response missing or invalid station_id.');
   }
-
   if (expectedStationId && data.station_id !== expectedStationId) {
     throw ApiError.validationError(
       `Sensor health station_id mismatch: expected ${expectedStationId}, got ${data.station_id}`
     );
   }
-
-  // Backend sends `health_pct`; mock fixtures may provide `sensor_health_pct`
   const rawHealth =
     typeof data.health_pct === 'number'
       ? data.health_pct
       : typeof data.sensor_health_pct === 'number'
       ? data.sensor_health_pct
       : null;
-
   if (rawHealth === null || !Number.isFinite(rawHealth) || rawHealth < 0 || rawHealth > 100) {
     throw ApiError.validationError(
       `Invalid health_pct: must be a finite number between 0 and 100, received ${String(data.health_pct ?? data.sensor_health_pct)}.`
     );
   }
-
   const validHealthStatuses = ['HEALTHY', 'WARNING', 'CRITICAL', 'OFFLINE'] as const;
   type HealthStatusValue = (typeof validHealthStatuses)[number];
-
-  // Backend sends `status`; normalise to `sensor_health_status`
   const rawStatus = data.status ?? data.sensor_health_status;
   if (
     typeof rawStatus !== 'string' ||
@@ -665,71 +532,52 @@ export function validateSensorHealth(data: unknown, expectedStationId?: string):
       `Invalid sensor health status: received ${String(rawStatus)}.`
     );
   }
-
   return {
     station_id: data.station_id,
     sensor_health_pct: rawHealth,
     sensor_health_status: rawStatus as HealthStatusValue,
   };
 }
-
-// ---------------------------------------------------------------------------
-// 8. Validate POST /api/inject-anomaly response
-// ---------------------------------------------------------------------------
 export function validateInjectAnomalyResponse(data: unknown): InjectAnomalyResponse {
   if (!isObject(data)) {
     throw ApiError.validationError('Inject anomaly response must be an object.');
   }
-
   if (typeof data.success !== 'boolean') {
     throw ApiError.validationError('Inject anomaly response missing or invalid success flag.');
   }
-
   if (typeof data.anomaly_id !== 'string' || !data.anomaly_id.trim()) {
     throw ApiError.validationError('Inject anomaly response missing or invalid anomaly_id.');
   }
-
   if (typeof data.message !== 'string') {
     throw ApiError.validationError('Inject anomaly response missing or invalid message.');
   }
-
   return {
     success: data.success,
     anomaly_id: data.anomaly_id,
     message: data.message,
   };
 }
-
-// ---------------------------------------------------------------------------
-// 9. Validate POST /api/maintenance-ticket response
-// ---------------------------------------------------------------------------
 export function validateMaintenanceTicketResponse(
   data: unknown
 ): MaintenanceTicketResponse {
   if (!isObject(data)) {
     throw ApiError.validationError('Maintenance ticket response must be an object.');
   }
-
   if (typeof data.ticket_id !== 'string' || !data.ticket_id.trim()) {
     throw ApiError.validationError('Maintenance ticket response missing or invalid ticket_id.');
   }
-
   if (typeof data.station_id !== 'string' || !data.station_id.trim()) {
     throw ApiError.validationError('Maintenance ticket response missing or invalid station_id.');
   }
-
   if (typeof data.issue !== 'string' || !data.issue.trim()) {
     throw ApiError.validationError('Maintenance ticket response missing or invalid issue.');
   }
-
   if (typeof data.priority !== 'string' || !data.priority.trim()) {
     throw ApiError.validationError('Maintenance ticket response missing or invalid priority.');
   }
-
   if (typeof data.created_at !== 'string' || !data.created_at.trim()) {
     throw ApiError.validationError('Maintenance ticket response missing or invalid created_at.');
   }
-
   return {
     ticket_id: data.ticket_id,
     station_id: data.station_id,
@@ -738,10 +586,6 @@ export function validateMaintenanceTicketResponse(
     created_at: data.created_at,
   };
 }
-
-// ---------------------------------------------------------------------------
-// 10. Validate POST /api/repair-sensor response
-// ---------------------------------------------------------------------------
 export function validateRepairSensorResponse(
   data: unknown,
   expectedStationId?: string
@@ -749,33 +593,26 @@ export function validateRepairSensorResponse(
   if (!isObject(data)) {
     throw ApiError.validationError('Repair sensor response must be an object.');
   }
-
   if (typeof data.success !== 'boolean') {
     throw ApiError.validationError('Repair sensor response missing or invalid success flag.');
   }
-
   if (typeof data.station_id !== 'string' || !data.station_id.trim()) {
     throw ApiError.validationError('Repair sensor response missing or invalid station_id.');
   }
-
   if (expectedStationId && data.station_id !== expectedStationId) {
     throw ApiError.validationError(
       `Repair sensor station_id mismatch: expected ${expectedStationId}, got ${data.station_id}`
     );
   }
-
   if (typeof data.status !== 'string' || !data.status.trim()) {
     throw ApiError.validationError('Repair sensor response missing or invalid status.');
   }
-
   if (typeof data.recovery_active !== 'boolean') {
     throw ApiError.validationError('Repair sensor response missing or invalid recovery_active flag.');
   }
-
   if (typeof data.message !== 'string') {
     throw ApiError.validationError('Repair sensor response missing or invalid message.');
   }
-
   return {
     success: data.success,
     station_id: data.station_id,
@@ -784,9 +621,7 @@ export function validateRepairSensorResponse(
     message: data.message,
   };
 }
-
 const NETWORK_STATUSES: readonly SystemOverallStatus[] = ['NORMAL', 'WARNING', 'CRITICAL', 'OFFLINE'];
-
 export function validateNetworkStatus(data: unknown): SystemStatusSummary {
   if (!isObject(data)) {
     throw ApiError.validationError('Network status response must be an object.');

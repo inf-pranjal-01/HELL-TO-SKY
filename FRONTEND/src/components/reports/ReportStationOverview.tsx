@@ -4,25 +4,21 @@ import { Station, CurrentSensorReading, SensorHealth } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { formatCoordinates } from '../../utils/geospatial';
 import './ReportStationOverview.css';
-
 export interface ReportStationOverviewProps {
   station: Station;
   currentReading: CurrentSensorReading | null;
   sensorHealth: SensorHealth | null;
 }
-
 export const ReportStationOverview: React.FC<ReportStationOverviewProps> = ({
   station,
   currentReading,
   sensorHealth,
 }) => {
   const coordsFormatted = formatCoordinates(station.lat, station.lon);
-
   const healthPct = sensorHealth?.sensor_health_pct ?? currentReading?.sensor_health_pct ?? 100;
   const healthStatus =
     sensorHealth?.sensor_health_status ?? currentReading?.sensor_health_status ?? 'HEALTHY';
   const riskLevel = currentReading?.risk_level ?? 'low';
-
   return (
     <section className="sg-report-section" aria-labelledby="report-section-1-heading">
       <div className="sg-report-section__header">
@@ -34,10 +30,9 @@ export const ReportStationOverview: React.FC<ReportStationOverviewProps> = ({
         </div>
         <span className="sg-report-section__badge">● LIVE BACKEND</span>
       </div>
-
-      {/* Grid of Station Metadata & Status Indices */}
+      {}
       <div className="sg-report-station-grid">
-        {/* Identity details */}
+        {}
         <div className="sg-report-station-card">
           <h3 className="sg-report-subheading">Observatory Identification</h3>
           <div className="sg-report-meta-list">
@@ -67,12 +62,11 @@ export const ReportStationOverview: React.FC<ReportStationOverviewProps> = ({
             )}
           </div>
         </div>
-
-        {/* Operational Status Summary (Distinct 3-pillar indices) */}
+        {}
         <div className="sg-report-station-card">
           <h3 className="sg-report-subheading">Operational Health & Risk Indices</h3>
           <div className="sg-report-status-pills">
-            {/* System Status */}
+            {}
             <div className="sg-report-status-pill-item">
               <div className="sg-report-status-pill-info">
                 <Shield size={14} className="text-accent" aria-hidden="true" />
@@ -92,8 +86,7 @@ export const ReportStationOverview: React.FC<ReportStationOverviewProps> = ({
                 size="sm"
               />
             </div>
-
-            {/* Sensor Hardware Health */}
+            {}
             <div className="sg-report-status-pill-item">
               <div className="sg-report-status-pill-info">
                 <Activity size={14} className="text-accent" aria-hidden="true" />
@@ -115,8 +108,7 @@ export const ReportStationOverview: React.FC<ReportStationOverviewProps> = ({
                 size="sm"
               />
             </div>
-
-            {/* Anomaly Risk Level */}
+            {}
             <div className="sg-report-status-pill-item">
               <div className="sg-report-status-pill-info">
                 <Radio size={14} className="text-accent" aria-hidden="true" />

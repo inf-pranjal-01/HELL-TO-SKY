@@ -17,7 +17,6 @@ import { ApiError, formatUserErrorMessage } from '../services/apiError';
 import { calculateFreshness, FreshnessState } from '../utils/freshness';
 import { TELEMETRY_REFRESH_EVENT } from '../utils/refreshEvents';
 import { API_CONFIG } from '../config/api.config';
-
 export interface DashboardDataState {
   currentReading: CurrentSensorReading | null;
   trends: TrendsResponse | null;
@@ -25,20 +24,14 @@ export interface DashboardDataState {
   recentAnomalies: RecentAnomalyItem[];
   telemetryHistory: TelemetryHistoryRecord[];
   sensorHealth: SensorHealth | null;
-  
-  // Section-isolated loading states
   isLoadingReading: boolean;
   isLoadingTrends: boolean;
   isLoadingAnomalies: boolean;
   isLoadingHealth: boolean;
-
-  // Section-isolated error states
   readingError: string | null;
   trendsError: string | null;
   anomaliesError: string | null;
   healthError: string | null;
-
-  // Real-time metadata & freshness
   lastUpdated: Date | null;
   isStale: boolean;
   isDelayed: boolean;
@@ -46,18 +39,12 @@ export interface DashboardDataState {
   freshness: FreshnessState;
   pollStatusText: string;
   streamMode: 'live' | 'replay';
-
-  // Live WebSocket Ingestion & Latency Readout
   wsLatencyMs: number | null;
   isWsConnected: boolean;
-
-  // Pause / Resume controls [FRONTEND ONLY]
   isPaused: boolean;
   isPreWarming: boolean;
   setIsPaused: (paused: boolean) => void;
   togglePause: () => void;
-
-  // Manual triggers
   refreshAll: () => Promise<void>;
   refreshReading: () => Promise<void>;
   refreshTrends: (hours?: number) => Promise<void>;
@@ -65,14 +52,11 @@ export interface DashboardDataState {
   refreshHealth: () => Promise<void>;
   syncStreamStatus: () => Promise<void>;
 }
-
 export interface UseDashboardDataOptions {
   pollingIntervalMs?: number;
   autoPoll?: boolean;
   trendHours?: number;
 }
-
-/** Merge API and push updates by their observation timestamp, never by arrival time. */
 function mergeTrendPoints(base: TrendsResponse['points'], additions: TrendsResponse['points'], hours: number) {
   const byTimestamp = new Map<string, TrendsResponse['points'][number]>();
   for (const point of base) byTimestamp.set(point.timestamp, point);
@@ -80,7 +64,6 @@ function mergeTrendPoints(base: TrendsResponse['points'], additions: TrendsRespo
     const existing = byTimestamp.get(point.timestamp);
     byTimestamp.set(point.timestamp, existing ? { ...existing, ...point } : point);
   }
-
   const points = Array.from(byTimestamp.values())
     .filter((point) => !Number.isNaN(new Date(point.timestamp).getTime()))
     .sort((left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
@@ -88,18 +71,6 @@ function mergeTrendPoints(base: TrendsResponse['points'], additions: TrendsRespo
   const cutoff = latestTimestamp - hours * 60 * 60 * 1000;
   return points.filter((point) => new Date(point.timestamp).getTime() >= cutoff);
 }
-
-/**
- * useDashboardData
- * 
- * Centralized telemetry data & polling hook reused across Dashboard and Monitor:
- * - Listens to selected stationId from StationContext
- * - Manages single centralized polling loop against service boundaries
- * - Provides pause/resume frontend controls without breaking state
- * - Maintains bounded telemetry history (max 150 items) derived from live feeds
- * - Provides section-isolated loading & error boundaries
- * - Implements frontend data staleness detection and graceful failure recovery
- */
 export function useDashboardData(
   stationId: string | null | undefined,
   options: UseDashboardDataOptions = {}
@@ -107,7 +78,6 @@ export function useDashboardData(
   const { pollingIntervalMs = 30 * 60 * 1000, autoPoll = true, trendHours = 10 } = options;
   const trendHoursRef = useRef(trendHours);
   trendHoursRef.current = trendHours;
-
   const [currentReading, setCurrentReading] = useState<CurrentSensorReading | null>(null);
   const [trends, setTrends] = useState<TrendsResponse | null>(null);
   const [latestAnomaly, setLatestAnomaly] = useState<LatestAnomaly | null>(null);
@@ -118,27 +88,20 @@ export function useDashboardData(
   const [streamStatus, setStreamStatus] = useState<SystemStreamStatus>({
     mode: 'live', replay_step_seconds: null, live_poll_interval_seconds: 30 * 60,
   });
-
   const [isLoadingReading, setIsLoadingReading] = useState<boolean>(true);
   const [isLoadingTrends, setIsLoadingTrends] = useState<boolean>(true);
   const [isLoadingAnomalies, setIsLoadingAnomalies] = useState<boolean>(true);
   const [isLoadingHealth, setIsLoadingHealth] = useState<boolean>(true);
-
   const [readingError, setReadingError] = useState<string | null>(null);
   const [trendsError, setTrendsError] = useState<string | null>(null);
   const [anomaliesError, setAnomaliesError] = useState<string | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
-
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  // WebSocket Live Push & Latency Readout
   const [wsLatencyMs, setWsLatencyMs] = useState<number | null>(null);
   const [isWsConnected, setIsWsConnected] = useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
-
-  // References to prevent overlapping polling requests and race conditions
   const activeStationIdRef = useRef(stationId);
   activeStationIdRef.current = stationId;
   const isFetchingReadingRef = useRef(false);
@@ -158,17 +121,13 @@ export function useDashboardData(
   const currentReadingRef = useRef<CurrentSensorReading | null>(null);
   const latestAnomalyRef = useRef<LatestAnomaly | null>(null);
   const sensorHealthRef = useRef<SensorHealth | null>(null);
-
-  // Real-time WebSocket connection to backend /ws/live
   useEffect(() => {
     let isUnmounted = false;
-
     function connectWs() {
       if (isUnmounted) return;
       try {
         const socket = new WebSocket(API_CONFIG.wsUrl);
         wsRef.current = socket;
-
         socket.onopen = () => {
           if (isUnmounted) {
             socket.close();
@@ -176,13 +135,10 @@ export function useDashboardData(
           }
           setIsWsConnected(true);
           wsConnectedRef.current = true;
-          // WS reconnect means we might have missed state changes (or server abruptly restarted).
-          // Force a full refresh to ensure frontend is perfectly in sync.
           fetchReadingRef.current();
           fetchHealthRef.current();
           fetchTrendsRef.current(trendHoursRef.current);
           fetchAnomaliesRef.current();
-
           if (pingIntervalRef.current !== null) {
             clearInterval(pingIntervalRef.current);
           }
@@ -192,21 +148,16 @@ export function useDashboardData(
             }
           }, 15000);
         };
-
         socket.onmessage = (event) => {
           if (isUnmounted) return;
           try {
             const data = JSON.parse(event.data);
-
             if (data.type === 'TELEMETRY_TICK') {
               if (data.station_id === activeStationIdRef.current) {
-                // End-to-end turnaround latency readout (real measured delta)
                 if (data.ingest_time_ms) {
                   const measuredLatency = Math.max(1, Date.now() - data.ingest_time_ms);
                   setWsLatencyMs(measuredLatency);
                 }
-
-                // Instantaneously update current reading directly from tick payload
                 if (data.reading) {
                   setCurrentReading((prev) => {
                     const mappedSeverity = data.verdict?.severity ?? 'low';
@@ -214,7 +165,6 @@ export function useDashboardData(
                       mappedSeverity === 'critical' ? 'critical' :
                       mappedSeverity === 'high' ? 'high' :
                       mappedSeverity === 'medium' ? 'medium' : 'low';
-
                     return {
                       station_id: data.station_id,
                       timestamp: data.timestamp,
@@ -248,8 +198,6 @@ export function useDashboardData(
                   setReadingError(null);
                   setIsLoadingReading(false);
                   setLastUpdated(new Date());
-
-                  // Seamlessly initialize and append to active trend chart buffer
                   setTrends((previous) => {
                     const point = {
                       timestamp: data.timestamp,
@@ -265,7 +213,6 @@ export function useDashboardData(
                       health_status: data.verdict?.health_status,
                       source: data.mode,
                     };
-
                     const visibleHours = trendHoursRef.current;
                     if (!previous || previous.station_id !== data.station_id) {
                       return {
@@ -274,7 +221,6 @@ export function useDashboardData(
                         points: [point],
                       };
                     }
-
                     const existingSource = previous.points.at(-1)?.source;
                     if (existingSource && point.source && existingSource !== point.source) {
                       return { ...previous, points: [point] };
@@ -289,13 +235,11 @@ export function useDashboardData(
                     return nextTrends;
                   });
                   setIsLoadingTrends(false);
-
                   if (data.verdict?.is_anomaly) {
                     fetchAnomaliesRef.current();
                   }
                 }
               }
-
             } else if (data.type === 'ANOMALY_EVENT') {
               if (data.station_id === activeStationIdRef.current || !data.station_id) {
                 if (data.anomaly) {
@@ -338,8 +282,6 @@ export function useDashboardData(
                     };
                     return [item, ...withoutDup].slice(0, 50);
                   });
-
-                  // Retroactively mark the anomalous point in trends so it turns red immediately
                   setTrends((prev) => {
                     if (!prev || !prev.points) return prev;
                     const anomTime = new Date(anom.timestamp).getTime();
@@ -371,16 +313,13 @@ export function useDashboardData(
                 }
                 fetchAnomaliesRef.current();
               }
-
             } else if (data.type === 'MODE_CHANGE') {
               setStreamStatus((prev) => ({
                 ...prev,
                 mode: data.mode,
                 replay_step_seconds: data.mode === 'replay' ? 2 : null,
               }));
-
               if (data.mode === 'live') {
-                // Immediately purge replay state from UI to prevent leakage when transitioning automatically
                 trendsRef.current = null;
                 currentReadingRef.current = null;
                 latestAnomalyRef.current = null;
@@ -396,12 +335,7 @@ export function useDashboardData(
                 fetchTrendsRef.current(trendHoursRef.current);
                 fetchAnomaliesRef.current();
               }
-
             } else if (data.type === 'HISTORY_PURGED') {
-              // DB was cleared (e.g. user clicked "Reset DB").
-              // Immediately wipe all local state so the chart goes blank without
-              // needing a page refresh, then re-fetch so latest live readings
-              // are shown right away.
               trendsRef.current = null;
               currentReadingRef.current = null;
               latestAnomalyRef.current = null;
@@ -418,12 +352,9 @@ export function useDashboardData(
               fetchTrendsRef.current(trendHoursRef.current);
               fetchAnomaliesRef.current();
             }
-
           } catch {
-            // Heartbeat or non-JSON message — silently ignore
           }
         };
-
         socket.onclose = () => {
           setIsWsConnected(false);
           wsConnectedRef.current = false;
@@ -435,7 +366,6 @@ export function useDashboardData(
             reconnectTimeoutRef.current = window.setTimeout(connectWs, 2500);
           }
         };
-
         socket.onerror = () => {
           socket.close();
         };
@@ -447,9 +377,7 @@ export function useDashboardData(
         }
       }
     }
-
     connectWs();
-
     return () => {
       isUnmounted = true;
       if (reconnectTimeoutRef.current !== null) {
@@ -464,22 +392,17 @@ export function useDashboardData(
       }
     };
   }, []);
-
-  // 1. Fetch Current Reading
   const fetchReading = useCallback(async () => {
     if (!stationId) return;
     if (isFetchingReadingRef.current) return;
     isFetchingReadingRef.current = true;
     const targetStationId = stationId;
-
     if (!currentReadingRef.current) {
       setIsLoadingReading(true);
     }
-
     try {
       const data = await currentReadingService.getCurrentReading(targetStationId);
       if (activeStationIdRef.current !== targetStationId) {
-        // Discard stale response if active station changed while awaiting network
         return;
       }
       currentReadingRef.current = data;
@@ -487,14 +410,9 @@ export function useDashboardData(
       setReadingError(null);
       const updateTime = new Date();
       setLastUpdated(updateTime);
-
       if (data.is_anomaly) {
         fetchAnomaliesRef.current();
       }
-
-      // Immediate rendering path: add the freshly processed backend
-      // reading to the timestamped graph without waiting for CSV-backed
-      // history or re-fetching the whole trend range.
       setTrends((previous) => {
         const visibleHours = trendHoursRef.current;
         const point = {
@@ -511,7 +429,6 @@ export function useDashboardData(
           health_status: data.sensor_health_status,
           source: data.source,
         };
-
         if (!previous || previous.station_id !== data.station_id) {
           return {
             station_id: data.station_id,
@@ -519,7 +436,6 @@ export function useDashboardData(
             points: [point],
           };
         }
-
         const existingSource = previous.points.at(-1)?.source;
         if (existingSource && point.source && existingSource !== point.source) {
           return { ...previous, points: [point] };
@@ -533,14 +449,11 @@ export function useDashboardData(
         trendsRef.current = nextTrends;
         return nextTrends;
       });
-
-      // Append to in-memory telemetry history (bounded to 150 entries)
       setTelemetryHistory((prev) => {
         let statusToken: 'NORMAL' | 'WARNING' | 'CRITICAL' | 'OFFLINE' = 'NORMAL';
         if (data.risk_level === 'critical' || data.sensor_health_status === 'CRITICAL') statusToken = 'CRITICAL';
         else if (data.risk_level === 'high' || data.risk_level === 'medium' || data.sensor_health_status === 'WARNING') statusToken = 'WARNING';
         else if (data.sensor_health_status === 'OFFLINE') statusToken = 'OFFLINE';
-
         const newRecord: TelemetryHistoryRecord = {
           id: `${data.station_id}-${data.timestamp}-${Math.random().toString(36).slice(2, 6)}`,
           timestamp: data.timestamp,
@@ -549,22 +462,14 @@ export function useDashboardData(
           humidity_pct: data.humidity_pct.value,
           status: statusToken,
         };
-
-        // Avoid exact duplicate timestamp at index 0
         if (prev.length > 0 && prev[0].timestamp === data.timestamp && prev[0].temperature_c === data.temperature_c.value) {
           return prev;
         }
-
         return [newRecord, ...prev].slice(0, 150);
       });
     } catch (err) {
       if (activeStationIdRef.current !== targetStationId) return;
-      // Retain last known valid reading while setting error indicator
       setReadingError(formatUserErrorMessage(err, 'Unable to load current sensor readings.'));
-      // Uvicorn can accept the frontend request a moment before the first
-      // concurrent Open-Meteo bootstrap finishes. A 404 here means "not
-      // fetched yet", not a broken station; retry quickly once instead of
-      // leaving the dashboard empty until the normal 30-minute live poll.
       if (err instanceof ApiError && err.status === 404) {
         window.setTimeout(() => {
           if (activeStationIdRef.current === targetStationId) fetchReading();
@@ -577,10 +482,7 @@ export function useDashboardData(
       isFetchingReadingRef.current = false;
     }
   }, [stationId]);
-
   fetchReadingRef.current = fetchReading;
-
-  // 2. Fetch Trends
   const fetchTrends = useCallback(async (hours: number = trendHours) => {
     if (!stationId) return;
     const targetStationId = stationId;
@@ -592,17 +494,12 @@ export function useDashboardData(
       const data = await trendsService.getTrends(targetStationId, hours);
       if (activeStationIdRef.current !== targetStationId) return;
       const latestLocal = trendsRef.current;
-      // A WebSocket/current-reading update can arrive while this request is
-      // in flight. Merge it by recorded timestamp instead of letting an older
-      // HTTP response make the graph jump backwards.
       const nextTrends = latestLocal?.station_id === targetStationId && trendRevisionRef.current !== requestRevision
         ? { ...data, points: mergeTrendPoints(data.points, latestLocal.points, hours) }
         : data;
       trendsRef.current = nextTrends;
       setTrends(nextTrends);
       setTrendsError(null);
-
-      // Pre-seed telemetry history from trend points on initial load if history is empty
       setTelemetryHistory((prev) => {
         if (prev.length > 0) return prev;
         const initialFromTrends: TelemetryHistoryRecord[] = (data.points || [])
@@ -630,10 +527,7 @@ export function useDashboardData(
       }
     }
   }, [stationId, trendHours]);
-
   fetchTrendsRef.current = fetchTrends;
-
-  // 3. Fetch Anomalies
   const fetchAnomalies = useCallback(async () => {
     if (!stationId) return;
     const targetStationId = stationId;
@@ -659,20 +553,15 @@ export function useDashboardData(
       }
     }
   }, [stationId]);
-
   fetchAnomaliesRef.current = fetchAnomalies;
-
-  // 4. Fetch Sensor Health [API: GET /api/sensor-health?station_id=...]
   const fetchHealth = useCallback(async () => {
     if (!stationId) return;
     if (isFetchingHealthRef.current) return;
     isFetchingHealthRef.current = true;
     const targetStationId = stationId;
-
     if (!sensorHealthRef.current) {
       setIsLoadingHealth(true);
     }
-
     try {
       const healthData = await sensorHealthService.getSensorHealth(targetStationId);
       if (activeStationIdRef.current !== targetStationId) return;
@@ -689,29 +578,19 @@ export function useDashboardData(
       isFetchingHealthRef.current = false;
     }
   }, [stationId]);
-
   fetchHealthRef.current = fetchHealth;
-
   const fetchStreamStatus = useCallback(async () => {
     try {
       setStreamStatus(await systemStatusService.get());
     } catch {
-      // Keep the last known mode: a control-plane hiccup must not make
-      // the graph discard timestamped telemetry already on screen.
     }
   }, []);
-
-  // 5. Refresh all sections
   const refreshAll = useCallback(async () => {
     await Promise.all([fetchReading(), fetchTrends(trendHours), fetchAnomalies(), fetchHealth()]);
   }, [fetchReading, fetchTrends, fetchAnomalies, fetchHealth, trendHours]);
-
-  // Toggle pause frontend polling
   const togglePause = useCallback(() => {
     setIsPaused((prev) => !prev);
   }, []);
-
-  // Initialize and stationId change effect
   useEffect(() => {
     if (!stationId) {
       setCurrentReading(null);
@@ -726,8 +605,6 @@ export function useDashboardData(
       setIsLoadingHealth(false);
       return;
     }
-
-    // Immediately clear previous station's data and set loading
     trendsRef.current = null;
     currentReadingRef.current = null;
     latestAnomalyRef.current = null;
@@ -738,7 +615,6 @@ export function useDashboardData(
     setRecentAnomalies([]);
     setSensorHealth(null);
     setTelemetryHistory([]);
-
     setIsLoadingReading(true);
     setIsLoadingTrends(true);
     setIsLoadingAnomalies(true);
@@ -747,21 +623,15 @@ export function useDashboardData(
     setTrendsError(null);
     setAnomaliesError(null);
     setHealthError(null);
-
     fetchReading();
     fetchTrends(trendHoursRef.current);
     fetchAnomalies();
     fetchHealth();
   }, [stationId, fetchReading, fetchTrends, fetchAnomalies, fetchHealth]);
-
   useEffect(() => {
     if (!stationId) return;
     fetchTrends(trendHours);
   }, [stationId, trendHours, fetchTrends]);
-
-  // Mode is deliberately light-weight and checked each second so a
-  // user-triggered replay changes data cadence promptly. Sensor data
-  // itself remains 30-min live / 1-sec replay.
   useEffect(() => {
     fetchStreamStatus();
     modeTimerRef.current = window.setInterval(fetchStreamStatus, 1000);
@@ -769,15 +639,10 @@ export function useDashboardData(
       if (modeTimerRef.current !== null) clearInterval(modeTimerRef.current);
     };
   }, [fetchStreamStatus]);
-
-  // A replay and live stream use different timelines. Clear the visual
-  // timeline and fetch the new source's retained window at the transition,
-  // rather than appending it to the old source's points.
   useEffect(() => {
     const previousMode = priorStreamModeRef.current;
     priorStreamModeRef.current = streamStatus.mode;
     if (!stationId || previousMode === streamStatus.mode) return;
-
     setTrends(null);
     setCurrentReading(null);
     setSensorHealth(null);
@@ -794,7 +659,6 @@ export function useDashboardData(
     fetchReading();
     fetchHealth();
   }, [streamStatus.mode, stationId, fetchTrends, fetchReading, fetchHealth, fetchAnomalies]);
-
   useEffect(() => {
     const onRefresh = () => {
       if (!activeStationIdRef.current) return;
@@ -803,8 +667,6 @@ export function useDashboardData(
     window.addEventListener(TELEMETRY_REFRESH_EVENT, onRefresh);
     return () => window.removeEventListener(TELEMETRY_REFRESH_EVENT, onRefresh);
   }, [refreshAll]);
-
-  // Single Centralized Polling loop for telemetry
   useEffect(() => {
     if (!autoPoll || !stationId || isPaused) {
       if (timerRef.current !== null) {
@@ -813,20 +675,13 @@ export function useDashboardData(
       }
       return;
     }
-
     const effectivePollingMs = streamStatus.mode === 'replay' ? 1000 : pollingIntervalMs;
     timerRef.current = window.setInterval(() => {
       if (!isPausedRef.current) {
         if (streamStatus.mode === 'live') {
-          // In live mode: always poll at the configured interval.
-          // WS push (TELEMETRY_TICK) only fires when the backend completes an
-          // Open-Meteo fetch (~every 30 min). Between those pushes the WS is
-          // silent, so skipping REST polling would mean the UI never updates.
-          // pollingIntervalMs is already 30 min, so this adds zero extra load.
           fetchReading();
           fetchHealth();
         } else {
-          // In replay mode: poll current reading (which continuously updates trends seamlessly)
           fetchReading();
           fetchHealth();
           if (!wsConnectedRef.current || !trendsRef.current || trendsRef.current.points.length < 2) {
@@ -835,7 +690,6 @@ export function useDashboardData(
         }
       }
     }, effectivePollingMs);
-
     return () => {
       if (timerRef.current !== null) {
         clearInterval(timerRef.current);
@@ -843,10 +697,6 @@ export function useDashboardData(
       }
     };
   }, [autoPoll, stationId, isPaused, pollingIntervalMs, streamStatus.mode, fetchReading, fetchHealth, fetchTrends]);
-
-  // Calculate freshness state
-  // lastUpdated means the backend successfully answered a reading request;
-  // do not label valid hourly Open-Meteo data stale after 60 seconds.
   const freshness = calculateFreshness(
     lastUpdated,
     isPaused,
@@ -863,7 +713,6 @@ export function useDashboardData(
   const pollStatusText = streamStatus.mode === 'replay'
     ? `REPLAY · 1H / ${replaySeconds}S`
     : freshness.label;
-
   return {
     currentReading,
     trends,

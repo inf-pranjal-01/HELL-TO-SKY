@@ -3,7 +3,6 @@ import { X } from 'lucide-react';
 import { Button } from './Button';
 import { useFocusTrap, announceToScreenReader } from '../../hooks/useFocusTrap';
 import './Modal.css';
-
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -12,7 +11,6 @@ export interface ModalProps {
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
 }
-
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
@@ -22,11 +20,7 @@ export const Modal: React.FC<ModalProps> = ({
   size = 'md',
 }) => {
   const titleId = useId();
-
-  // Focus trap handles: Escape key, focus cycling, and focus restoration
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
-
-  // Lock body scroll while modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -36,8 +30,6 @@ export const Modal: React.FC<ModalProps> = ({
       document.body.style.overflow = 'unset';
     };
   }, [isOpen, title]);
-
-  // Announce close on unmount when transitioning from open → closed
   useEffect(() => {
     return () => {
       if (!isOpen) {
@@ -45,13 +37,10 @@ export const Modal: React.FC<ModalProps> = ({
       }
     };
   }, [isOpen]);
-
   if (!isOpen) return null;
-
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
   };
-
   return (
     <div className="sg-modal-overlay" onClick={handleBackdropClick} role="presentation">
       <div

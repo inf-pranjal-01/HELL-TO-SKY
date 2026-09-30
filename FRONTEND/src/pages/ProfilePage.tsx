@@ -1,6 +1,5 @@
 import React from 'react';
 import { PlaceholderPage } from './PlaceholderPage';
-
 export const ProfilePage: React.FC = () => (
   <PlaceholderPage
     title="Operator Profile & Security Roles"

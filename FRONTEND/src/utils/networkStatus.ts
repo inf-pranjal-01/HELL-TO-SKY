@@ -1,5 +1,4 @@
 import { Station, SystemOverallStatus, SystemStatusSummary } from '../types';
-
 export function summarizeNetworkStatus(
   stations: Station[],
   activeAnomaliesCount = 0,
@@ -9,7 +8,6 @@ export function summarizeNetworkStatus(
   let overall: SystemOverallStatus = 'NORMAL';
   if (statuses.includes('CRITICAL')) overall = 'CRITICAL';
   else if (statuses.includes('WARNING') || statuses.includes('OFFLINE')) overall = 'WARNING';
-
   const activeStations = stations.filter((station) => station.status !== 'OFFLINE').length;
   return {
     overall_status: overall,

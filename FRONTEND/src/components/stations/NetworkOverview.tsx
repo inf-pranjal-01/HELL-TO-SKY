@@ -8,12 +8,10 @@ import { Skeleton } from '../common/Skeleton';
 import { Button } from '../common/Button';
 import 'leaflet/dist/leaflet.css';
 import './NetworkOverview.css';
-
 export interface NetworkOverviewProps { stations: Station[]; selectedStation: Station | null; onSelectStation: (station: Station) => void; isLoading?: boolean; className?: string; }
 const CITY_FROM_CODE: Record<string, string> = { DEL: 'Delhi', MUM: 'Mumbai', CHN: 'Chennai', KOL: 'Kolkata', BHO: 'Bhopal' };
 const statusColor = (status: string) => status === 'NORMAL' ? '#10b981' : status === 'WARNING' ? '#f59e0b' : status === 'CRITICAL' ? '#ef4444' : '#64748b';
 const stationCity = (station: Station) => CITY_FROM_CODE[station.station_id.match(/AWS-([A-Z]{3})/i)?.[1].toUpperCase() ?? ''] ?? station.name;
-
 function StationViewport({ stations, selectedStation }: { stations: Station[]; selectedStation: Station | null }) {
   const map = useMap();
   const stationKey = stations.map(({ station_id, lat, lon }) => `${station_id}:${lat}:${lon}`).join('|');
@@ -29,13 +27,11 @@ function StationViewport({ stations, selectedStation }: { stations: Station[]; s
   }, [map, selectedStation?.station_id]);
   return null;
 }
-
 function ZoomReporter({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
   const map = useMapEvents({ zoomend: () => onZoomChange(map.getZoom()) });
   useEffect(() => onZoomChange(map.getZoom()), [map, onZoomChange]);
   return null;
 }
-
 export const NetworkOverview: React.FC<NetworkOverviewProps> = ({ stations, selectedStation, onSelectStation, isLoading = false, className = '' }) => {
   const mapRef = useRef<LeafletMap | null>(null);
   const [zoom, setZoom] = useState(5);
@@ -44,7 +40,6 @@ export const NetworkOverview: React.FC<NetworkOverviewProps> = ({ stations, sele
     if (validStations.length) mapRef.current?.fitBounds(validStations.map(({ lat, lon }) => [lat, lon]), { padding: [48, 48], maxZoom: 6 });
   };
   if (isLoading) return <Card variant="glass" className={`sg-network-overview-card ${className}`}><Skeleton width="100%" height="360px" /></Card>;
-
   return <Card variant="glass" className={`sg-network-overview-card ${className}`} role="region" aria-label="Interactive station network map">
     <div className="sg-network-overview__header">
       <div className="sg-network-overview__title-group"><Network size={18} className="text-accent" aria-hidden="true" /><h3 className="sg-network-overview__title">Observatory Network Map</h3></div>

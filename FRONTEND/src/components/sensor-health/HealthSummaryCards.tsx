@@ -4,14 +4,12 @@ import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { SensorHealth, CurrentSensorReading } from '../../types';
 import './HealthSummaryCards.css';
-
 export interface HealthSummaryCardsProps {
   health: SensorHealth | null;
   reading: CurrentSensorReading | null;
   staleStatusText: 'LIVE' | 'DATA DELAYED' | 'DATA STALE';
   isLoading?: boolean;
 }
-
 export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
   health,
   reading,
@@ -35,13 +33,10 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
       </div>
     );
   }
-
   const scorePct = health ? health.sensor_health_pct : 0;
   const status = health ? health.sensor_health_status : 'OFFLINE';
-
   const isHealthy = status === 'HEALTHY';
   const isWarning = status === 'WARNING';
-
   const formattedTimestamp = reading?.timestamp
     ? new Date(reading.timestamp).toLocaleTimeString([], {
         hour: '2-digit',
@@ -49,10 +44,9 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
         second: '2-digit',
       })
     : 'No Feed';
-
   return (
     <div className="sg-health-cards-grid" role="region" aria-label="Sensor health metric summary">
-      {/* 1. Overall Health Score */}
+      {}
       <Card variant="glass" className="sg-health-summary-card">
         <div className="sg-health-summary-card__header">
           <span className="sg-health-summary-card__label">Health Score</span>
@@ -81,8 +75,7 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
           <span className="sg-health-summary-card__subtitle">Hardware Index</span>
         </div>
       </Card>
-
-      {/* 2. Hardware Status */}
+      {}
       <Card variant="glass" className="sg-health-summary-card">
         <div className="sg-health-summary-card__header">
           <span className="sg-health-summary-card__label">Condition</span>
@@ -109,8 +102,7 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
           </span>
         </div>
       </Card>
-
-      {/* 3. Last Reading */}
+      {}
       <Card variant="glass" className="sg-health-summary-card">
         <div className="sg-health-summary-card__header">
           <span className="sg-health-summary-card__label">Last Reading</span>
@@ -125,8 +117,7 @@ export const HealthSummaryCards: React.FC<HealthSummaryCardsProps> = ({
           <span className="sg-health-summary-card__subtitle">Telemetry Sync</span>
         </div>
       </Card>
-
-      {/* 4. Data Freshness */}
+      {}
       <Card variant="glass" className="sg-health-summary-card">
         <div className="sg-health-summary-card__header">
           <span className="sg-health-summary-card__label">Data Freshness</span>

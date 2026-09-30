@@ -4,11 +4,9 @@ import { useStation } from '../../context/StationContext';
 import { StatusBadge } from '../common/StatusBadge';
 import { Station } from '../../types';
 import './StationSelector.css';
-
 export interface StationSelectorProps {
   isCollapsed?: boolean;
 }
-
 export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = false }) => {
   const { stations, selectedStation, setSelectedStation, isLoading } = useStation();
   const [isOpen, setIsOpen] = useState(false);
@@ -16,8 +14,6 @@ export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = 
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
-
-  // Close dropdown on outside click or Escape key
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -32,7 +28,6 @@ export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = 
     if (isOpen) {
       document.addEventListener('mousedown', handleOutsideClick);
       document.addEventListener('keydown', handleKeyDown);
-      // Focus search input when popover opens
       setTimeout(() => searchInputRef.current?.focus(), 50);
     }
     return () => {
@@ -40,20 +35,17 @@ export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = 
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
-
   const filteredStations = stations.filter(
     (st) =>
       st.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       st.station_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (st.region && st.region.toLowerCase().includes(searchQuery.toLowerCase()))
   );
-
   const handleSelect = (station: Station) => {
     setSelectedStation(station);
     setIsOpen(false);
     setSearchQuery('');
   };
-
   if (isLoading && !selectedStation) {
     return (
       <div className="sg-station-selector sg-station-selector--loading">
@@ -61,7 +53,6 @@ export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = 
       </div>
     );
   }
-
   return (
     <div className={`sg-station-selector ${isCollapsed ? 'sg-station-selector--collapsed' : ''}`} ref={containerRef}>
       <button
@@ -76,14 +67,12 @@ export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = 
         <div className="sg-station-trigger__icon">
           <Radio size={18} className="text-accent" />
         </div>
-
         {!isCollapsed && (
           <>
             <div className="sg-station-trigger__info">
               <span className="sg-station-name">{selectedStation?.name || 'Select Station'}</span>
               <span className="sg-station-id">{selectedStation?.station_id || 'AWS Network'}</span>
             </div>
-
             {selectedStation && (
               <div className="sg-station-trigger__badge">
                 <StatusBadge
@@ -93,12 +82,10 @@ export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = 
                 />
               </div>
             )}
-
             <ChevronDown size={14} className={`sg-station-arrow ${isOpen ? 'sg-station-arrow--open' : ''}`} />
           </>
         )}
       </button>
-
       {isOpen && (
         <div id={listboxId} role="listbox" className="sg-station-dropdown" aria-label="AWS Observatory List">
           <div className="sg-station-search-box">
@@ -113,12 +100,10 @@ export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = 
               aria-label="Filter AWS stations by name or ID"
             />
           </div>
-
           <div className="sg-station-list">
             <div className="sg-station-notice">
               <span>● LIVE BACKEND</span>
             </div>
-
             {filteredStations.length === 0 ? (
               <div className="sg-station-empty">No AWS stations found.</div>
             ) : (
@@ -145,7 +130,6 @@ export const StationSelector: React.FC<StationSelectorProps> = ({ isCollapsed = 
                         {st.station_id} • {st.region || 'Regional Telemetry'}
                       </span>
                     </div>
-
                     <div className="sg-station-item__right">
                       <StatusBadge status={st.status.toLowerCase() as any} size="sm" label={st.status} />
                       {isSelected && <Check size={14} className="sg-station-check" />}

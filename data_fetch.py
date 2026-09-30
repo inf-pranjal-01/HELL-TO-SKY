@@ -1,29 +1,7 @@
-"""
-SkyGuard AI — Phase 1a: Real historical AWS-equivalent data fetch.
-
-Pulls real hourly temperature, pressure, and humidity from Open-Meteo's
-free Historical Weather Archive API (no key required).
-
-UPDATED: now pulls 5 CENTER stations (Delhi, Mumbai, Chennai, Kolkata,
-Bhopal) each with 3 real, physically nearby NEIGHBOR towns (~15-50km
-away). This is what makes genuine spatial-consistency checking possible
-later: comparing Chennai against Delhi is meaningless (different
-climates entirely), but comparing Chennai against Tambaram/Ambattur/
-Sriperumbudur -- towns close enough to plausibly share the same local
-weather event -- is exactly what the PS's example use case describes
-("neighboring stations show normal conditions").
-
-Docs: https://open-meteo.com/en/docs/historical-weather-api
-"""
 
 import requests
 import pandas as pd
 from pathlib import Path
-
-# Each cluster = one center metro + 3 real nearby towns (~15-50km away).
-# This is the actual "neighboring stations" set for spatial-consistency
-# features later -- NOT to be confused with cross-cluster comparisons
-# (Chennai vs Delhi), which stay separate for map/UI diversity only.
 CLUSTERS = {
     "CHN": {
         "center": {"station_id": "AWS-CHN-024", "name": "Chennai", "lat": 13.0827, "lon": 80.2707},
@@ -82,22 +60,11 @@ CLUSTERS = {
         ],
     },
 }
-
-# Date range: 3 months of hourly data is plenty for training + demo,
-# and keeps the download small and fast.
 START_DATE = "2025-01-01"
 END_DATE = "2025-03-31"
-
 BASE_URL = "https://archive-api.open-meteo.com/v1/archive"
-
 OUTPUT_DIR = Path(__file__).parent / "data"
-
-
 def fetch_station(station_id: str, lat: float, lon: float) -> pd.DataFrame:
-    """
-    Fetch hourly temperature (2m), surface pressure, and relative humidity
-    (2m) for one station over the configured date range.
-    """
     params = {
         "latitude": lat,
         "longitude": lon,
@@ -106,11 +73,9 @@ def fetch_station(station_id: str, lat: float, lon: float) -> pd.DataFrame:
         "hourly": "temperature_2m,surface_pressure,relative_humidity_2m",
         "timezone": "auto",
     }
-
     response = requests.get(BASE_URL, params=params, timeout=30)
     response.raise_for_status()
     payload = response.json()
-
     hourly = payload["hourly"]
     df = pd.DataFrame(
         {
@@ -122,18 +87,14 @@ def fetch_station(station_id: str, lat: float, lon: float) -> pd.DataFrame:
     )
     df["station_id"] = station_id
     return df
-
-
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     all_frames = []
     metadata_rows = []
-
     for cluster_id, cluster in CLUSTERS.items():
         stations_in_cluster = [
             {**cluster["center"], "role": "center"},
         ] + [{**n, "role": "neighbor"} for n in cluster["neighbors"]]
-
         for info in stations_in_cluster:
             station_id = info["station_id"]
             print(f"Fetching {station_id} ({info['name']}, cluster {cluster_id}, {info['role']})...")
@@ -141,11 +102,9 @@ def main():
             df["station_name"] = info["name"]
             df["cluster_id"] = cluster_id
             df["role"] = info["role"]
-
             station_path = OUTPUT_DIR / f"{station_id}.csv"
             df.to_csv(station_path, index=False)
             print(f"  -> saved {len(df)} rows to {station_path}")
-
             all_frames.append(df)
             metadata_rows.append(
                 {
@@ -157,25 +116,17 @@ def main():
                     "role": info["role"],
                 }
             )
-
     combined = pd.concat(all_frames, ignore_index=True)
     combined_path = OUTPUT_DIR / "all_stations.csv"
     combined.to_csv(combined_path, index=False)
-
-    # Cluster/role metadata -- features.py needs this to know which
-    # stations are genuine "neighbors" for spatial-consistency checks
-    # (only compare within a cluster, never across clusters).
     metadata_df = pd.DataFrame(metadata_rows)
     metadata_path = OUTPUT_DIR / "stations_metadata.csv"
     metadata_df.to_csv(metadata_path, index=False)
-
     print(f"\n{len(metadata_rows)} stations across {len(CLUSTERS)} clusters -> {combined_path}")
     print(f"Cluster/role metadata -> {metadata_path}")
     print("\nSample rows:")
     print(combined.head())
     print("\nBasic stats per parameter (across ALL stations combined):")
     print(combined[["temperature_c", "pressure_hpa", "humidity_pct"]].describe())
-
-
 if __name__ == "__main__":
     main()

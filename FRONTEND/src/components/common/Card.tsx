@@ -1,6 +1,5 @@
 import React from 'react';
 import './Card.css';
-
 export interface CardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   title?: React.ReactNode;
   subtitle?: string;
@@ -10,7 +9,6 @@ export interface CardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 't
   className?: string;
   variant?: 'default' | 'glass' | 'subtle';
 }
-
 export const Card: React.FC<CardProps> = ({
   title,
   subtitle,

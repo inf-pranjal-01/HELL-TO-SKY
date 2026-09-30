@@ -4,7 +4,6 @@ import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { MetricStatistics, CurrentSensorReading } from '../../types';
 import './MetricStatisticsCard.css';
-
 export interface MetricStatisticsCardProps {
   temperatureStats: MetricStatistics | null | undefined;
   pressureStats: MetricStatistics | null | undefined;
@@ -12,7 +11,6 @@ export interface MetricStatisticsCardProps {
   currentReading: CurrentSensorReading | null | undefined;
   isLoading?: boolean;
 }
-
 export const MetricStatisticsCard: React.FC<MetricStatisticsCardProps> = ({
   temperatureStats,
   pressureStats,
@@ -37,7 +35,6 @@ export const MetricStatisticsCard: React.FC<MetricStatisticsCardProps> = ({
       </div>
     );
   }
-
   const metrics = [
     {
       id: 'temp',
@@ -67,7 +64,6 @@ export const MetricStatisticsCard: React.FC<MetricStatisticsCardProps> = ({
       normalMax: currentReading?.humidity_pct.normal_max ?? 90,
     },
   ];
-
   return (
     <div className="sg-metric-stats-grid" role="region" aria-label="Monitored variables descriptive statistics">
       {metrics.map((m) => (
@@ -81,7 +77,6 @@ export const MetricStatisticsCard: React.FC<MetricStatisticsCardProps> = ({
               {m.stats.count} samples
             </span>
           </div>
-
           <div className="sg-metric-stat-card__rows">
             <div className="sg-metric-stat-row">
               <span className="sg-metric-stat-row__label">Arithmetic Mean (Avg):</span>
@@ -89,21 +84,18 @@ export const MetricStatisticsCard: React.FC<MetricStatisticsCardProps> = ({
                 {m.stats.average.toFixed(1)} {m.unit}
               </span>
             </div>
-
             <div className="sg-metric-stat-row">
               <span className="sg-metric-stat-row__label">Observed Minimum (Min):</span>
               <span className="sg-metric-stat-row__val">
                 {m.stats.min.toFixed(1)} {m.unit}
               </span>
             </div>
-
             <div className="sg-metric-stat-row">
               <span className="sg-metric-stat-row__label">Observed Maximum (Max):</span>
               <span className="sg-metric-stat-row__val">
                 {m.stats.max.toFixed(1)} {m.unit}
               </span>
             </div>
-
             <div className="sg-metric-stat-row">
               <span className="sg-metric-stat-row__label">Observed Range (Δ):</span>
               <span className="sg-metric-stat-row__val">
@@ -111,7 +103,6 @@ export const MetricStatisticsCard: React.FC<MetricStatisticsCardProps> = ({
               </span>
             </div>
           </div>
-
           <div className="sg-metric-stat-card__baseline">
             <span className="sg-metric-stat-card__baseline-label">Baseline Threshold:</span>
             <span className="sg-metric-stat-card__baseline-val">

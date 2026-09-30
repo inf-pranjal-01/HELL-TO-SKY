@@ -5,14 +5,11 @@ import { RecentAnomalyItem } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { formatSuggestedList, suggestedFromRecord } from '../../utils/suggestedValues';
 import './ReportIncidentTable.css';
-
 export interface ReportIncidentTableProps {
   incidents: RecentAnomalyItem[];
 }
-
 export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incidents }) => {
   const navigate = useNavigate();
-
   return (
     <section className="sg-report-section" aria-labelledby="report-section-7-heading">
       <div className="sg-report-section__header">
@@ -26,7 +23,6 @@ export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incide
           ● LIVE BACKEND
         </span>
       </div>
-
       {incidents.length === 0 ? (
         <p className="sg-report-incidents-empty">
           No anomaly incidents were recorded during this observation window.
@@ -57,10 +53,9 @@ export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incide
                 const observed = suggestedFromRecord(item.observed_values);
                 const suggested = suggestedFromRecord(item.suggested_values);
                 return <tr key={item.anomaly_id}>
-                  {/* ID */}
+                  {}
                   <td className="sg-font-mono text-muted">{item.anomaly_id}</td>
-
-                  {/* Timestamp */}
+                  {}
                   <td className="sg-font-mono">
                     {new Date(item.timestamp).toLocaleTimeString([], {
                       hour: '2-digit',
@@ -68,8 +63,7 @@ export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incide
                       second: '2-digit',
                     })}
                   </td>
-
-                  {/* Severity */}
+                  {}
                   <td>
                     <StatusBadge
                       status={
@@ -85,33 +79,27 @@ export const ReportIncidentTable: React.FC<ReportIncidentTableProps> = ({ incide
                       size="sm"
                     />
                   </td>
-
-                  {/* Type */}
+                  {}
                   <td className="sg-report-type-cell">
                     {item.type.replace(/_/g, ' ')}
                   </td>
-
-                  {/* Score */}
+                  {}
                   <td className="sg-font-mono font-bold">
                     {item.anomaly_score_pct != null
                       ? `${item.anomaly_score_pct.toFixed(1)}%`
                       : '—'}
                   </td>
-
-                  {/* Root Cause */}
+                  {}
                   <td className="sg-report-cause-cell">{item.root_cause || 'Not available'}</td>
-
                   <td className="sg-report-cause-cell">
                     {item.affected_parameters?.length
                       ? <><strong>{item.affected_parameters.map((parameter) => parameter.replace(/_/g, ' ')).join(', ')}</strong><br />{observed.length ? formatSuggestedList(observed) : 'Raw value unavailable'}</>
                       : 'Not available for earlier incident'}
                   </td>
-
                   <td className="sg-report-cause-cell">
                     {suggested.length ? formatSuggestedList(suggested) : 'Unavailable during baseline warm-up'}
                   </td>
-
-                  {/* Action (no-print) */}
+                  {}
                   <td className="no-print">
                     <button
                       type="button"

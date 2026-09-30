@@ -2,11 +2,9 @@ import React from 'react';
 import { Network, CheckCircle, AlertTriangle, HelpCircle } from 'lucide-react';
 import { SpatialComparisonSummary } from '../../types';
 import './ReportSpatialSection.css';
-
 export interface ReportSpatialSectionProps {
   spatialSummary: SpatialComparisonSummary | null | undefined;
 }
-
 export const ReportSpatialSection: React.FC<ReportSpatialSectionProps> = ({ spatialSummary }) => {
   if (!spatialSummary) {
     return (
@@ -26,13 +24,10 @@ export const ReportSpatialSection: React.FC<ReportSpatialSectionProps> = ({ spat
       </section>
     );
   }
-
   const { consistencyStatus, temperature, pressure, humidity, neighborCount, multivariateSummary } =
     spatialSummary;
-
   const isConsistent = consistencyStatus === 'CONSISTENT';
   const isDeviation = consistencyStatus === 'DEVIATION_DETECTED';
-
   return (
     <section className="sg-report-section" aria-labelledby="report-section-5-heading">
       <div className="sg-report-section__header">
@@ -46,8 +41,7 @@ export const ReportSpatialSection: React.FC<ReportSpatialSectionProps> = ({ spat
           DEMO SPATIAL COMPARISON — FRONTEND DERIVED
         </span>
       </div>
-
-      {/* Spatial Verdict Banner */}
+      {}
       <div
         className={`sg-report-spatial-verdict ${
           isConsistent
@@ -64,7 +58,6 @@ export const ReportSpatialSection: React.FC<ReportSpatialSectionProps> = ({ spat
             <HelpCircle size={20} className="text-muted" aria-hidden="true" />
           )}
         </div>
-
         <div className="sg-report-spatial-verdict-content">
           <span className="sg-report-spatial-verdict-tag">
             SPATIAL STATUS:{' '}
@@ -77,8 +70,7 @@ export const ReportSpatialSection: React.FC<ReportSpatialSectionProps> = ({ spat
           <p className="sg-report-spatial-verdict-text">{multivariateSummary}</p>
         </div>
       </div>
-
-      {/* 3 Metric Delta Grid */}
+      {}
       <div className="sg-report-spatial-deltas-grid">
         <div className="sg-report-spatial-delta-card">
           <span className="sg-report-spatial-delta-label">Temperature Delta vs Neighbors</span>
@@ -95,7 +87,6 @@ export const ReportSpatialSection: React.FC<ReportSpatialSectionProps> = ({ spat
             {temperature.neighborAverage.toFixed(1)} °C
           </span>
         </div>
-
         <div className="sg-report-spatial-delta-card">
           <span className="sg-report-spatial-delta-label">Barometric Pressure Delta</span>
           <span
@@ -111,7 +102,6 @@ export const ReportSpatialSection: React.FC<ReportSpatialSectionProps> = ({ spat
             {pressure.neighborAverage.toFixed(1)} hPa
           </span>
         </div>
-
         <div className="sg-report-spatial-delta-card">
           <span className="sg-report-spatial-delta-label">Relative Humidity Delta</span>
           <span
@@ -128,8 +118,7 @@ export const ReportSpatialSection: React.FC<ReportSpatialSectionProps> = ({ spat
           </span>
         </div>
       </div>
-
-      {/* Spatial Disclaimer */}
+      {}
       <p className="sg-report-spatial-disclaimer">
         <em>
           Spatial comparison is evaluated against {neighborCount} neighboring observatory station

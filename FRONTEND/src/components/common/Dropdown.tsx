@@ -1,11 +1,9 @@
 import React, { useId } from 'react';
 import './Dropdown.css';
-
 export interface DropdownOption {
   value: string;
   label: string;
 }
-
 export interface DropdownProps {
   label?: string;
   options: DropdownOption[];
@@ -14,7 +12,6 @@ export interface DropdownProps {
   ariaLabel?: string;
   disabled?: boolean;
 }
-
 export const Dropdown: React.FC<DropdownProps> = ({
   label,
   options,
@@ -24,7 +21,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
   disabled = false,
 }) => {
   const selectId = useId();
-
   return (
     <div className="sg-dropdown-field">
       {label && (

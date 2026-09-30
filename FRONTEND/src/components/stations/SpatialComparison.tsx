@@ -4,12 +4,10 @@ import { SpatialComparisonSummary } from '../../types';
 import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import './SpatialComparison.css';
-
 export interface SpatialComparisonProps {
   summary: SpatialComparisonSummary | null;
   isLoading?: boolean;
 }
-
 export const SpatialComparison: React.FC<SpatialComparisonProps> = ({
   summary,
   isLoading = false,
@@ -26,9 +24,7 @@ export const SpatialComparison: React.FC<SpatialComparisonProps> = ({
       </div>
     );
   }
-
   const { temperature, pressure, humidity, neighborCount } = summary;
-
   const metrics = [
     {
       id: 'temperature',
@@ -52,7 +48,6 @@ export const SpatialComparison: React.FC<SpatialComparisonProps> = ({
       unit: '%',
     },
   ];
-
   return (
     <div
       className="sg-spatial-comp-grid"
@@ -63,7 +58,6 @@ export const SpatialComparison: React.FC<SpatialComparisonProps> = ({
         const diff = m.data.difference;
         const diffSign = diff > 0 ? '+' : '';
         const isDev = m.data.isSignificantDeviation;
-
         return (
           <Card
             key={m.id}
@@ -79,8 +73,7 @@ export const SpatialComparison: React.FC<SpatialComparisonProps> = ({
                 vs {neighborCount} neighbor{neighborCount > 1 ? 's' : ''}
               </span>
             </div>
-
-            {/* Readings Comparison Grid */}
+            {}
             <div className="sg-spatial-comp-card__readings">
               <div className="sg-spatial-comp-card__col">
                 <span className="sg-spatial-comp-card__col-label">Selected AWS</span>
@@ -88,9 +81,7 @@ export const SpatialComparison: React.FC<SpatialComparisonProps> = ({
                   {m.data.selected.toFixed(1)} {m.unit}
                 </span>
               </div>
-
               <div className="sg-spatial-comp-card__divider" aria-hidden="true" />
-
               <div className="sg-spatial-comp-card__col">
                 <span className="sg-spatial-comp-card__col-label">Neighbor Mean</span>
                 <span className="sg-spatial-comp-card__col-val sg-font-mono">
@@ -98,8 +89,7 @@ export const SpatialComparison: React.FC<SpatialComparisonProps> = ({
                 </span>
               </div>
             </div>
-
-            {/* Spatial Difference & Assessment Badge */}
+            {}
             <div className="sg-spatial-comp-card__footer">
               <div className="sg-spatial-comp-card__diff-group">
                 <span className="sg-spatial-comp-card__diff-label">Divergence:</span>
@@ -112,7 +102,6 @@ export const SpatialComparison: React.FC<SpatialComparisonProps> = ({
                   {diff.toFixed(1)} {m.unit}
                 </span>
               </div>
-
               <div
                 className={`sg-spatial-comp-card__badge ${
                   isDev ? 'sg-spatial-comp-card__badge--dev' : 'sg-spatial-comp-card__badge--ok'

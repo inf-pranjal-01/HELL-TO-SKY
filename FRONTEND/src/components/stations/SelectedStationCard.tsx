@@ -7,14 +7,12 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { formatCoordinates } from '../../utils/geospatial';
 import './SelectedStationCard.css';
-
 export interface SelectedStationCardProps {
   station: Station | null;
   currentReading: CurrentSensorReading | null;
   latestAnomaly: LatestAnomaly | null;
   isLoading?: boolean;
 }
-
 export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
   station,
   currentReading,
@@ -22,7 +20,6 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
   isLoading = false,
 }) => {
   const navigate = useNavigate();
-
   if (isLoading || !station) {
     return (
       <Card variant="glass" className="sg-selected-station-card">
@@ -34,9 +31,7 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
       </Card>
     );
   }
-
   const coordsFormatted = formatCoordinates(station.lat, station.lon);
-
   return (
     <Card
       variant="glass"
@@ -55,7 +50,6 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
           </div>
           <h2 className="sg-selected-station-card__name">{station.name}</h2>
         </div>
-
         <StatusBadge
           status={
             station.status === 'NORMAL'
@@ -70,15 +64,13 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
           size="md"
         />
       </div>
-
-      {/* Geospatial Metadata Grid */}
+      {}
       <div className="sg-selected-station-card__meta-grid">
         <div className="sg-selected-station-card__meta-item">
           <MapPin size={15} className="text-accent" aria-hidden="true" />
           <span className="sg-selected-station-card__meta-label">Coordinates:</span>
           <span className="sg-selected-station-card__meta-value sg-font-mono">{coordsFormatted}</span>
         </div>
-
         {station.elevation_m != null && (
           <div className="sg-selected-station-card__meta-item">
             <Mountain size={15} className="text-accent" aria-hidden="true" />
@@ -88,7 +80,6 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
             </span>
           </div>
         )}
-
         {station.region && (
           <div className="sg-selected-station-card__meta-item">
             <Globe size={15} className="text-accent" aria-hidden="true" />
@@ -97,8 +88,7 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
           </div>
         )}
       </div>
-
-      {/* Real-time Telemetry Snapshot */}
+      {}
       {currentReading && (
         <div className="sg-selected-station-card__telemetry-row">
           <div className="sg-selected-station-card__telemetry-chip">
@@ -110,7 +100,6 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
               Nominal: {currentReading.temperature_c.normal_min}–{currentReading.temperature_c.normal_max}°C
             </span>
           </div>
-
           <div className="sg-selected-station-card__telemetry-chip">
             <span className="sg-selected-station-card__chip-label">Barometric Pressure</span>
             <span className="sg-selected-station-card__chip-val sg-font-mono">
@@ -120,7 +109,6 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
               Nominal: {currentReading.pressure_hpa.normal_min}–{currentReading.pressure_hpa.normal_max} hPa
             </span>
           </div>
-
           <div className="sg-selected-station-card__telemetry-chip">
             <span className="sg-selected-station-card__chip-label">Relative Humidity</span>
             <span className="sg-selected-station-card__chip-val sg-font-mono">
@@ -132,8 +120,7 @@ export const SelectedStationCard: React.FC<SelectedStationCardProps> = ({
           </div>
         </div>
       )}
-
-      {/* Latest Anomaly Context Banner */}
+      {}
       {latestAnomaly && (
         <div className="sg-selected-station-card__anomaly-banner" role="alert">
           <div className="sg-selected-station-card__anomaly-left">

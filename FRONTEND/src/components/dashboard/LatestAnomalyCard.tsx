@@ -5,7 +5,6 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { LatestAnomaly } from '../../types';
 import './LatestAnomalyCard.css';
-
 export interface LatestAnomalyCardProps {
   anomaly?: LatestAnomaly | null;
   isLoading?: boolean;
@@ -14,7 +13,6 @@ export interface LatestAnomalyCardProps {
   className?: string;
   streamMode?: 'live' | 'replay';
 }
-
 export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
   anomaly,
   isLoading = false,
@@ -37,7 +35,6 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className={`sg-latest-anomaly-card sg-latest-anomaly-card--error ${className}`}>
@@ -55,8 +52,6 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
       </Card>
     );
   }
-
-  // Healthy empty state when there is no anomaly
   if (!anomaly) {
     return (
       <Card variant="glass" className={`sg-latest-anomaly-card ${className}`}>
@@ -69,7 +64,6 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
             ● {streamMode === 'replay' ? 'REPLAY MODE' : 'LIVE BACKEND'}
           </span>
         </div>
-
         <div className="sg-latest-healthy-state">
           <div className="sg-healthy-badge">
             <CheckCircle2 size={32} className="text-optimal" aria-hidden="true" />
@@ -82,20 +76,16 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
       </Card>
     );
   }
-
-  // Map severity to StatusBadge
   let severityBadge: 'low' | 'moderate' | 'high' | 'critical' = 'low';
   if (anomaly.severity === 'critical') severityBadge = 'critical';
   else if (anomaly.severity === 'high') severityBadge = 'high';
   else if (anomaly.severity === 'medium') severityBadge = 'moderate';
-
   const formattedTime = new Date(anomaly.timestamp).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   });
   const suggestedEntries = Object.entries(anomaly.suggested_values || {});
-
   return (
     <Card variant="glass" className={`sg-latest-anomaly-card sg-latest-anomaly-card--active ${className}`}>
       <div className="sg-latest-anomaly-header">
@@ -110,31 +100,26 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
           </span>
         </div>
       </div>
-
       <div className="sg-latest-anomaly-content">
         <div className="sg-latest-type-row">
           <span className="sg-latest-type-label">Anomaly Event:</span>
           <span className="sg-latest-type-val">{anomaly.type.replace('_', ' ').toUpperCase()}</span>
           <span className="sg-latest-timestamp">{formattedTime}</span>
         </div>
-
         <div className="sg-latest-field">
           <span className="sg-latest-field-label">Root Cause:</span>
           <p className="sg-latest-root-cause">{anomaly.root_cause}</p>
         </div>
-
         <div className="sg-latest-field">
           <span className="sg-latest-field-label">Description:</span>
           <p className="sg-latest-description">{anomaly.description}</p>
         </div>
-
         {anomaly.regime && (
           <div className="sg-latest-field">
             <span className="sg-latest-field-label">Regime:</span>
             <p className="sg-latest-description">{anomaly.regime.replace(/_/g, ' ')}</p>
           </div>
         )}
-
         {anomaly.network_corroboration && (
           <div className="sg-latest-field sg-latest-field--network">
             <span className="sg-latest-field-label">Network Evidence:</span>
@@ -147,7 +132,6 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
             </div>
           </div>
         )}
-
         {anomaly.decision_basis && (
           <div className="sg-latest-field">
             <span className="sg-latest-field-label">Decision Basis:</span>
@@ -156,7 +140,6 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
             </p>
           </div>
         )}
-
         {suggestedEntries.length > 0 && (
           <div className="sg-latest-field">
             <span className="sg-latest-field-label">Suggested replacement:</span>
@@ -166,7 +149,6 @@ export const LatestAnomalyCard: React.FC<LatestAnomalyCardProps> = ({
             </p>
           </div>
         )}
-
         <div className="sg-latest-footer">
           <span className="sg-anomaly-id">ID: {anomaly.anomaly_id}</span>
           <span className="sg-anomaly-notice">

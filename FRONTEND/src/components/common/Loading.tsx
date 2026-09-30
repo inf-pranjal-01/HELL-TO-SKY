@@ -1,11 +1,9 @@
 import React from 'react';
 import './Loading.css';
-
 export interface LoadingProps {
   message?: string;
   size?: 'sm' | 'md' | 'lg';
 }
-
 export const Loading: React.FC<LoadingProps> = ({
   message = 'Loading telemetry data...',
   size = 'md',

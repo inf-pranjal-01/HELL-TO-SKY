@@ -1,22 +1,8 @@
-/**
- * Notification Drawer
- * 
- * [DEMO NOTIFICATION FEED]
- * Slide-in notifications panel with fully accessible focus management.
- * - Focus moves to the close button on open (first focusable element via useFocusTrap).
- * - Tab / Shift+Tab cycle within the drawer (focus trap).
- * - Escape closes the drawer.
- * - Backdrop click closes the drawer.
- * - Focus returns to the trigger button (triggerRef) on close.
- * - Screen-reader announcements on open/close.
- */
 
 import { useCallback, useEffect, useRef } from "react";
 import { Bell, X, AlertTriangle, Info, CheckCircle, Zap } from "lucide-react";
 import { useFocusTrap, announceToScreenReader } from "../../hooks/useFocusTrap";
 import "./NotificationDrawer.css";
-
-// [DEMO FEED] — client-side demo notification feed
 interface MockNotification {
   id: string;
   type: "alert" | "warning" | "info" | "success";
@@ -25,7 +11,6 @@ interface MockNotification {
   time: string;
   read: boolean;
 }
-
 const MOCK_NOTIFICATIONS: MockNotification[] = [
   {
     id: "n-001",
@@ -60,7 +45,6 @@ const MOCK_NOTIFICATIONS: MockNotification[] = [
     read: true,
   },
 ];
-
 function notificationIcon(type: MockNotification["type"]) {
   switch (type) {
     case "alert": return <AlertTriangle size={16} aria-hidden="true" />;
@@ -69,29 +53,22 @@ function notificationIcon(type: MockNotification["type"]) {
     default: return <Info size={16} aria-hidden="true" />;
   }
 }
-
 interface NotificationDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Ref to the trigger button so we can restore focus on close */
   triggerRef?: React.RefObject<HTMLElement>;
 }
-
 export function NotificationDrawer({ isOpen, onClose, triggerRef }: NotificationDrawerProps) {
   const drawerRef = useFocusTrap<HTMLDivElement>(isOpen, onClose, {
     triggerRef,
   });
   const unread = MOCK_NOTIFICATIONS.filter((n) => !n.read).length;
-
-  // Close on backdrop click
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target === e.currentTarget) onClose();
     },
     [onClose],
   );
-
-  // Prevent body scroll while drawer is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -101,8 +78,6 @@ export function NotificationDrawer({ isOpen, onClose, triggerRef }: Notification
     }
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
-
-  // Announce close
   const wasOpenRef = useRef(false);
   useEffect(() => {
     if (wasOpenRef.current && !isOpen) {
@@ -110,17 +85,15 @@ export function NotificationDrawer({ isOpen, onClose, triggerRef }: Notification
     }
     wasOpenRef.current = isOpen;
   }, [isOpen]);
-
   return (
     <>
-      {/* Backdrop */}
+      {}
       <div
         className={`sg-drawer-backdrop${isOpen ? " sg-drawer-backdrop--visible" : ""}`}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
-
-      {/* Drawer panel */}
+      {}
       <div
         ref={drawerRef}
         id="notification-drawer"
@@ -129,7 +102,7 @@ export function NotificationDrawer({ isOpen, onClose, triggerRef }: Notification
         aria-label={`Notifications — ${unread} unread`}
         className={`sg-notification-drawer${isOpen ? " sg-notification-drawer--open" : ""}`}
       >
-        {/* Header */}
+        {}
         <div className="sg-notification-drawer__header">
           <div className="sg-notification-drawer__title">
             <Bell size={18} aria-hidden="true" />
@@ -148,14 +121,12 @@ export function NotificationDrawer({ isOpen, onClose, triggerRef }: Notification
             <X size={18} aria-hidden="true" />
           </button>
         </div>
-
-        {/* Notice tag */}
+        {}
         <div className="sg-notification-drawer__body" role="feed" aria-label="Notification feed">
           <p className="sg-backend-notice">
             <span className="sg-notice-tag">DEMO FEED</span>
             {" "}Simulated operational activity alerts.
           </p>
-
           {MOCK_NOTIFICATIONS.map((n) => (
             <div
               key={n.id}
@@ -175,8 +146,7 @@ export function NotificationDrawer({ isOpen, onClose, triggerRef }: Notification
             </div>
           ))}
         </div>
-
-        {/* Footer */}
+        {}
         <div className="sg-notification-drawer__footer">
           <button className="sg-mark-all-btn" disabled aria-label="Mark all notifications as read (unavailable in mock mode)">
             Mark all as read
@@ -186,5 +156,4 @@ export function NotificationDrawer({ isOpen, onClose, triggerRef }: Notification
     </>
   );
 }
-
 export default NotificationDrawer;

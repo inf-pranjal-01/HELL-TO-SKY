@@ -1,10 +1,4 @@
-﻿/**
- * SkyGuard AI — Standard API Error Model & Formatters
- * 
- * Provides a standardized frontend error representation for network,
- * HTTP, parse, and response validation failures.
- */
-
+﻿
 export type ApiErrorCode =
   | 'NETWORK_ERROR'
   | 'TIMEOUT'
@@ -13,7 +7,6 @@ export type ApiErrorCode =
   | 'VALIDATION_ERROR'
   | 'MOCK_ERROR'
   | 'UNKNOWN';
-
 export class ApiError extends Error {
   public readonly status: number | null;
   public readonly code: ApiErrorCode;
@@ -21,7 +14,6 @@ export class ApiError extends Error {
   public readonly isTimeout: boolean;
   public readonly isValidationError: boolean;
   public readonly url?: string;
-
   constructor(
     message: string,
     options: {
@@ -42,13 +34,10 @@ export class ApiError extends Error {
     this.isTimeout = options.isTimeout ?? false;
     this.isValidationError = options.isValidationError ?? false;
     this.url = options.url;
-
-    // Preserve stack trace in V8 environments
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ApiError);
     }
   }
-
   static networkError(url?: string, cause?: unknown): ApiError {
     return new ApiError('Unable to connect to the SkyGuard backend. Please check network connection.', {
       status: null,
@@ -58,7 +47,6 @@ export class ApiError extends Error {
       cause,
     });
   }
-
   static timeout(url?: string, timeoutMs: number = 10000): ApiError {
     return new ApiError(`Request to SkyGuard backend timed out after ${timeoutMs}ms.`, {
       status: null,
@@ -67,7 +55,6 @@ export class ApiError extends Error {
       url,
     });
   }
-
   static httpError(status: number, message: string, url?: string): ApiError {
     return new ApiError(message || `HTTP error ${status} received from backend.`, {
       status,
@@ -75,7 +62,6 @@ export class ApiError extends Error {
       url,
     });
   }
-
   static validationError(message: string, url?: string): ApiError {
     return new ApiError(message || 'SkyGuard backend returned an invalid or malformed data structure.', {
       status: null,
@@ -84,7 +70,6 @@ export class ApiError extends Error {
       url,
     });
   }
-
   static parseError(url?: string, cause?: unknown): ApiError {
     return new ApiError('Failed to parse backend response as JSON.', {
       status: null,
@@ -94,11 +79,6 @@ export class ApiError extends Error {
     });
   }
 }
-
-/**
- * Format any thrown error into a clean, human-readable user-facing string.
- * Prevents raw stack traces, "fetch failed", or "undefined" from leaking into the UI.
- */
 export function formatUserErrorMessage(err: unknown, fallbackMessage: string = 'An unexpected error occurred.'): string {
   if (err instanceof ApiError) {
     if (err.isNetworkError) {
@@ -118,7 +98,6 @@ export function formatUserErrorMessage(err: unknown, fallbackMessage: string = '
     }
     return err.message;
   }
-
   if (err instanceof Error) {
     if (err.name === 'AbortError') {
       return 'The request was canceled.';
@@ -128,6 +107,5 @@ export function formatUserErrorMessage(err: unknown, fallbackMessage: string = '
     }
     return 'Unable to connect to the SkyGuard backend. Please check network connection.';
   }
-
   return fallbackMessage;
 }

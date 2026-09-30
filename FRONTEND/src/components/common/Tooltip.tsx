@@ -1,12 +1,10 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-
 export interface TooltipProps {
   content: string;
   children: React.ReactElement;
   position?: 'top' | 'bottom' | 'left' | 'right';
 }
-
 export const Tooltip: React.FC<TooltipProps> = ({
   content,
   children,
@@ -16,31 +14,25 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
-
   const show = () => {
     if (wrapperRef.current) setAnchor(wrapperRef.current.getBoundingClientRect());
     setVisible(true);
   };
-
   useEffect(() => {
     if (!visible) return;
     const refreshPosition = () => {
       if (wrapperRef.current) setAnchor(wrapperRef.current.getBoundingClientRect());
     };
     window.addEventListener('resize', refreshPosition);
-    // Capture catches scrolls in nested page/table containers as well.
     window.addEventListener('scroll', refreshPosition, true);
     return () => {
       window.removeEventListener('resize', refreshPosition);
       window.removeEventListener('scroll', refreshPosition, true);
     };
   }, [visible]);
-
-  // Clone child element to inject aria-describedby for screenreaders
   const childWithAria = React.cloneElement(children, {
     'aria-describedby': tooltipId,
   });
-
   return (
     <div
       ref={wrapperRef}

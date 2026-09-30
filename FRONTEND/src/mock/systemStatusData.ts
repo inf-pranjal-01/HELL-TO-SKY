@@ -1,9 +1,4 @@
 import { SystemStatusSummary } from '../types';
-
-/**
- * [MOCK FIXTURES]
- * Isolated system status summary fixture.
- */
 export const MOCK_SYSTEM_STATUS: SystemStatusSummary = {
   overall_status: 'WARNING',
   active_stations_count: 4,

@@ -7,7 +7,6 @@ import { StatusBadge } from '../common/StatusBadge';
 import { SystemStatusSummary } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import './Header.css';
-
 export interface HeaderProps {
   onOpenMobileMenu: () => void;
   systemStatus: SystemStatusSummary | null;
@@ -20,7 +19,6 @@ export interface HeaderProps {
   notificationTriggerRef?: React.RefObject<HTMLButtonElement>;
   mobileMenuTriggerRef?: React.RefObject<HTMLButtonElement>;
 }
-
 export const Header: React.FC<HeaderProps> = ({
   onOpenMobileMenu,
   systemStatus,
@@ -36,11 +34,9 @@ export const Header: React.FC<HeaderProps> = ({
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-
   const overallStatus = systemStatus?.overall_status || null;
   const displayName = user?.name || 'Met Operator';
   const displayRole = user?.role || 'Administrator';
-
   return (
     <header className="sg-header" aria-label="Application Top Header">
       <div className="sg-header__left">
@@ -55,15 +51,13 @@ export const Header: React.FC<HeaderProps> = ({
             leftIcon={<Menu size={20} />}
           />
         </Tooltip>
-
         <div className="sg-header__title-group">
           <h1 className="sg-header__title">Operations Center</h1>
           <span className="sg-header__subtitle">Real-time Station Telemetry</span>
         </div>
       </div>
-
       <div className="sg-header__right">
-        {/* Global Search Quick Trigger */}
+        {}
         <button
           ref={searchTriggerRef}
           type="button"
@@ -76,18 +70,15 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="sg-header__search-text">Search...</span>
           <kbd className="sg-header__search-kbd">Ctrl K</kbd>
         </button>
-
         <div className="sg-header__divider" aria-hidden="true" />
-
-        {/* Overall Health Status Indicator */}
+        {}
         <div className="sg-header__status">
           <StatusBadge
             status={overallStatus ?? 'NORMAL'}
             label={overallStatus ? `HEALTH: ${overallStatus}` : 'HEALTH: …'}
           />
         </div>
-
-        {/* Pipeline Ingestion Mode Indicator */}
+        {}
         {systemStatus?.mode === 'replay' ? (
           <div className="sg-header__mode-badge sg-header__mode-badge--replay" role="status">
             <Radio size={13} className="sg-header__mode-icon" aria-hidden="true" />
@@ -123,10 +114,8 @@ export const Header: React.FC<HeaderProps> = ({
             </Tooltip>
           </div>
         )}
-
         <div className="sg-header__divider" aria-hidden="true" />
-
-        {/* Action Controls */}
+        {}
         <div className="sg-header__actions">
           {onRefreshData && (
             <Tooltip content="Refresh Telemetry Data" position="bottom">
@@ -140,7 +129,6 @@ export const Header: React.FC<HeaderProps> = ({
               />
             </Tooltip>
           )}
-
           <Tooltip content="System Alerts & Notifications" position="bottom">
             <Button
               ref={notificationTriggerRef}
@@ -157,8 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
               }
             />
           </Tooltip>
-
-          {/* User Profile Dropdown Pill */}
+          {}
           <div className="sg-header__user-menu-container">
             <button
               type="button"
@@ -174,7 +161,6 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
               <ShieldCheck size={14} className="sg-header__verified-icon" />
             </button>
-
             {isProfileMenuOpen && (
               <div className="sg-header__dropdown-menu" role="menu">
                 <button

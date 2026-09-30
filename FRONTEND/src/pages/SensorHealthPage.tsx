@@ -17,11 +17,9 @@ import {
 } from '../components/sensor-health';
 import { ConfirmationDialog } from '../components/common/ConfirmationDialog';
 import './SensorHealthPage.css';
-
 export const SensorHealthPage: React.FC = () => {
   const { selectedStation } = useStation();
   const stationId = selectedStation?.station_id;
-
   const {
     currentReading,
     sensorHealth,
@@ -36,27 +34,22 @@ export const SensorHealthPage: React.FC = () => {
     togglePause,
     staleStatusText,
   } = useDashboardData(stationId, { autoPoll: true });
-
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairResult, setRepairResult] = useState<RepairSensorResponse | null>(null);
   const [repairError, setRepairError] = useState<string | null>(null);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
   const activeStationRef = useRef<string | undefined>(stationId);
-
-  // Clear repair feedback when station changes
   useEffect(() => {
     activeStationRef.current = stationId;
     setRepairResult(null);
     setRepairError(null);
     setIsRepairing(false);
   }, [stationId]);
-
   const handleRepair = async () => {
     if (!stationId || isRepairing) return;
     const targetStationId = stationId;
     setIsRepairing(true);
     setRepairError(null);
-
     try {
       const result = await sensorHealthService.markRepaired(targetStationId);
       if (activeStationRef.current !== targetStationId) return;
@@ -71,14 +64,12 @@ export const SensorHealthPage: React.FC = () => {
       }
     }
   };
-
   const handleForceRecover = async () => {
     if (!stationId || isRepairing) return;
     const targetStationId = stationId;
     setIsRepairing(true);
     setRepairError(null);
     setShowForceConfirm(false);
-
     try {
       const result = await sensorHealthService.forceRecover(targetStationId);
       if (activeStationRef.current !== targetStationId) return;
@@ -94,14 +85,12 @@ export const SensorHealthPage: React.FC = () => {
       }
     }
   };
-
   const handleRefresh = async () => {
     await Promise.all([refreshHealth(), refreshReading()]);
   };
-
   return (
     <div className="page-container sg-health-page" role="main" aria-label="Sensor Health &amp; Hardware Reliability">
-      {/* Page Header */}
+      {}
         <header className="sg-health-page__header">
           <div className="sg-health-page__title-area">
             <div className="sg-health-page__title-row">
@@ -113,7 +102,6 @@ export const SensorHealthPage: React.FC = () => {
               the selected automatic weather station.
             </p>
           </div>
-
           <div className="sg-health-page__header-controls">
             {selectedStation && (
               <div className="sg-health-page__station-badge">
@@ -121,7 +109,6 @@ export const SensorHealthPage: React.FC = () => {
                 <span>{selectedStation.name} ({selectedStation.station_id})</span>
               </div>
             )}
-
             <StatusBadge
               status={
                 staleStatusText === 'LIVE'
@@ -133,7 +120,6 @@ export const SensorHealthPage: React.FC = () => {
               label={staleStatusText}
               size="sm"
             />
-
             <Button
               variant="outline"
               size="sm"
@@ -143,7 +129,6 @@ export const SensorHealthPage: React.FC = () => {
             >
               {isPaused ? 'Resume' : 'Pause'}
             </Button>
-
             <Button
               variant="ghost"
               size="sm"
@@ -155,8 +140,7 @@ export const SensorHealthPage: React.FC = () => {
             </Button>
           </div>
         </header>
-
-        {/* 1. Overall Sensor Health Hero Section */}
+        {}
         <SensorHealthHero
           health={sensorHealth}
           lastUpdated={lastUpdated}
@@ -169,31 +153,25 @@ export const SensorHealthPage: React.FC = () => {
           repairResult={repairResult}
           repairError={repairError}
         />
-
-        {/* 2. Health Summary KPI Cards */}
+        {}
         <HealthSummaryCards
           health={sensorHealth}
           reading={currentReading}
           staleStatusText={staleStatusText}
           isLoading={isLoadingHealth || isLoadingReading}
         />
-
-        {/* 3. Anomaly Context Disambiguation Notice (Health vs Anomaly Risk) */}
+        {}
         <AnomalyContextNotice latestAnomaly={latestAnomaly} />
-
-        {/* 4. Sensor Health History Visualization */}
+        {}
         <HealthHistoryChart stationId={stationId} />
-
-        {/* 5. Monitored Sensor Channels Overview */}
+        {}
         <SensorChannelOverview
           reading={currentReading}
           health={sensorHealth}
           isLoading={isLoadingReading}
         />
-
-        {/* 6. Future Hardware Diagnostics Capability Seam */}
+        {}
         <FutureDiagnosticsNotice />
-
         <ConfirmationDialog
           isOpen={showForceConfirm}
           onClose={() => setShowForceConfirm(false)}

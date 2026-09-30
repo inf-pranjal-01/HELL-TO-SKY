@@ -1,10 +1,4 @@
 import { SensorReading } from '../types';
-
-/**
- * [MOCK FIXTURES]
- * Isolated sensor reading fixtures.
- * Matches exact current-reading API contract specification.
- */
 export const MOCK_SENSOR_READINGS: SensorReading[] = [
   {
     station_id: 'ST-NDL-001',

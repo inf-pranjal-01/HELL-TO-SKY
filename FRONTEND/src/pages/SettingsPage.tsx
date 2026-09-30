@@ -1,6 +1,5 @@
 import React from 'react';
 import { PlaceholderPage } from './PlaceholderPage';
-
 export const SettingsPage: React.FC = () => (
   <PlaceholderPage
     title="System Configuration & Thresholds"

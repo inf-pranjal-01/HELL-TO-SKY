@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { SystemStatusSummary } from '../types';
 import { anomalyService } from '../services/anomalyService';
 import { requestTelemetryRefresh } from '../utils/refreshEvents';
-
 export interface UseSensorPollingResult {
   readings: never[];
   systemStatus: SystemStatusSummary | null;
@@ -12,18 +11,12 @@ export interface UseSensorPollingResult {
   lastUpdated: Date | null;
   refresh: () => Promise<void>;
 }
-
-/**
- * Header network-health poll. Station telemetry lives in useDashboardData;
- * this hook only keeps the real aggregate status badge honest.
- */
 export function useSensorPolling(autoPoll: boolean = false): UseSensorPollingResult {
   const [systemStatus, setSystemStatus] = useState<SystemStatusSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const timerRef = useRef<number | null>(null);
-
   const fetchData = useCallback(async () => {
     try {
       setError(null);
@@ -36,7 +29,6 @@ export function useSensorPolling(autoPoll: boolean = false): UseSensorPollingRes
       setLoading(false);
     }
   }, []);
-
   useEffect(() => {
     fetchData();
     if (autoPoll) {
@@ -50,12 +42,10 @@ export function useSensorPolling(autoPoll: boolean = false): UseSensorPollingRes
       }
     };
   }, [fetchData, autoPoll]);
-
   const refresh = useCallback(async () => {
     await fetchData();
     requestTelemetryRefresh();
   }, [fetchData]);
-
   return {
     readings: [],
     systemStatus,

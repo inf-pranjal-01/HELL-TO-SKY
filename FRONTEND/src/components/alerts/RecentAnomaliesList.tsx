@@ -8,7 +8,6 @@ import { ErrorState } from '../common/ErrorState';
 import { RecentAnomalyItem } from '../../types';
 import { formatSuggestedList, suggestedFromRecord } from '../../utils/suggestedValues';
 import './RecentAnomaliesList.css';
-
 export interface RecentAnomaliesListProps {
   anomalies: RecentAnomalyItem[];
   isLoading?: boolean;
@@ -20,7 +19,6 @@ export interface RecentAnomaliesListProps {
   onClearFilters?: () => void;
   className?: string;
 }
-
 export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
   anomalies = [],
   isLoading = false,
@@ -47,7 +45,6 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className={`sg-alerts-table-card ${className}`}>
@@ -59,7 +56,6 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
       </Card>
     );
   }
-
   return (
     <Card variant="glass" className={`sg-alerts-table-card ${className}`}>
       <div className="sg-alerts-table-header">
@@ -71,7 +67,6 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
           ● LIVE BACKEND
         </span>
       </div>
-
       <div className="sg-alerts-table-container">
         {anomalies.length === 0 ? (
           <div className="sg-alerts-table-empty">
@@ -112,7 +107,6 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                 if (anom.severity === 'critical') badgeSev = 'critical';
                 else if (anom.severity === 'high') badgeSev = 'high';
                 else if (anom.severity === 'medium') badgeSev = 'moderate';
-
                 const formattedTime = new Date(anom.timestamp).toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -124,7 +118,6 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
                 });
                 const observed = suggestedFromRecord(anom.observed_values);
                 const suggested = suggestedFromRecord(anom.suggested_values);
-
                 return (
                   <tr
                     key={anom.anomaly_id}
@@ -214,7 +207,6 @@ export const RecentAnomaliesList: React.FC<RecentAnomaliesListProps> = ({
           </table>
         )}
       </div>
-
       <div className="sg-alerts-table-footer">
         <span className="sg-alerts-table-notice">
           Showing {anomalies.length} anomaly records

@@ -11,7 +11,6 @@ import {
   User,
   LucideIcon,
 } from 'lucide-react';
-
 export interface RouteMeta {
   path: string;
   title: string;
@@ -21,7 +20,6 @@ export interface RouteMeta {
   badgeCount?: number;
   description: string;
 }
-
 export const ROUTE_REGISTRY: RouteMeta[] = [
   {
     path: '/dashboard',
@@ -105,7 +103,6 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
     description: 'Operator identity, station access permissions, and session logs',
   },
 ];
-
 export const getRouteMeta = (pathname: string): RouteMeta => {
   const matched = ROUTE_REGISTRY.find((r) => pathname.startsWith(r.path));
   if (matched) return matched;

@@ -4,19 +4,7 @@ import { API_CONFIG, isMockMode } from '../config/api.config';
 import { apiClient, RequestOptions } from './apiClient';
 import { validateSensorHealth, validateRepairSensorResponse } from './validators';
 import { trendsService } from './trendsService';
-
-/**
- * Sensor Health Service
- * 
- * Boundary interface for AWS hardware reliability and sensing subsystem health.
- * - [MOCK DATA]: Returns isolated mock fixtures when API_CONFIG.mode === 'mock'
- * - [API: GET /api/sensor-health?station_id={station_id} — INTEGRATED]: Dispatches real HTTP call when API_CONFIG.mode === 'real'
- */
 export const sensorHealthService = {
-  /**
-   * Fetch current overall sensor health status for an Automatic Weather Station.
-   * Request contract: GET /api/sensor-health?station_id={stationId}
-   */
   async getSensorHealth(stationId: string, options?: RequestOptions): Promise<SensorHealth> {
     if (isMockMode()) {
       return new Promise((resolve) => {
@@ -34,7 +22,6 @@ export const sensorHealthService = {
         }, 50);
       });
     }
-
     const rawData = await apiClient.get<unknown>(
       API_CONFIG.endpoints.sensorHealth,
       { station_id: stationId },
@@ -42,12 +29,6 @@ export const sensorHealthService = {
     );
     return validateSensorHealth(rawData, stationId);
   },
-
-  /**
-   * Fetch historical sensor health records for trend visualization.
-   * [FRONTEND DERIVED — DEMO HISTORY]
-   * [NOT IN CURRENT API CONTRACT: Historical health endpoint]
-   */
   async getHealthHistory(stationId: string, hours: number = 10): Promise<HealthHistoryPoint[]> {
     if (isMockMode()) {
       return new Promise((resolve) => {
@@ -57,7 +38,6 @@ export const sensorHealthService = {
         }, 60);
       });
     }
-
     const trends = await trendsService.getTrends(stationId, hours);
     const healthFromStatus = (status: string | undefined): number => {
       if (status === 'OFFLINE') return 0;
@@ -72,12 +52,6 @@ export const sensorHealthService = {
       status: (point.health_status as HealthHistoryPoint['status']) || 'HEALTHY',
     }));
   },
-
-  /**
-   * Request a sensor repair / recovery sweep for an Automatic Weather Station.
-   * Request contract: POST /api/repair-sensor  { station_id }
-   * [API: POST /api/repair-sensor — INTEGRATED]
-   */
   async markRepaired(stationId: string, options?: RequestOptions): Promise<RepairSensorResponse> {
     if (isMockMode()) {
       return {
@@ -95,7 +69,6 @@ export const sensorHealthService = {
     );
     return validateRepairSensorResponse(rawData, stationId);
   },
-
   async forceRecover(stationId: string, options?: RequestOptions): Promise<RepairSensorResponse> {
     if (isMockMode()) {
       return {
@@ -113,7 +86,6 @@ export const sensorHealthService = {
     );
     return validateRepairSensorResponse(rawData, stationId);
   },
-
   async repairSensor(stationId: string, options?: RequestOptions): Promise<RepairSensorResponse> {
     return this.markRepaired(stationId, options);
   },

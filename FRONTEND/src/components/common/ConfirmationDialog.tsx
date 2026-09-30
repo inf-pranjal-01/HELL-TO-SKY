@@ -1,7 +1,6 @@
 import React from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-
 export interface ConfirmationDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -13,7 +12,6 @@ export interface ConfirmationDialogProps {
   isDanger?: boolean;
   isLoading?: boolean;
 }
-
 export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   isOpen,
   onClose,

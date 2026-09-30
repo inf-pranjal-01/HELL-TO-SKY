@@ -1,6 +1,5 @@
 import React from 'react';
 import './Skeleton.css';
-
 export interface SkeletonProps {
   width?: string;
   height?: string;
@@ -8,7 +7,6 @@ export interface SkeletonProps {
   className?: string;
   style?: React.CSSProperties;
 }
-
 export const Skeleton: React.FC<SkeletonProps> = ({
   width = '100%',
   height = '1.25rem',

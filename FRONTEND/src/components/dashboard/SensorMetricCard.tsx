@@ -2,7 +2,6 @@ import React from 'react';
 import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import './SensorMetricCard.css';
-
 export interface SensorMetricCardProps {
   title: string;
   icon: React.ReactNode;
@@ -17,7 +16,6 @@ export interface SensorMetricCardProps {
   className?: string;
   suggestedValue?: number | null;
 }
-
 export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
   title,
   icon,
@@ -48,7 +46,6 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className={`sg-metric-card sg-metric-card--error ${className}`}>
@@ -65,15 +62,12 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
       </Card>
     );
   }
-
   const hasValue = typeof value === 'number' && !isNaN(value);
   const isOutOfRange =
     hasValue &&
     typeof normalMin === 'number' &&
     typeof normalMax === 'number' &&
     (value < normalMin || value > normalMax);
-
-  // Compute visual percentage position in the normal range
   let rangePct = 50;
   if (hasValue && typeof normalMin === 'number' && typeof normalMax === 'number') {
     const span = normalMax - normalMin;
@@ -81,7 +75,6 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
       rangePct = Math.min(100, Math.max(0, ((value - normalMin) / span) * 100));
     }
   }
-
   return (
     <Card variant="glass" className={`sg-metric-card ${isOutOfRange ? 'sg-metric-card--out-of-range' : ''} ${className}`}>
       <div className="sg-metric-card__header">
@@ -90,7 +83,6 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
           {icon}
         </span>
       </div>
-
       <div className="sg-metric-card__value-row">
         <span className="sg-metric-card__number">
           {hasValue ? value.toFixed(1) : '—'}
@@ -104,7 +96,6 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
           </span>
         )}
       </div>
-
       {typeof normalMin === 'number' && typeof normalMax === 'number' && (
         <div className="sg-metric-card__range-info">
           <div className="sg-metric-card__range-labels">
@@ -113,7 +104,6 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
               {normalMin.toFixed(1)} — {normalMax.toFixed(1)} {unit}
             </span>
           </div>
-
           <div
             className="sg-range-bar"
             role="progressbar"
@@ -129,7 +119,6 @@ export const SensorMetricCard: React.FC<SensorMetricCardProps> = ({
           </div>
         </div>
       )}
-
       {typeof suggestedValue === 'number' && (
         <div className="sg-metric-card__suggested">
           <span>Suggested</span>

@@ -1,10 +1,8 @@
 ﻿import React from 'react';
 import { API_CONFIG } from '../../config/api.config';
 import './Footer.css';
-
 export const Footer: React.FC = () => {
   const isMock = API_CONFIG.mode === 'mock';
-
   return (
     <footer className="sg-footer" aria-label="Application Footer">
       <div className="sg-footer__content">

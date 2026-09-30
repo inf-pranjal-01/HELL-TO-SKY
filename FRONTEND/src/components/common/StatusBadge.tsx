@@ -1,6 +1,5 @@
 import React from 'react';
 import './StatusBadge.css';
-
 export type StatusType =
   | 'optimal'
   | 'active'
@@ -16,13 +15,11 @@ export type StatusType =
   | 'WARNING'
   | 'CRITICAL'
   | 'OFFLINE';
-
 export interface StatusBadgeProps {
   status: StatusType;
   label?: string;
   size?: 'sm' | 'md';
 }
-
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
   label,
@@ -30,7 +27,6 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 }) => {
   const displayLabel = label || status.toUpperCase();
   const normalized = status.toLowerCase();
-
   let categoryClass = 'sg-badge--optimal';
   if (['warning', 'moderate', 'maintenance'].includes(normalized)) {
     categoryClass = 'sg-badge--warning';
@@ -41,7 +37,6 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   } else if (['normal', 'optimal', 'active', 'low'].includes(normalized)) {
     categoryClass = 'sg-badge--optimal';
   }
-
   return (
     <span className={`sg-badge sg-badge--${size} ${categoryClass}`}>
       <span className="sg-badge__dot" aria-hidden="true" />

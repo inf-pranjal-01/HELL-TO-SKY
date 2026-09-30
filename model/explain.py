@@ -1,51 +1,15 @@
-"""
-SkyGuard AI — Phase 2e: Explainability.
-
-Answers "WHICH sensor is most likely at fault," not just "the score is
-94%" -- a rule-fired verdict already carries this (rules_fired is
-(rule_type, param) tuples), but a model-only "statistical_anomaly"
-verdict is one scalar across all 22 features with no indication of
-which raw sensor -- temperature/pressure/humidity -- is actually
-implicated. Any one of the three can be the genuinely faulty reading
-even when the other two are fine; this file localizes the station-level
-verdict down to specific sensor(s). Powers GET /api/explain/{anomaly_id}
-per ARCHITECTURE.md's contract.
-
-SHAP + sklearn's IsolationForest is genuinely fragile across shap
-versions (IsolationForest's decision_function isn't the same shape
-TreeExplainer expects for a standard regressor/classifier -- support
-varies by shap/sklearn version pairing and is known to raise on some
-combinations). Rather than let a shap incompatibility take the whole
-endpoint down, this degrades to a deterministic magnitude ranking (same
-feature-magnitude-based ordering, no shap dependency) if TreeExplainer
-construction or scoring fails -- logged loudly, not silently, so a
-degraded explanation is visible if it's happening, not mistaken for a
-real SHAP attribution.
-
-FEATURE NAME MAP matches ARCHITECTURE.md's /api/explain/{id} example
-shape ("Temp Deviation", "Pressure Inconsistency", "Rate of Change
-(Temp)", "Time of Day Pattern", "Seasonal Pattern") so main.py returns
-this file's output with zero translation.
-"""
 
 import sys
 from pathlib import Path
 import logging
-
 import numpy as np
 import pandas as pd
-
 sys.path.append(str(Path(__file__).parent.parent))
-
 try:
     import shap
     _SHAP_AVAILABLE = True
 except ImportError:
     _SHAP_AVAILABLE = False
-
-# feature_column -> display name. Every features.py FEATURE_COLUMNS
-# entry MUST have one here -- a silently-missing feature in an
-# explanation is worse than a loud startup error, see ExplainerCache.explain.
 FEATURE_DISPLAY_NAMES = {
     "temperature_c": "Temperature",
     "pressure_hpa": "Pressure",
@@ -97,10 +61,6 @@ FEATURE_DISPLAY_NAMES = {
     "pressure_same_hour_res": "Pressure Same-Hour Residual",
     "humidity_same_hour_res": "Humidity Same-Hour Residual",
 }
-
-# Which raw sensor each feature implicates -- None means the feature
-# couples multiple sensors or is a time signal, not attributable to
-# one sensor alone.
 FEATURE_TO_PARAM = {
     "temperature_c": "temperature_c",
     "pressure_hpa": "pressure_hpa",
@@ -125,16 +85,7 @@ FEATURE_TO_PARAM = {
     "temp_slope_24h": "temperature_c", "pressure_slope_24h": "pressure_hpa", "humidity_slope_24h": "humidity_pct",
     "temp_same_hour_res": "temperature_c", "pressure_same_hour_res": "pressure_hpa", "humidity_same_hour_res": "humidity_pct",
 }
-
-
 class ExplainerCache:
-    """
-    shap.TreeExplainer(model) walks every tree to build -- expensive.
-    Build ONCE per loaded artifact, same "load once at startup"
-    principle as detect.py's load_model(). state.py's StateManager
-    owns one instance.
-    """
-
     def __init__(self, artifact: dict):
         self.artifact = artifact
         self._explainer = None
@@ -145,18 +96,14 @@ class ExplainerCache:
             except Exception as e:
                 logging.getLogger(__name__).warning(f"[explain] shap.TreeExplainer construction failed, falling back to magnitude ranking for all explanations: {e!r}")
                 self._shap_broken = True
-
     def explain(self, feature_row: pd.Series) -> dict:
-        """Returns {"method": str, "features": [{"name", "impact", "column"}, ...]}"""
         feature_columns = self.artifact["feature_columns"]
         missing = [c for c in feature_columns if c not in FEATURE_DISPLAY_NAMES]
         if missing:
             raise KeyError(f"FEATURE_DISPLAY_NAMES missing entries for: {missing}")
-
         X = feature_row[feature_columns].values.reshape(1, -1).astype(np.float64)
         if np.isnan(X).any():
             return {"method": "none", "features": []}
-
         if not self._shap_broken:
             try:
                 shap_values = self._explainer.shap_values(X)
@@ -165,9 +112,6 @@ class ExplainerCache:
                 return {"method": "shap", "features": self._format(feature_columns, shap_values[0])}
             except Exception as e:
                 logging.getLogger(__name__).warning(f"[explain] shap_values() failed on this reading, falling back to magnitude ranking: {e!r}")
-
-        # Standardize features for fallback ranking so physical units (e.g. pressure 1013 hPa)
-        # do not artificially dominate over genuine sensor deviations and rate of changes.
         scaled_impacts = []
         for col, val in zip(feature_columns, X[0]):
             if col == "pressure_hpa":
@@ -180,9 +124,7 @@ class ExplainerCache:
                 scaled_impacts.append(0.0)
             else:
                 scaled_impacts.append(float(val))
-
         return {"method": "feature_magnitude_fallback", "features": self._format(feature_columns, scaled_impacts)}
-
     def _format(self, feature_columns, impacts) -> list[dict]:
         rows = [
             {"name": FEATURE_DISPLAY_NAMES[col], "impact": round(float(val), 4), "column": col}
@@ -190,10 +132,7 @@ class ExplainerCache:
         ]
         rows.sort(key=lambda r: abs(r["impact"]), reverse=True)
         return rows
-
-
 def likely_faulty_params(features: list[dict], top_n: int = 3) -> list[str]:
-    """Collapses the ranked feature list to WHICH raw sensor(s) are implicated, using the top_n highest-magnitude features."""
     seen = []
     for row in features[:top_n]:
         param = FEATURE_TO_PARAM.get(row["column"])

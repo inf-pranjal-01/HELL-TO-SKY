@@ -1,14 +1,3 @@
-/**
- * Sidebar.tsx — Step 3
- * Application navigation sidebar with:
- *  - StationSelector dropdown integration
- *  - routeRegistry-driven nav items
- *  - Desktop collapse/expand
- *  - Mobile drawer with accessible focus trap (useFocusTrap)
- *  - Backdrop click closes mobile drawer
- *  - Escape closes mobile drawer, focus returns to trigger
- *  - Accessible screen-reader announcements on open/close
- */
 
 import React, { useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
@@ -19,16 +8,13 @@ import { StationSelector } from "./StationSelector";
 import { ROUTE_REGISTRY } from "../../config/routeRegistry";
 import { useFocusTrap, announceToScreenReader } from "../../hooks/useFocusTrap";
 import "./Sidebar.css";
-
 export interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
-  /** Ref to mobile menu trigger button for explicit focus restoration */
   mobileTriggerRef?: React.RefObject<HTMLElement>;
 }
-
 export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   onToggleCollapse,
@@ -36,20 +22,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   mobileTriggerRef,
 }) => {
-  // Focus trap only active when mobile drawer is open, with mobileTriggerRef for focus restoration
   const drawerRef = useFocusTrap<HTMLElement>(isMobileOpen, onCloseMobile, {
     triggerRef: mobileTriggerRef,
   });
-
   const handleBackdropClick = () => onCloseMobile();
-
-  // Screen-reader announcements for mobile navigation drawer
   useEffect(() => {
     if (isMobileOpen) {
       announceToScreenReader("Navigation menu opened");
     }
   }, [isMobileOpen]);
-
   const wasMobileOpenRef = useRef(false);
   useEffect(() => {
     if (wasMobileOpenRef.current && !isMobileOpen) {
@@ -57,16 +38,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     wasMobileOpenRef.current = isMobileOpen;
   }, [isMobileOpen]);
-
   return (
     <>
-      {/* Mobile Backdrop */}
+      {}
       <div
         className={`sg-sidebar-backdrop${isMobileOpen ? " sg-sidebar-backdrop--visible" : ""}`}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
-
       <aside
         ref={drawerRef}
         id="primary-sidebar"
@@ -81,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           .filter(Boolean)
           .join(" ")}
       >
-        {/* Brand */}
+        {}
         <div className="sg-sidebar__brand" aria-label="SkyGuard AI">
           <div className="sg-sidebar__logo-icon" aria-hidden="true">
             <Shield size={24} className="text-accent" />
@@ -93,19 +72,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
-
-        {/* Station Selector (hidden when collapsed on desktop) */}
+        {}
         {!isCollapsed && (
           <div className="sg-sidebar__station-selector">
-            {/*
-             * [API: GET /api/stations — INTEGRATED]
-             * StationSelector uses StationContext which connects to real backend when VITE_API_MODE=real.
-             */}
+            {}
             <StationSelector />
           </div>
         )}
-
-        {/* Nav */}
+        {}
         <nav className="sg-sidebar__nav" aria-label="Application sections">
           <ul className="sg-sidebar__menu" role="list">
             {ROUTE_REGISTRY.map((route) => {
@@ -128,7 +102,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                 </NavLink>
               );
-
               return (
                 <li key={route.path}>
                   {isCollapsed ? (
@@ -143,8 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })}
           </ul>
         </nav>
-
-        {/* Collapse toggle (desktop only) */}
+        {}
         <div className="sg-sidebar__footer">
           <Tooltip
             content={

@@ -27,7 +27,6 @@ import { systemStatusService } from '../services/systemStatusService';
 import { API_CONFIG } from '../config/api.config';
 import { formatUserErrorMessage, ApiError } from '../services/apiError';
 import './DashboardPage.css';
-
 export const DashboardPage: React.FC = () => {
   const { selectedStation, isLoading: isLoadingStation } = useStation();
   const [trendHours, setTrendHours] = useState<number>(10);
@@ -36,7 +35,6 @@ export const DashboardPage: React.FC = () => {
   const [injectionNotice, setInjectionNotice] = useState<string | null>(null);
   const activeStationRef = useRef<string | undefined>(selectedStation?.station_id);
   const noticeTimerRef = useRef<number | null>(null);
-
   const {
     currentReading,
     trends,
@@ -63,13 +61,11 @@ export const DashboardPage: React.FC = () => {
     autoPoll: true,
     trendHours,
   });
-
   useEffect(() => {
     activeStationRef.current = selectedStation?.station_id;
     setInjectionNotice(null);
     setIsInjecting(false);
   }, [selectedStation?.station_id]);
-
   useEffect(() => {
     return () => {
       if (noticeTimerRef.current !== null) {
@@ -77,17 +73,13 @@ export const DashboardPage: React.FC = () => {
       }
     };
   }, []);
-
-  // SIH Demo Anomaly Injection / Replay Trigger
   const handleSimulateInjection = async () => {
     if (!selectedStation || isInjecting) return;
     const targetStationId = selectedStation.station_id;
     setIsInjecting(true);
-
     if (noticeTimerRef.current !== null) {
       clearTimeout(noticeTimerRef.current);
     }
-
     try {
       const res = await anomalyInjectionService.injectAnomaly({
         station_id: targetStationId,
@@ -113,11 +105,9 @@ export const DashboardPage: React.FC = () => {
       }, 7000);
     }
   };
-
   const handleRefresh = async () => {
     await refreshAll();
   };
-
   const handleModeToggle = async () => {
     if (isInjecting) return;
     if (streamMode !== 'replay') {
@@ -136,19 +126,16 @@ export const DashboardPage: React.FC = () => {
       setIsInjecting(false);
     }
   };
-
   const handlePurgeHistory = async () => {
     if (isPurging) return;
     const confirmed = window.confirm(
       'Are you sure you want to purge all historical telemetry and anomalies from the database? This resets the dashboard to a clean, pristine state.'
     );
     if (!confirmed) return;
-
     setIsPurging(true);
     if (noticeTimerRef.current !== null) {
       clearTimeout(noticeTimerRef.current);
     }
-
     try {
       const res = await systemStatusService.clearHistory('all');
       setInjectionNotice(res.message || 'Database purged. Telemetry reset to pristine state.');
@@ -162,8 +149,6 @@ export const DashboardPage: React.FC = () => {
       }, 6000);
     }
   };
-
-  // If no station is selected in context
   if (!isLoadingStation && !selectedStation) {
     return (
       <div className="page-container">
@@ -175,13 +160,11 @@ export const DashboardPage: React.FC = () => {
       </div>
     );
   }
-
   const stationName = selectedStation?.name || 'Observatory Telemetry';
   const stationId = selectedStation?.station_id || '';
-
   return (
     <div className="page-container sg-dashboard-page">
-      {/* Dashboard Top Header & Operational Banner */}
+      {}
       <header className="sg-page-header">
         <div className="sg-dashboard-header-left">
           <div className="sg-dashboard-station-badge">
@@ -194,9 +177,8 @@ export const DashboardPage: React.FC = () => {
             Real-time AWS sensor telemetry, anomaly risk index, and ML detection overview
           </p>
         </div>
-
         <div className="sg-page-actions">
-          {/* Real-time Stream & Ingestion Mode Badge */}
+          {}
           {streamMode === 'replay' ? (
             <div className="sg-latency-badge sg-latency-badge--replay">
               <Radio size={13} aria-hidden="true" />
@@ -238,8 +220,7 @@ export const DashboardPage: React.FC = () => {
               </Tooltip>
             </div>
           )}
-
-          {/* Live Data Freshness Badge */}
+          {}
           <div className="sg-live-badge-container">
             <span
               className={`sg-live-dot ${
@@ -258,8 +239,7 @@ export const DashboardPage: React.FC = () => {
               </span>
             )}
           </div>
-
-          {/* Refresh Action Button */}
+          {}
           <Tooltip content="Refresh telemetry across all sections" position="bottom">
             <Button
               variant="outline"
@@ -271,8 +251,7 @@ export const DashboardPage: React.FC = () => {
               Refresh
             </Button>
           </Tooltip>
-
-          {/* Purge / Reset DB Button */}
+          {}
           <Tooltip content="Reset session and purge historical database records" position="bottom">
             <Button
               variant="ghost"
@@ -286,8 +265,7 @@ export const DashboardPage: React.FC = () => {
               Reset DB
             </Button>
           </Tooltip>
-
-          {/* Single source-of-truth mode toggle; replay and live share the chart. */}
+          {}
           <Tooltip content={streamMode === 'replay' ? 'Stop replay and return to live mode' : 'Start historical anomaly replay'} position="bottom">
             <Button
               variant="ghost"
@@ -306,18 +284,16 @@ export const DashboardPage: React.FC = () => {
           </Tooltip>
         </div>
       </header>
-
-      {/* SIH Demo Notice Toast if triggered */}
+      {}
       {injectionNotice && (
         <div className="sg-sih-toast" role="status" aria-live="polite">
           <Info size={16} className="text-accent" aria-hidden="true" />
           <span>{injectionNotice}</span>
         </div>
       )}
-
-      {/* ---------------------------------------------------- */}
-      {/* SECTION 1: REAL-TIME METRIC OVERVIEW CARDS            */}
-      {/* ---------------------------------------------------- */}
+      {}
+      {}
+      {}
       <section className="sg-dashboard-section" aria-label="Real-time sensor metrics overview">
         <div className="sg-section-title-row">
           <h3 className="sg-section-title">Current Sensor Readings & Risk</h3>
@@ -325,9 +301,8 @@ export const DashboardPage: React.FC = () => {
             ● LIVE BACKEND
           </span>
         </div>
-
         <div className="sg-metric-grid">
-          {/* Temperature Overview */}
+          {}
           <SensorMetricCard
             title="Temperature"
             icon={<Thermometer size={18} />}
@@ -343,8 +318,7 @@ export const DashboardPage: React.FC = () => {
               currentReading?.is_anomaly ? currentReading.suggested_values?.temperature_c : undefined
             }
           />
-
-          {/* Atmospheric Pressure Overview */}
+          {}
           <SensorMetricCard
             title="Pressure"
             icon={<Gauge size={18} />}
@@ -360,8 +334,7 @@ export const DashboardPage: React.FC = () => {
               currentReading?.is_anomaly ? currentReading.suggested_values?.pressure_hpa : undefined
             }
           />
-
-          {/* Relative Humidity Overview */}
+          {}
           <SensorMetricCard
             title="Humidity"
             icon={<Droplets size={18} />}
@@ -377,8 +350,7 @@ export const DashboardPage: React.FC = () => {
               currentReading?.is_anomaly ? currentReading.suggested_values?.humidity_pct : undefined
             }
           />
-
-          {/* Anomaly Score & Risk Card */}
+          {}
           <AnomalyScoreCard
             score={currentReading?.anomaly_score_pct}
             riskLevel={currentReading?.risk_level}
@@ -387,8 +359,7 @@ export const DashboardPage: React.FC = () => {
             error={readingError}
             onRetry={refreshReading}
           />
-
-          {/* Sensor Health Card */}
+          {}
           <SensorHealthCard
             healthPct={currentReading?.sensor_health_pct}
             healthStatus={currentReading?.sensor_health_status}
@@ -398,10 +369,9 @@ export const DashboardPage: React.FC = () => {
           />
         </div>
       </section>
-
-      {/* ---------------------------------------------------- */}
-      {/* SECTION 2: SENSOR TELEMETRY TREND VISUALIZATION      */}
-      {/* ---------------------------------------------------- */}
+      {}
+      {}
+      {}
       <section className="sg-dashboard-section" aria-label="Sensor trend analysis">
         <TrendChart
           points={trends?.points}
@@ -423,13 +393,12 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
       </section>
-
-      {/* ---------------------------------------------------- */}
-      {/* SECTION 3: ANOMALY SUMMARY (LATEST & RECENT)          */}
-      {/* ---------------------------------------------------- */}
+      {}
+      {}
+      {}
       <section className="sg-dashboard-section" aria-label="Anomaly diagnostics and history">
         <div className="sg-anomaly-grid">
-          {/* Latest Anomaly Card */}
+          {}
           <LatestAnomalyCard
             anomaly={latestAnomaly}
             isLoading={isLoadingAnomalies}
@@ -437,8 +406,7 @@ export const DashboardPage: React.FC = () => {
             onRetry={refreshAnomalies}
             streamMode={streamMode}
           />
-
-          {/* Recent Anomalies History Summary */}
+          {}
           <RecentAnomaliesCard
             anomalies={recentAnomalies}
             isLoading={isLoadingAnomalies}
@@ -451,5 +419,4 @@ export const DashboardPage: React.FC = () => {
     </div>
   );
 };
-
 export default DashboardPage;

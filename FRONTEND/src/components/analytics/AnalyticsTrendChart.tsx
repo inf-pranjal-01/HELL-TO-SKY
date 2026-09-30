@@ -7,7 +7,6 @@ import { TrendsResponse, CurrentSensorReading, TrendPoint } from '../../types';
 import { windowTrendPoints } from '../../utils/chartWindow';
 import { formatChartTime } from '../../utils/chartTime';
 import './AnalyticsTrendChart.css';
-
 export interface AnalyticsTrendChartProps {
   trends: TrendsResponse | null;
   currentReading: CurrentSensorReading | null;
@@ -17,21 +16,18 @@ export interface AnalyticsTrendChartProps {
   isLoading?: boolean;
   className?: string;
 }
-
 const isMetricAnomalous = (pt: TrendPoint, metric: 'temperature_c' | 'pressure_hpa' | 'humidity_pct'): boolean => {
   const isOverall = (pt.anomaly_score_pct || 0) > 75 || pt.is_anomaly === true;
   if (!isOverall) return false;
   if (metric === 'temperature_c' && pt.suggested_temperature_c != null) return true;
   if (metric === 'pressure_hpa' && pt.suggested_pressure_hpa != null) return true;
   if (metric === 'humidity_pct' && pt.suggested_humidity_pct != null) return true;
-
   const ft = (pt.fault_type || '').toLowerCase();
   if (ft.includes('temp')) return metric === 'temperature_c';
   if (ft.includes('press')) return metric === 'pressure_hpa';
   if (ft.includes('humid') || ft.includes('dew')) return metric === 'humidity_pct';
   return true;
 };
-
 export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
   trends,
   currentReading,
@@ -42,14 +38,11 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
   className = '',
 }) => {
   const [showTable, setShowTable] = useState<boolean>(false);
-
   const rawPoints = trends?.points || [];
   const { points: windowedPoints, windowStart, windowEnd } = useMemo(
     () => windowTrendPoints(rawPoints, hours),
     [rawPoints, hours]
   );
-
-  // Metric configuration
   const metricConfig = useMemo(() => {
     switch (selectedMetric) {
       case 'temperature_c':
@@ -85,8 +78,6 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
         };
     }
   }, [selectedMetric, currentReading]);
-
-  // Descriptive text summary for accessibility (computed on windowed points)
   const summaryText = useMemo(() => {
     if (windowedPoints.length === 0) {
       return 'No telemetry trend records available for this observation window.';
@@ -102,7 +93,6 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
     const latest = values[values.length - 1];
     return `${metricConfig.title} over the last ${hours} hours ranged from ${min.toFixed(1)} ${metricConfig.unit} to ${max.toFixed(1)} ${metricConfig.unit}. The latest observed value is ${latest.toFixed(1)} ${metricConfig.unit}. Reference baseline: ${metricConfig.normalMin} to ${metricConfig.normalMax} ${metricConfig.unit}.`;
   }, [windowedPoints, metricConfig, hours]);
-
   if (isLoading) {
     return (
       <Card variant="glass" className={`sg-analytics-chart-card ${className}`}>
@@ -114,7 +104,6 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
       </Card>
     );
   }
-
   if (windowedPoints.length === 0) {
     return (
       <Card variant="glass" className={`sg-analytics-chart-card ${className}`}>
@@ -125,14 +114,11 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
       </Card>
     );
   }
-
-  // SVG Chart Geometry
   const svgWidth = 900;
   const svgHeight = 260;
   const padding = { top: 25, right: 35, bottom: 35, left: 55 };
   const chartWidth = svgWidth - padding.left - padding.right;
   const chartHeight = svgHeight - padding.top - padding.bottom;
-
   const rawValues = windowedPoints
     .map(metricConfig.valueAccessor)
     .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
@@ -142,7 +128,6 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
   const scaleMin = Math.floor(dataMin - buffer);
   const scaleMax = Math.ceil(dataMax + buffer);
   const scaleRange = scaleMax - scaleMin || 1;
-
   const span = windowEnd - windowStart || 1;
   const coordinates = windowedPoints.map((pt) => {
     const val = metricConfig.valueAccessor(pt);
@@ -152,17 +137,13 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
     const isAnomaly = isMetricAnomalous(pt, selectedMetric);
     return { x, y, val, timestamp: pt.timestamp, isAnomaly, score: pt.anomaly_score_pct };
   });
-
   const pathD = coordinates.reduce(
     (acc, curr, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${curr.x} ${curr.y}`,
     ''
   );
-
   const areaD = `${pathD} L ${coordinates[coordinates.length - 1].x} ${
     padding.top + chartHeight
   } L ${coordinates[0].x} ${padding.top + chartHeight} Z`;
-
-  // Normal Baseline Band Y Coordinates
   const normalTopY = Math.max(
     padding.top,
     padding.top + chartHeight - ((metricConfig.normalMax - scaleMin) / scaleRange) * chartHeight
@@ -172,15 +153,11 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
     padding.top + chartHeight - ((metricConfig.normalMin - scaleMin) / scaleRange) * chartHeight
   );
   const normalBandHeight = Math.max(0, normalBottomY - normalTopY);
-
-  // Y-axis grid increments (5 levels)
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((pct) => {
     const val = scaleMin + pct * scaleRange;
     const y = padding.top + chartHeight - pct * chartHeight;
     return { val: Number(val.toFixed(1)), y };
   });
-
-  // X-axis time increments (5 levels)
   const xTicks = [0, 0.25, 0.5, 0.75, 1].map((pct) => {
     const time = windowStart + pct * span;
     return {
@@ -188,7 +165,6 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
       label: formatChartTime(new Date(time).toISOString(), pct === 0 || hours > 24),
     };
   });
-
   return (
     <Card
       variant="glass"
@@ -206,8 +182,7 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
             ● LIVE BACKEND
           </span>
         </div>
-
-        {/* Metric Switching Tabs */}
+        {}
         <div
           className="sg-analytics-chart__metric-tabs"
           role="tablist"
@@ -248,13 +223,11 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Accessible Text Summary */}
+      {}
       <p className="sg-analytics-chart__summary-text" aria-live="polite">
         {summaryText}
       </p>
-
-      {/* SVG Time Series Chart */}
+      {}
       <div className="sg-analytics-chart__svg-wrapper">
         <svg
           className="sg-analytics-chart__svg"
@@ -269,8 +242,7 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
               <stop offset="100%" stopColor={metricConfig.strokeColor} stopOpacity="0.0" />
             </linearGradient>
           </defs>
-
-          {/* Reference Normal Operating Range Band */}
+          {}
           {normalBandHeight > 0 && (
             <rect
               x={padding.left}
@@ -282,8 +254,7 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
               <title>{`Nominal Baseline Range: ${metricConfig.normalMin} - ${metricConfig.normalMax} ${metricConfig.unit}`}</title>
             </rect>
           )}
-
-          {/* Gridlines & Y-Axis */}
+          {}
           {yTicks.map((tick, i) => (
             <g key={i}>
               <line
@@ -303,8 +274,7 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
               </text>
             </g>
           ))}
-
-          {/* X-Axis Gridline and Labels */}
+          {}
           <line
             x1={padding.left}
             y1={padding.top + chartHeight}
@@ -323,18 +293,15 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
               {tick.label}
             </text>
           ))}
-
-          {/* Area Fill */}
+          {}
           <path
             d={areaD}
             fill={`url(#analyticsGrad-${selectedMetric})`}
             className="sg-analytics-chart__area"
           />
-
-          {/* Main Line */}
+          {}
           <path d={pathD} className={`sg-analytics-chart__line ${metricConfig.lineClass}`} />
-
-          {/* Data Points */}
+          {}
           {coordinates.map((coord, idx) => {
             const timeStr = new Date(coord.timestamp).toLocaleTimeString([], {
               hour: '2-digit',
@@ -343,7 +310,6 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
             const pointTitle = `${timeStr}: ${coord.val} ${metricConfig.unit}${
               coord.isAnomaly ? ` (ANOMALY: Score ${coord.score}%)` : ''
             }`;
-
             return (
               <circle
                 key={idx}
@@ -363,8 +329,7 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
           })}
         </svg>
       </div>
-
-      {/* Screen Reader Table Toggle */}
+      {}
       <div className="sg-analytics-chart__table-toggle">
         <button
           type="button"
@@ -380,7 +345,6 @@ export const AnalyticsTrendChart: React.FC<AnalyticsTrendChartProps> = ({
           {showTable ? 'Hide Raw Telemetry Table' : 'Show Raw Telemetry Table for Screen Readers'}
         </button>
       </div>
-
       {showTable && (
         <div className="sg-analytics-chart__table-wrapper">
           <table className="sg-analytics-chart__table" aria-label="Historical telemetry readings table">

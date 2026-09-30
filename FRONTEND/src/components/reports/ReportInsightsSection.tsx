@@ -1,12 +1,10 @@
 import React from 'react';
 import { Lightbulb, CheckSquare } from 'lucide-react';
 import './ReportInsightsSection.css';
-
 export interface ReportInsightsSectionProps {
   insights: string[];
   recommendations: string[];
 }
-
 export const ReportInsightsSection: React.FC<ReportInsightsSectionProps> = ({
   insights,
   recommendations,
@@ -22,9 +20,8 @@ export const ReportInsightsSection: React.FC<ReportInsightsSectionProps> = ({
         </div>
         <span className="sg-report-section__badge">DERIVED FROM LIVE BACKEND DATA</span>
       </div>
-
       <div className="sg-report-insights-grid">
-        {/* Operational Insights */}
+        {}
         <div className="sg-report-insights-card">
           <div className="sg-report-insights-card-header">
             <Lightbulb size={15} className="text-warning" aria-hidden="true" />
@@ -41,8 +38,7 @@ export const ReportInsightsSection: React.FC<ReportInsightsSectionProps> = ({
             ))}
           </ul>
         </div>
-
-        {/* Actionable Recommendations */}
+        {}
         <div className="sg-report-insights-card">
           <div className="sg-report-insights-card-header">
             <CheckSquare size={15} className="text-optimal" aria-hidden="true" />

@@ -2,7 +2,6 @@ import React from 'react';
 import { Info, Cpu } from 'lucide-react';
 import { Card } from '../common/Card';
 import './FutureSpatialNotice.css';
-
 export const FutureSpatialNotice: React.FC = () => {
   return (
     <Card
@@ -22,7 +21,6 @@ export const FutureSpatialNotice: React.FC = () => {
           DEMO SPATIAL COMPARISON — FUTURE BACKEND PIPELINE
         </span>
       </div>
-
       <div className="sg-future-spatial__content">
         <Info size={18} className="text-accent flex-shrink-0" aria-hidden="true" />
         <p className="sg-future-spatial__text">

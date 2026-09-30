@@ -5,9 +5,7 @@ import { Skeleton } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
 import { RecentAnomalyItem, LatestAnomaly } from '../../types';
 import './AnomalySelector.css';
-
 type AnomalyEntry = RecentAnomalyItem | LatestAnomaly;
-
 function severityToStatus(severity: string): 'critical' | 'high' | 'moderate' | 'low' {
   switch (severity) {
     case 'critical': return 'critical';
@@ -16,18 +14,15 @@ function severityToStatus(severity: string): 'critical' | 'high' | 'moderate' | 
     default:         return 'low';
   }
 }
-
 function formatAnomType(type: string): string {
   return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
-
 export interface AnomalySelectorProps {
   anomalies: AnomalyEntry[];
   selectedAnomalyId: string | null;
   onSelect: (id: string) => void;
   isLoading: boolean;
 }
-
 export const AnomalySelector: React.FC<AnomalySelectorProps> = ({
   anomalies,
   selectedAnomalyId,
@@ -49,7 +44,6 @@ export const AnomalySelector: React.FC<AnomalySelectorProps> = ({
       </div>
     );
   }
-
   if (anomalies.length === 0) {
     return (
       <div className="sg-anomaly-selector">
@@ -65,7 +59,6 @@ export const AnomalySelector: React.FC<AnomalySelectorProps> = ({
       </div>
     );
   }
-
   return (
     <div className="sg-anomaly-selector">
       <h3 className="sg-anomaly-selector__heading">
@@ -84,7 +77,6 @@ export const AnomalySelector: React.FC<AnomalySelectorProps> = ({
             dateStyle: 'short',
             timeStyle: 'short',
           });
-
           return (
             <li
               key={id}

@@ -9,4 +9,3 @@ target_history = pd.DataFrame([
 ])
 features = build_features_for_latest(target_history)
 print(features[['temperature_c', 'temp_deviation', 'temp_roc_1h']])
-

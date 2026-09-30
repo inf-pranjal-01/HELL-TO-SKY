@@ -1,6 +1,5 @@
 import React, { forwardRef } from 'react';
 import './Button.css';
-
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
@@ -9,7 +8,6 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   rightIcon?: React.ReactNode;
   ariaLabel?: string;
 }
-
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
   children,
   variant = 'primary',
@@ -42,14 +40,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
       ) : leftIcon ? (
         <span className="sg-button__icon-left">{leftIcon}</span>
       ) : null}
-      
       <span className="sg-button__content">{children}</span>
-
       {!isLoading && rightIcon ? (
         <span className="sg-button__icon-right">{rightIcon}</span>
       ) : null}
     </button>
   );
 });
-
 Button.displayName = 'Button';

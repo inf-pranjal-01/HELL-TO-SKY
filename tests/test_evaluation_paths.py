@@ -1,14 +1,11 @@
-"""Focused checks for evaluation label isolation and oracle baseline masking."""
 
 from collections import deque
 from types import SimpleNamespace
 import unittest
-
 import numpy as np
 import pandas as pd
 import joblib
 from pandas.testing import assert_frame_equal
-
 from model.evaluate import (
     ARTIFACTS_PATH, DATA_DIR, _evaluate_stream, _latest_position_at_or_before,
     _metrics, _prediction_diagnostics, _raw_reading,
@@ -24,8 +21,6 @@ from model.features import (
 )
 from model.state import StationBuffer
 from model.state import RAW_HISTORY_MAXLEN_HOURS
-
-
 class EvaluationPathTests(unittest.TestCase):
     @unittest.skipUnless(ARTIFACTS_PATH.exists(), "trained detector artifact is required")
     def test_shared_live_feature_pass_preserves_detector_decision(self):
@@ -36,7 +31,6 @@ class EvaluationPathTests(unittest.TestCase):
         history = source.reset_index(drop=True)
         raw_reading = history.iloc[-1].to_dict()
         artifact = joblib.load(ARTIFACTS_PATH)
-
         reference = score_reading(
             raw_reading, history, artifact, include_suggestions=False,
         )
@@ -47,13 +41,11 @@ class EvaluationPathTests(unittest.TestCase):
             precomputed_history_featured=featured,
             include_suggestions=False,
         )
-
         for key in (
             "is_anomaly", "fault_type", "anomaly_score_pct", "decision_basis",
             "rule_confidence_pct", "rules_fired", "evaluation_diagnostics",
         ):
             self.assertEqual(reference.get(key), optimized.get(key), key)
-
     @unittest.skipUnless(ARTIFACTS_PATH.exists(), "trained detector artifact is required")
     def test_cluster_parallel_production_replay_matches_single_worker(self):
         metadata = pd.read_csv(DATA_DIR / "stations_metadata.csv")
@@ -69,35 +61,27 @@ class EvaluationPathTests(unittest.TestCase):
         frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
         frame = frame.sort_values(["timestamp", "station_id"], kind="mergesort").reset_index(drop=True)
         artifact = joblib.load(ARTIFACTS_PATH)
-
         sequential, _ = _evaluate_stream(frame, artifact, "production", None, progress_every=0, workers=1)
         parallel, report = _evaluate_stream(frame, artifact, "production", None, progress_every=0, workers=2)
-
         self.assertEqual(report["evaluation_path"], "sequential_state_manager_parallel_clusters")
         self.assertEqual(report["cluster_workers"], 2)
         assert_frame_equal(sequential, parallel, check_exact=True)
-
     def test_binary_fault_helper_cannot_supply_a_fault_type(self):
         class BinaryHelper:
             classes_ = np.array([False, True])
-
             def predict_proba(self, _frame):
                 raise AssertionError("binary helper must not be used as a type classifier")
-
         label, confidence = _multiclass_fault_label(
             BinaryHelper(), ["signal"], pd.DataFrame({"signal": [1.0]}),
         )
         self.assertIsNone(label)
         self.assertIsNone(confidence)
-
     def test_multiclass_fault_helper_only_returns_a_type_and_confidence(self):
         class MulticlassHelper:
             classes_ = np.array(["drift", "frozen_value", "spike"])
-
             def predict_proba(self, frame):
                 self.assert_columns = list(frame.columns)
                 return np.array([[0.1, 0.8, 0.1]])
-
         helper = MulticlassHelper()
         label, confidence = _multiclass_fault_label(
             helper, ["signal"], pd.DataFrame({"signal": [1.0]}),
@@ -105,13 +89,11 @@ class EvaluationPathTests(unittest.TestCase):
         self.assertEqual(label, "frozen_value")
         self.assertEqual(confidence, 0.8)
         self.assertEqual(helper.assert_columns, ["signal"])
-
     def test_oracle_peer_history_lookup_normalizes_pandas_timestamp_resolution(self):
         peer_timestamps = pd.Series(pd.date_range(
             "2025-01-01T00:00:00Z", periods=3, freq="h",
         ))
         peer_ns = _timestamp_ns(peer_timestamps)
-
         self.assertEqual(
             _latest_position_at_or_before(peer_ns, pd.Timestamp("2025-01-01T01:00:00Z")),
             1,
@@ -120,7 +102,6 @@ class EvaluationPathTests(unittest.TestCase):
             _latest_position_at_or_before(peer_ns, pd.Timestamp("2024-12-31T23:00:00Z")),
             -1,
         )
-
     def test_detector_ingress_strips_ground_truth_and_evaluation_columns(self):
         reading = _raw_reading({
             "station_id": "AWS-TEST-001",
@@ -133,7 +114,6 @@ class EvaluationPathTests(unittest.TestCase):
         })
         self.assertEqual(reading["temperature_c"], 24.0)
         self.assertFalse({"is_anomaly", "fault_type", "episode_id", "__source_file"} & reading.keys())
-
     def test_fault_breakdown_counts_wrong_type_alert_as_fp_and_fn(self):
         predictions = pd.DataFrame({
             "is_anomaly_gt": [True, True, False],
@@ -150,7 +130,6 @@ class EvaluationPathTests(unittest.TestCase):
                           metrics["by_fault_type"]["frozen_value"]["fp"],
                           metrics["by_fault_type"]["frozen_value"]["fn"]), (0, 1, 1))
         self.assertEqual(metrics["by_fault_type"]["spike"]["fp"], 1)
-
     def test_prediction_diagnostics_break_down_false_alarms_and_missed_rows(self):
         predictions = pd.DataFrame({
             "station_id": ["AWS-TEST-001", "AWS-TEST-001", "AWS-TEST-002"],
@@ -167,7 +146,6 @@ class EvaluationPathTests(unittest.TestCase):
         self.assertEqual(diagnostics["false_alarms"]["count"], 1)
         self.assertEqual(diagnostics["false_alarms"]["by_network_state"]["REGIONAL_STABILITY"], 1)
         self.assertEqual(diagnostics["missed_rows"]["by_true_type"]["drift"], 1)
-
     def test_episode_diagnostics_identify_delayed_confirmation_and_miss_reason(self):
         predictions = pd.DataFrame({
             "station_id": ["AWS-TEST-001"] * 4,
@@ -190,19 +168,16 @@ class EvaluationPathTests(unittest.TestCase):
         self.assertEqual(diagnostics["matched_episode_count"], 1)
         self.assertEqual(diagnostics["matched_episodes"][0]["confirmation_delay_hours"], 1.0)
         self.assertEqual(diagnostics["missed_episode_count"], 0)
-
     def test_oracle_removes_only_the_matching_current_fault_reading(self):
         timestamp = pd.Timestamp("2025-01-01T00:00:00Z")
         previous = {"timestamp": timestamp - pd.Timedelta(hours=1), "temperature_c": 22.0}
         current = {"timestamp": timestamp, "temperature_c": 40.0}
         buffer = SimpleNamespace(_raw_rows=deque([previous, current]), _cache_dirty=False)
         manager = SimpleNamespace(buffers={"AWS-TEST-001": buffer})
-
         self.assertTrue(_remove_ground_truth_row(manager, "AWS-TEST-001", timestamp))
         self.assertEqual(list(buffer._raw_rows), [previous])
         self.assertTrue(buffer._cache_dirty)
         self.assertFalse(_remove_ground_truth_row(manager, "AWS-TEST-001", timestamp))
-
     def test_station_history_cache_refreshes_after_clean_reading_append(self):
         buffer = StationBuffer("AWS-TEST-001")
         self.assertTrue(buffer.raw_history_df().empty)
@@ -214,7 +189,6 @@ class EvaluationPathTests(unittest.TestCase):
         refreshed = buffer.raw_history_df()
         self.assertEqual(len(refreshed), 1)
         self.assertEqual(float(refreshed.iloc[0]["temperature_c"]), 24.0)
-
     def test_vectorized_oracle_features_match_sequential_clean_features(self):
         source = pd.read_csv("data/AWS-BHO-101_labeled.csv").head(48)
         source["timestamp"] = pd.to_datetime(source["timestamp"], utc=True)
@@ -231,7 +205,6 @@ class EvaluationPathTests(unittest.TestCase):
                     self.fail(f"feature {column} differs at row {position}")
                 self.assertAlmostEqual(float(sequential[column]), float(cached[column]), places=8,
                                        msg=f"feature {column} differs at row {position}")
-
     def test_labeled_fault_is_excluded_from_future_oracle_baseline(self):
         source = pd.read_csv("data/AWS-BHO-101_labeled.csv").head(55)
         source["timestamp"] = pd.to_datetime(source["timestamp"], utc=True)
@@ -245,7 +218,6 @@ class EvaluationPathTests(unittest.TestCase):
                                   float(unmasked.loc[40, "temp_rolling_mean"]), places=8)
         self.assertNotAlmostEqual(float(masked.loc[40, "temp_rolling_mean"]),
                                   100.0, places=2)
-
     def test_vectorized_cusum_matches_each_sequential_prefix(self):
         source = pd.read_csv("data/AWS-BHO-101_labeled.csv").head(64)
         source["timestamp"] = pd.to_datetime(source["timestamp"], utc=True)
@@ -262,7 +234,6 @@ class EvaluationPathTests(unittest.TestCase):
                     featured.iloc[start:position + 1], prefix, parameter, station_id,
                 )
                 self.assertEqual(cached[position], sequential, f"CUSUM mismatch for {parameter} at {position}")
-
     def test_vectorized_cusum_resets_to_the_live_history_window(self):
         size = 800
         featured = pd.DataFrame({
@@ -278,7 +249,5 @@ class EvaluationPathTests(unittest.TestCase):
                 featured.iloc[start:position + 1], "humidity", "humidity_pct", "AWS-TEST-001",
             )
             self.assertEqual(cached[position], sequential, f"windowed CUSUM mismatch at {position}")
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -9,7 +9,6 @@ import { ConfirmationDialog } from '../common/ConfirmationDialog';
 import { useSensorPolling } from '../../hooks/useSensorPolling';
 import { useAuth } from '../../context/AuthContext';
 import './AppShell.css';
-
 export const AppShell: React.FC = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -19,16 +18,10 @@ export const AppShell: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
-
-  // Trigger refs for focus restoration
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
   const notificationTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
-
-  // Hook providing telemetry data and status summary
   const { systemStatus, refresh, loading } = useSensorPolling(true);
-
-  // Keyboard shortcut for Global Search: Ctrl+K / Cmd+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -39,7 +32,6 @@ export const AppShell: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
   const handleConfirmLogout = async () => {
     setIsLoggingOut(true);
     try {
@@ -50,7 +42,6 @@ export const AppShell: React.FC = () => {
       setIsLoggingOut(false);
     }
   };
-
   return (
     <div className="sg-shell">
       <Sidebar
@@ -60,7 +51,6 @@ export const AppShell: React.FC = () => {
         onCloseMobile={() => setIsMobileOpen(false)}
         mobileTriggerRef={mobileMenuTriggerRef}
       />
-
       <div className="sg-shell__main-wrapper">
         <Header
           onOpenMobileMenu={() => setIsMobileOpen(true)}
@@ -74,29 +64,24 @@ export const AppShell: React.FC = () => {
           notificationTriggerRef={notificationTriggerRef}
           mobileMenuTriggerRef={mobileMenuTriggerRef}
         />
-
         <main id="main-content" className="sg-shell__content" tabIndex={-1}>
           <Outlet />
         </main>
-
         <Footer />
       </div>
-
-      {/* Global Search Modal */}
+      {}
       <GlobalSearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         triggerRef={searchTriggerRef}
       />
-
-      {/* Notification Slide-out Drawer */}
+      {}
       <NotificationDrawer
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
         triggerRef={notificationTriggerRef}
       />
-
-      {/* Logout Confirmation Dialog */}
+      {}
       <ConfirmationDialog
         isOpen={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}

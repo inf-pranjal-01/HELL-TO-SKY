@@ -1,10 +1,4 @@
 import { CurrentSensorReading } from '../types';
-
-/**
- * [MOCK DATA]
- * Isolated current sensor reading fixtures for mock mode.
- * Matches exact backend response shape: [API: GET /api/current-reading — INTEGRATED]
- */
 export const MOCK_CURRENT_READINGS: Record<string, CurrentSensorReading> = {
   'ST-NDL-001': {
     station_id: 'ST-NDL-001',
@@ -100,7 +94,7 @@ export const MOCK_CURRENT_READINGS: Record<string, CurrentSensorReading> = {
   },
   'ST-KOL-005': {
     station_id: 'ST-KOL-005',
-    timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago (offline)
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
     temperature_c: {
       value: 29.1,
       normal_min: 20.0,

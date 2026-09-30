@@ -5,12 +5,10 @@ import { Skeleton } from '../common/Skeleton';
 import { HealthHistoryPoint } from '../../types';
 import { sensorHealthService } from '../../services/sensorHealthService';
 import './HealthHistoryChart.css';
-
 export interface HealthHistoryChartProps {
   stationId: string | null | undefined;
   className?: string;
 }
-
 export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
   stationId,
   className = '',
@@ -20,18 +18,15 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showTable, setShowTable] = useState<boolean>(false);
-
   useEffect(() => {
     if (!stationId) {
       setHistory([]);
       setIsLoading(false);
       return;
     }
-
     let isMounted = true;
     setIsLoading(true);
     setError(null);
-
     sensorHealthService
       .getHealthHistory(stationId, hours)
       .then((data) => {
@@ -45,13 +40,10 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
       .finally(() => {
         if (isMounted) setIsLoading(false);
       });
-
     return () => {
       isMounted = false;
     };
   }, [stationId, hours]);
-
-  // Compute stats for accessible text summary
   const summaryText = useMemo(() => {
     if (!history || history.length === 0) {
       return 'No sensor health history is currently available.';
@@ -62,7 +54,6 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
     const latest = scores[scores.length - 1];
     return `Sensor health over the last ${hours} hours ranged from ${min} percent to ${max} percent. The latest health score is ${latest} percent.`;
   }, [history, hours]);
-
   if (isLoading) {
     return (
       <Card variant="glass" className={`sg-health-history-card ${className}`}>
@@ -74,7 +65,6 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className={`sg-health-history-card ${className}`}>
@@ -85,14 +75,11 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
       </Card>
     );
   }
-
-  // SVG Chart Geometry
   const svgWidth = 800;
   const svgHeight = 220;
   const padding = { top: 20, right: 30, bottom: 30, left: 45 };
   const chartWidth = svgWidth - padding.left - padding.right;
   const chartHeight = svgHeight - padding.top - padding.bottom;
-
   const timestamps = history.map((point) => new Date(point.timestamp).getTime());
   const minTime = Math.min(...timestamps);
   const maxTime = Math.max(...timestamps);
@@ -101,23 +88,19 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
     const x = maxTime === minTime
       ? padding.left + chartWidth / 2
       : padding.left + ((timestamp - minTime) / (maxTime - minTime)) * chartWidth;
-    // Y-scale: 0 to 100%
     const y = padding.top + chartHeight - (point.health_pct / 100) * chartHeight;
     return { x, y, point };
   });
-
   const pathD =
     coordinates.length > 0
       ? coordinates.reduce((acc, curr, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${curr.x} ${curr.y}`, '')
       : '';
-
   const areaD =
     coordinates.length > 0
       ? `${pathD} L ${coordinates[coordinates.length - 1].x} ${padding.top + chartHeight} L ${
           coordinates[0].x
         } ${padding.top + chartHeight} Z`
       : '';
-
   const latestScore = history.length > 0 ? history[history.length - 1].health_pct : 100;
   const lineColorClass =
     latestScore < 50
@@ -125,7 +108,6 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
       : latestScore < 80
       ? 'sg-health-history__line--warning'
       : '';
-
   return (
     <Card
       variant="glass"
@@ -143,7 +125,6 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
             DEMO TREND — FRONTEND DERIVED
           </span>
         </div>
-
         <div className="sg-health-history__controls">
           <div className="sg-health-history__range-buttons" role="group" aria-label="Time range selector">
             {[6, 12, 24].map((h) => (
@@ -162,13 +143,11 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Accessible Text Summary */}
+      {}
       <p className="sg-health-history__summary-text" aria-live="polite">
         {summaryText}
       </p>
-
-      {/* SVG Line & Area Visualization */}
+      {}
       <div className="sg-health-history__svg-container">
         <svg
           className="sg-health-history__svg"
@@ -183,8 +162,7 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
               <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
             </linearGradient>
           </defs>
-
-          {/* Gridlines & Y-Axis */}
+          {}
           {[100, 75, 50, 25, 0].map((val) => {
             const y = padding.top + chartHeight - (val / 100) * chartHeight;
             return (
@@ -202,14 +180,11 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
               </g>
             );
           })}
-
-          {/* Area under curve */}
+          {}
           {areaD && <path d={areaD} fill="url(#healthGrad)" className="sg-health-history__area" />}
-
-          {/* Line path */}
+          {}
           {pathD && <path d={pathD} className={`sg-health-history__line ${lineColorClass}`} />}
-
-          {/* Data Points */}
+          {}
           {coordinates.map((coord, idx) => {
             const timeLabel = new Date(coord.point.timestamp).toLocaleTimeString([], {
               hour: '2-digit',
@@ -229,8 +204,7 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
           })}
         </svg>
       </div>
-
-      {/* Screen Reader Expandable Table Toggle */}
+      {}
       <div className="sg-health-history__table-toggle">
         <button
           type="button"
@@ -242,7 +216,6 @@ export const HealthHistoryChart: React.FC<HealthHistoryChartProps> = ({
           {showTable ? 'Hide Raw Data Table' : 'Show Raw Data Table for Screen Readers'}
         </button>
       </div>
-
       {showTable && (
         <div className="sg-health-history__table-wrapper">
           <table className="sg-health-history__table" aria-label="Historical sensor health data records">

@@ -4,7 +4,6 @@ import { Card } from '../common/Card';
 import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import './StatusOverviewCards.css';
-
 export interface AnomalyScoreCardProps {
   score?: number;
   riskLevel?: 'low' | 'medium' | 'high' | 'critical';
@@ -13,7 +12,6 @@ export interface AnomalyScoreCardProps {
   error?: string | null;
   onRetry?: () => void;
 }
-
 export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
   score,
   riskLevel = 'low',
@@ -31,7 +29,6 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className="sg-status-overview-card sg-status-overview-card--error">
@@ -45,15 +42,12 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
       </Card>
     );
   }
-
   const hasScore = typeof score === 'number' && !isNaN(score);
   const scoreVal = hasScore ? Math.round(score) : 0;
-
   let riskBadgeType: 'low' | 'moderate' | 'high' | 'critical' = 'low';
   if (riskLevel === 'critical') riskBadgeType = 'critical';
   else if (riskLevel === 'high') riskBadgeType = 'high';
   else if (riskLevel === 'medium') riskBadgeType = 'moderate';
-
   return (
     <Card variant="glass" className="sg-status-overview-card">
       <div className="sg-status-overview-card__header">
@@ -64,7 +58,6 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
           aria-hidden="true"
         />
       </div>
-
       <div className="sg-status-overview-card__body">
         <div className="sg-status-overview-card__number-row">
           <span className="sg-status-overview-card__number">{hasScore ? `${scoreVal}%` : '—'}</span>
@@ -77,7 +70,6 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
             )}
           </div>
         </div>
-
         <p className="sg-status-overview-card__sub">
           {scoreVal > 75
             ? 'Severe multi-metric variance detected'
@@ -85,8 +77,7 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
             ? 'Minor telemetry irregularity detected'
             : 'Nominal operational envelope'}
         </p>
-
-        {/* Visual score bar */}
+        {}
         <div
           className="sg-score-meter"
           role="meter"
@@ -104,7 +95,6 @@ export const AnomalyScoreCard: React.FC<AnomalyScoreCardProps> = ({
     </Card>
   );
 };
-
 interface SensorHealthCardProps {
   healthPct?: number;
   healthStatus?: 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
@@ -112,7 +102,6 @@ interface SensorHealthCardProps {
   error?: string | null;
   onRetry?: () => void;
 }
-
 export const SensorHealthCard: React.FC<SensorHealthCardProps> = ({
   healthPct,
   healthStatus = 'HEALTHY',
@@ -129,7 +118,6 @@ export const SensorHealthCard: React.FC<SensorHealthCardProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className="sg-status-overview-card sg-status-overview-card--error">
@@ -143,16 +131,12 @@ export const SensorHealthCard: React.FC<SensorHealthCardProps> = ({
       </Card>
     );
   }
-
   const hasHealth = typeof healthPct === 'number' && !isNaN(healthPct);
   const healthVal = hasHealth ? Math.round(healthPct) : 0;
-
-  // Map to StatusBadge status
   let badgeStatus: 'optimal' | 'warning' | 'critical' | 'offline' = 'optimal';
   if (healthStatus === 'WARNING') badgeStatus = 'warning';
   else if (healthStatus === 'CRITICAL') badgeStatus = 'critical';
   else if (healthStatus === 'OFFLINE') badgeStatus = 'offline';
-
   return (
     <Card variant="glass" className="sg-status-overview-card">
       <div className="sg-status-overview-card__header">
@@ -163,13 +147,11 @@ export const SensorHealthCard: React.FC<SensorHealthCardProps> = ({
           aria-hidden="true"
         />
       </div>
-
       <div className="sg-status-overview-card__body">
         <div className="sg-status-overview-card__number-row">
           <span className="sg-status-overview-card__number">{hasHealth ? `${healthVal}%` : '—'}</span>
           <StatusBadge status={badgeStatus} label={healthStatus} size="sm" />
         </div>
-
         <p className="sg-status-overview-card__sub">
           {healthStatus === 'HEALTHY'
             ? 'Transducers operational & calibrated'
@@ -179,8 +161,7 @@ export const SensorHealthCard: React.FC<SensorHealthCardProps> = ({
             ? 'Hardware fault or transmission failure'
             : 'Excluded from baseline; raw telemetry remains visible'}
         </p>
-
-        {/* Visual health bar */}
+        {}
         <div
           className="sg-score-meter"
           role="meter"

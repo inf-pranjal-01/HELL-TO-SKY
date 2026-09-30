@@ -8,7 +8,6 @@ import { Skeleton } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
 import { formatDistance } from '../../utils/geospatial';
 import './NeighborStationTable.css';
-
 export interface NeighborStationTableProps {
   neighbors: NeighborStationItem[];
   filteredNeighbors: NeighborStationItem[];
@@ -17,7 +16,6 @@ export interface NeighborStationTableProps {
   onSelectStation: (station: Station) => void;
   isLoading?: boolean;
 }
-
 export const NeighborStationTable: React.FC<NeighborStationTableProps> = ({
   neighbors,
   filteredNeighbors,
@@ -33,7 +31,6 @@ export const NeighborStationTable: React.FC<NeighborStationTableProps> = ({
     { id: 'CRITICAL', label: 'Critical' },
     { id: 'OFFLINE', label: 'Offline' },
   ];
-
   if (isLoading) {
     return (
       <Card variant="glass" className="sg-neighbor-table-card">
@@ -49,7 +46,6 @@ export const NeighborStationTable: React.FC<NeighborStationTableProps> = ({
       </Card>
     );
   }
-
   return (
     <Card
       variant="glass"
@@ -67,8 +63,7 @@ export const NeighborStationTable: React.FC<NeighborStationTableProps> = ({
             DEMO SPATIAL COMPARISON — DISTANCES DERIVED FROM COORDINATES
           </span>
         </div>
-
-        {/* Status Filter Tabs */}
+        {}
         <div
           className="sg-neighbor-table__filter-group"
           role="tablist"
@@ -91,7 +86,6 @@ export const NeighborStationTable: React.FC<NeighborStationTableProps> = ({
           ))}
         </div>
       </div>
-
       {filteredNeighbors.length === 0 ? (
         <EmptyState
           title="No Matching Stations"
@@ -125,7 +119,7 @@ export const NeighborStationTable: React.FC<NeighborStationTableProps> = ({
             <tbody>
               {filteredNeighbors.map(({ station, distance_km, reading }) => (
                 <tr key={station.station_id} className="sg-neighbor-table__row">
-                  {/* Station ID & Name */}
+                  {}
                   <td>
                     <div className="sg-neighbor-table__station-cell">
                       <span className="sg-neighbor-table__station-id sg-font-mono">
@@ -134,28 +128,23 @@ export const NeighborStationTable: React.FC<NeighborStationTableProps> = ({
                       <span className="sg-neighbor-table__station-name">{station.name}</span>
                     </div>
                   </td>
-
-                  {/* Geodesic Distance */}
+                  {}
                   <td className="sg-font-mono sg-neighbor-table__distance-cell">
                     {formatDistance(distance_km)}
                   </td>
-
-                  {/* Temperature */}
+                  {}
                   <td className="sg-font-mono">
                     {reading ? `${reading.temperature_c.toFixed(1)}°C` : '—'}
                   </td>
-
-                  {/* Pressure */}
+                  {}
                   <td className="sg-font-mono">
                     {reading ? `${reading.pressure_hpa.toFixed(1)} hPa` : '—'}
                   </td>
-
-                  {/* Humidity */}
+                  {}
                   <td className="sg-font-mono">
                     {reading ? `${reading.humidity_pct.toFixed(1)}%` : '—'}
                   </td>
-
-                  {/* Status */}
+                  {}
                   <td>
                     <StatusBadge
                       status={
@@ -171,8 +160,7 @@ export const NeighborStationTable: React.FC<NeighborStationTableProps> = ({
                       size="sm"
                     />
                   </td>
-
-                  {/* Select Focus Action */}
+                  {}
                   <td className="sg-neighbor-table__action-cell">
                     <button
                       type="button"

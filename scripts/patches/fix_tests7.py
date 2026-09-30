@@ -1,6 +1,5 @@
 import re
 import pandas as pd
-
 with open('tests/test_rule_boundaries.py', 'r', encoding='utf-8') as f:
     content = f.read()
 content = content.replace(
@@ -9,7 +8,6 @@ content = content.replace(
 )
 with open('tests/test_rule_boundaries.py', 'w', encoding='utf-8') as f:
     f.write(content)
-
 with open('tests/test_spatial_cluster.py', 'r', encoding='utf-8') as f:
     content = f.read()
 content = content.replace(

@@ -4,12 +4,10 @@ import { SpatialComparisonSummary } from '../../types';
 import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import './SpatialConsistencyCard.css';
-
 export interface SpatialConsistencyCardProps {
   summary: SpatialComparisonSummary | null;
   isLoading?: boolean;
 }
-
 export const SpatialConsistencyCard: React.FC<SpatialConsistencyCardProps> = ({
   summary,
   isLoading = false,
@@ -22,12 +20,9 @@ export const SpatialConsistencyCard: React.FC<SpatialConsistencyCardProps> = ({
       </Card>
     );
   }
-
   const { consistencyStatus, multivariateSummary, neighborCount, demoScenario } = summary;
-
   const isConsistent = consistencyStatus === 'CONSISTENT';
   const isDeviation = consistencyStatus === 'DEVIATION_DETECTED';
-
   return (
     <Card
       variant="glass"
@@ -48,7 +43,6 @@ export const SpatialConsistencyCard: React.FC<SpatialConsistencyCardProps> = ({
           {!isConsistent && !isDeviation && (
             <HelpCircle size={24} className="text-muted" aria-hidden="true" />
           )}
-
           <div>
             <div className="sg-spatial-verdict__badge-row">
               <span className="sg-spatial-verdict__verdict-pill">
@@ -71,16 +65,13 @@ export const SpatialConsistencyCard: React.FC<SpatialConsistencyCardProps> = ({
             </h3>
           </div>
         </div>
-
         <span className="sg-spatial-verdict__notice">
           [FRONTEND DEMO LOGIC — NOT PRODUCTION ML]
         </span>
       </div>
-
-      {/* Multivariate Summary Text */}
+      {}
       <p className="sg-spatial-verdict__summary-text">{multivariateSummary}</p>
-
-      {/* Operational Storytelling Seam */}
+      {}
       <div className="sg-spatial-verdict__context-box">
         <div className="sg-spatial-verdict__context-header">
           <ShieldCheck size={16} className="text-accent" aria-hidden="true" />

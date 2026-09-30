@@ -15,24 +15,11 @@ import {
 } from '../components/analytics';
 import { EmptyState } from '../components/common/EmptyState';
 import './AnalyticsPage.css';
-
-/**
- * AnalyticsPage
- *
- * Step 8 — Analytics & Insights Dashboard
- *
- * All analytics are derived frontend-side from existing telemetry/anomaly
- * feeds. No dedicated analytics backend endpoint is called.
- *
- * [FRONTEND ONLY] [DERIVED FROM LIVE BACKEND DATA]
- */
 const AnalyticsPage: React.FC = () => {
   const { stations, selectedStation, setSelectedStation, isLoading: isLoadingStation } = useStation();
   const [searchParams] = useSearchParams();
   const targetStationId = searchParams.get('station_id');
   const targetAnomalyId = searchParams.get('anomaly_id');
-
-  // Synchronise active station if deep-linked via URL query parameter
   useEffect(() => {
     if (targetStationId && stations.length > 0 && selectedStation?.station_id !== targetStationId) {
       const match = stations.find((s) => s.station_id === targetStationId);
@@ -41,9 +28,7 @@ const AnalyticsPage: React.FC = () => {
       }
     }
   }, [targetStationId, stations, selectedStation, setSelectedStation]);
-
   const stationId = selectedStation?.station_id ?? null;
-
   const {
     hours,
     setHours,
@@ -58,8 +43,6 @@ const AnalyticsPage: React.FC = () => {
     staleStatusText,
     refresh,
   } = useAnalyticsData(stationId, 24);
-
-  // ── No station selected ──────────────────────────────────────────────────────
   if (!isLoadingStation && !selectedStation) {
     return (
       <div className="page-container sg-analytics-page" role="main" aria-label="Analytics page">
@@ -72,8 +55,6 @@ const AnalyticsPage: React.FC = () => {
       </div>
     );
   }
-
-  // ── Data error ───────────────────────────────────────────────────────────────
   if (error && !isLoading) {
     return (
       <div className="page-container sg-analytics-page" role="main" aria-label="Analytics page">
@@ -94,11 +75,9 @@ const AnalyticsPage: React.FC = () => {
       </div>
     );
   }
-
-  // ── Main layout ──────────────────────────────────────────────────────────────
   return (
     <div className="page-container sg-analytics-page" role="main" aria-label="Analytics & Insights Dashboard">
-      {/* ── Header ── */}
+      {}
       <AnalyticsHeader
         station={selectedStation}
         hours={hours}
@@ -107,11 +86,9 @@ const AnalyticsPage: React.FC = () => {
         onRefresh={refresh}
         isLoading={isLoading}
       />
-
-      {/* ── KPI Summary Cards ── */}
+      {}
       <AnalyticsSummaryCards summary={analyticsSummary} isLoading={isLoading} />
-
-      {/* ── Metric Statistics ── */}
+      {}
       <MetricStatisticsCard
         temperatureStats={analyticsSummary?.temperature}
         pressureStats={analyticsSummary?.pressure}
@@ -119,8 +96,7 @@ const AnalyticsPage: React.FC = () => {
         currentReading={currentReading}
         isLoading={isLoading}
       />
-
-      {/* ── Trend Chart ── */}
+      {}
       <AnalyticsTrendChart
         trends={trends}
         currentReading={currentReading}
@@ -129,29 +105,24 @@ const AnalyticsPage: React.FC = () => {
         onSelectMetric={setSelectedMetric}
         isLoading={isLoading}
       />
-
       <ExplainabilityCommandCenter
         anomalies={anomalies}
         isLoading={isLoading}
         initialAnomalyId={targetAnomalyId ?? undefined}
       />
-
-      {/* ── Anomaly Distribution Cards ── */}
+      {}
       <p className="sg-analytics-page__section-label" aria-hidden="true">
         Anomaly Distribution — DERIVED FROM LIVE BACKEND DATA
       </p>
       <AnomalyAnalytics analyticsSummary={analyticsSummary} isLoading={isLoading} />
-
-      {/* ── Anomaly Timeline Table ── */}
+      {}
       <AnomalyTimeline anomalies={anomalies} isLoading={isLoading} />
-
-      {/* ── Sensor Health Trajectory (reuses HealthHistoryChart) ── */}
+      {}
       <p className="sg-analytics-page__section-label" aria-hidden="true">
         Sensor Health Trend — DEMO TREND — FRONTEND DERIVED
       </p>
       <SensorHealthTrend stationId={stationId} />
-
-      {/* ── Operational Insights ── */}
+      {}
       <AnalyticsInsights
         insights={analyticsSummary?.insights ?? []}
         isLoading={isLoading}
@@ -159,8 +130,5 @@ const AnalyticsPage: React.FC = () => {
     </div>
   );
 };
-
 export default AnalyticsPage;
-
-// Named export alias for compatibility with AppRouter's named import pattern
 export { AnalyticsPage };

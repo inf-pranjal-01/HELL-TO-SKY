@@ -16,52 +16,38 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/common/Button';
 import './LoginPage.css';
-
 const DEMO_EMAIL = 'demo@skyguard.local';
 const DEMO_PASSWORD = 'demo1234';
-
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, isAuthenticated } = useAuth();
-
-  // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, navigate, location]);
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  // Field interaction touched states
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
-
-  // Error states
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Validation logic
   const validateEmail = (val: string): string | null => {
     if (!val.trim()) return 'Email is required.';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(val.trim())) return 'Please enter a valid email address.';
     return null;
   };
-
   const validatePassword = (val: string): string | null => {
     if (!val) return 'Password is required.';
     return null;
   };
-
   const emailError = emailTouched ? validateEmail(email) : null;
   const passwordError = passwordTouched ? validatePassword(password) : null;
-
   const handleAutoFillDemo = () => {
     setEmail(DEMO_EMAIL);
     setPassword(DEMO_PASSWORD);
@@ -69,29 +55,23 @@ export const LoginPage: React.FC = () => {
     setPasswordTouched(true);
     setAuthError(null);
   };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailTouched(true);
     setPasswordTouched(true);
     setAuthError(null);
-
     const eErr = validateEmail(email);
     const pErr = validatePassword(password);
-
     if (eErr || pErr) {
       return;
     }
-
     setIsSubmitting(true);
-
     try {
       const result = await login({
         email,
         password,
         rememberMe,
       });
-
       if (result.success) {
         const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
         navigate(from, { replace: true });
@@ -104,26 +84,22 @@ export const LoginPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
-
   return (
     <div className="sg-auth-page">
       <div className="sg-auth-container">
-        {/* Left Column — Meteorological Branding & Feature Highlights */}
+        {}
         <div className="sg-auth-branding">
           <div className="sg-branding-content">
             <div className="sg-branding-logo">
               <Shield size={42} className="text-accent" />
               <span className="sg-branding-name">SkyGuard AI</span>
             </div>
-
             <h1 className="sg-branding-title">
               Intelligent Real-Time Anomaly Detection
             </h1>
-
             <p className="sg-branding-desc">
               Next-generation operational console monitoring Automatic Weather Stations (AWS). Filters environmental sensor noise, isolates thermal/barometric drifts, and alerts operators instantly.
             </p>
-
             <div className="sg-feature-list">
               <div className="sg-feature-item">
                 <Radio size={20} className="sg-feature-icon" />
@@ -132,7 +108,6 @@ export const LoginPage: React.FC = () => {
                   <p>Continuous 3–5s HTTP polling sensor data pipeline</p>
                 </div>
               </div>
-
               <div className="sg-feature-item">
                 <Activity size={20} className="sg-feature-icon" />
                 <div>
@@ -141,31 +116,27 @@ export const LoginPage: React.FC = () => {
                 </div>
               </div>
             </div>
-
             <div className="sg-branding-footer">
               <span>National Meteorological Operational Network • SIH 2026</span>
             </div>
           </div>
         </div>
-
-        {/* Right Column — Login Card */}
+        {}
         <div className="sg-auth-form-column">
           <div className="sg-auth-card">
             <div className="sg-auth-card__header">
               <h2>Welcome Back</h2>
               <p>Sign in to continue monitoring your AWS network.</p>
             </div>
-
-            {/* Global Auth Error Alert */}
+            {}
             {authError && (
               <div className="sg-auth-alert" role="alert" aria-live="assertive">
                 <AlertCircle size={18} className="sg-alert-icon" />
                 <span>{authError}</span>
               </div>
             )}
-
             <form onSubmit={handleSubmit} noValidate className="sg-form">
-              {/* Email Input Field */}
+              {}
               <div className="sg-form-field">
                 <label htmlFor="login-email" className="sg-field-label">
                   Operator Email Address
@@ -192,8 +163,7 @@ export const LoginPage: React.FC = () => {
                   </p>
                 )}
               </div>
-
-              {/* Password Input Field */}
+              {}
               <div className="sg-form-field">
                 <div className="sg-field-header">
                   <label htmlFor="login-password" className="sg-field-label">
@@ -203,7 +173,6 @@ export const LoginPage: React.FC = () => {
                     Forgot Password?
                   </Link>
                 </div>
-
                 <div className="sg-input-group">
                   <KeyRound size={18} className="sg-input-left-icon" aria-hidden="true" />
                   <input
@@ -236,8 +205,7 @@ export const LoginPage: React.FC = () => {
                   </p>
                 )}
               </div>
-
-              {/* Controls Row: Remember Me */}
+              {}
               <div className="sg-controls-row">
                 <label className="sg-checkbox-label">
                   <input
@@ -250,8 +218,7 @@ export const LoginPage: React.FC = () => {
                   <span>Remember me on this browser</span>
                 </label>
               </div>
-
-              {/* Submit Button */}
+              {}
               <Button
                 type="submit"
                 variant="primary"
@@ -264,8 +231,7 @@ export const LoginPage: React.FC = () => {
                 {isSubmitting ? 'Signing in...' : 'Sign In to Console'}
               </Button>
             </form>
-
-            {/* Demo Environment Badge & Autofill [MOCK AUTH — TEMPORARY] */}
+            {}
             <div className="sg-demo-box">
               <div className="sg-demo-badge">
                 <Info size={15} />
@@ -289,7 +255,6 @@ export const LoginPage: React.FC = () => {
                 Auto-fill Demo Credentials
               </Button>
             </div>
-
             <div className="sg-auth-card__footer">
               <p>Need access? Contact your station administrator.</p>
             </div>

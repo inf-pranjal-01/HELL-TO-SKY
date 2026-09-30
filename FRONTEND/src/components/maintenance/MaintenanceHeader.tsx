@@ -4,13 +4,11 @@ import { Station } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { Button } from '../common/Button';
 import './MaintenanceHeader.css';
-
 export interface MaintenanceHeaderProps {
   selectedStation: Station | null;
   onRefresh: () => void;
   isLoading?: boolean;
 }
-
 export const MaintenanceHeader: React.FC<MaintenanceHeaderProps> = ({
   selectedStation,
   onRefresh,
@@ -28,7 +26,6 @@ export const MaintenanceHeader: React.FC<MaintenanceHeaderProps> = ({
           transducers.
         </p>
       </div>
-
       <div className="sg-maintenance-header__controls">
         {selectedStation && (
           <div className="sg-maintenance-header__station-badge">
@@ -51,7 +48,6 @@ export const MaintenanceHeader: React.FC<MaintenanceHeaderProps> = ({
             />
           </div>
         )}
-
         <Button
           variant="ghost"
           size="sm"

@@ -12,12 +12,10 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { AnalyticsSummary } from '../../types';
 import './AnalyticsSummaryCards.css';
-
 export interface AnalyticsSummaryCardsProps {
   summary: AnalyticsSummary | null;
   isLoading?: boolean;
 }
-
 export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
   summary,
   isLoading = false,
@@ -39,18 +37,15 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
       </div>
     );
   }
-
   const { temperature, pressure, humidity, totalAnomalies, highestSeverity } = summary;
-
   let severityBadgeType: 'optimal' | 'moderate' | 'high' | 'critical' = 'optimal';
   if (highestSeverity === 'critical') severityBadgeType = 'critical';
   else if (highestSeverity === 'high') severityBadgeType = 'high';
   else if (highestSeverity === 'medium') severityBadgeType = 'moderate';
   else if (highestSeverity === 'low') severityBadgeType = 'optimal';
-
   return (
     <div className="sg-analytics-kpi-grid" role="region" aria-label="Analytics key performance indicators">
-      {/* 1. Average Temperature */}
+      {}
       <Card variant="glass" className="sg-analytics-kpi-card">
         <div className="sg-analytics-kpi-card__header">
           <span className="sg-analytics-kpi-card__label">Avg Temperature</span>
@@ -66,8 +61,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           <span className="sg-analytics-kpi-card__subtext">{temperature.count} samples</span>
         </div>
       </Card>
-
-      {/* 2. Temperature Range */}
+      {}
       <Card variant="glass" className="sg-analytics-kpi-card">
         <div className="sg-analytics-kpi-card__header">
           <span className="sg-analytics-kpi-card__label">Thermal Range</span>
@@ -85,8 +79,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           </span>
         </div>
       </Card>
-
-      {/* 3. Average Pressure */}
+      {}
       <Card variant="glass" className="sg-analytics-kpi-card">
         <div className="sg-analytics-kpi-card__header">
           <span className="sg-analytics-kpi-card__label">Avg Pressure</span>
@@ -102,8 +95,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           <span className="sg-analytics-kpi-card__subtext">Δ {pressure.range.toFixed(1)} hPa</span>
         </div>
       </Card>
-
-      {/* 4. Average Humidity */}
+      {}
       <Card variant="glass" className="sg-analytics-kpi-card">
         <div className="sg-analytics-kpi-card__header">
           <span className="sg-analytics-kpi-card__label">Avg Humidity</span>
@@ -119,8 +111,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           <span className="sg-analytics-kpi-card__subtext">Δ {humidity.range.toFixed(1)} %</span>
         </div>
       </Card>
-
-      {/* 5. Anomalies Detected */}
+      {}
       <Card variant="glass" className="sg-analytics-kpi-card">
         <div className="sg-analytics-kpi-card__header">
           <span className="sg-analytics-kpi-card__label">Anomalies Detected</span>
@@ -147,8 +138,7 @@ export const AnalyticsSummaryCards: React.FC<AnalyticsSummaryCardsProps> = ({
           </span>
         </div>
       </Card>
-
-      {/* 6. Highest Severity */}
+      {}
       <Card variant="glass" className="sg-analytics-kpi-card">
         <div className="sg-analytics-kpi-card__header">
           <span className="sg-analytics-kpi-card__label">Highest Severity</span>

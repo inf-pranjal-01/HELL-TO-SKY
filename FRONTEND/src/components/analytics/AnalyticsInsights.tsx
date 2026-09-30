@@ -4,19 +4,11 @@ import { Card } from '../common/Card';
 import { Skeleton } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
 import './AnalyticsInsights.css';
-
 export interface AnalyticsInsightsProps {
   insights: string[];
   isLoading?: boolean;
   className?: string;
 }
-
-/**
- * AnalyticsInsights
- *
- * Displays deterministically derived insight strings as a bullet list.
- * [FRONTEND ONLY] [DERIVED FROM EXISTING DATA]
- */
 export const AnalyticsInsights: React.FC<AnalyticsInsightsProps> = ({
   insights,
   isLoading = false,
@@ -36,7 +28,6 @@ export const AnalyticsInsights: React.FC<AnalyticsInsightsProps> = ({
       </Card>
     );
   }
-
   return (
     <Card
       variant="glass"
@@ -53,7 +44,6 @@ export const AnalyticsInsights: React.FC<AnalyticsInsightsProps> = ({
           [FRONTEND ONLY] [DERIVED ANALYTICS]
         </span>
       </div>
-
       {insights.length === 0 ? (
         <EmptyState
           title="No Insights Available"

@@ -9,7 +9,6 @@ import { ConfirmationDialog } from '../components/common/ConfirmationDialog';
 import { Button } from '../components/common/Button';
 import { EmptyState } from '../components/common/EmptyState';
 import './MaintenancePage.css';
-
 export const MaintenancePage: React.FC = () => {
   const {
     selectedStation,
@@ -28,7 +27,6 @@ export const MaintenancePage: React.FC = () => {
     resetCreatedTicket,
     refreshAnomalies,
   } = useMaintenanceData();
-
   return (
     <div className="page-container sg-maintenance-page" role="main" aria-label="Maintenance & Dispatch">
       <MaintenanceHeader
@@ -36,8 +34,7 @@ export const MaintenancePage: React.FC = () => {
         onRefresh={refreshAnomalies}
         isLoading={isLoadingAnomalies}
       />
-
-      {/* No station selected guard */}
+      {}
       {!selectedStation && !isLoadingAnomalies && (
         <div className="sg-maintenance-page__no-station">
           <EmptyState
@@ -47,12 +44,10 @@ export const MaintenancePage: React.FC = () => {
           />
         </div>
       )}
-
-      {/* Main two-column layout — only shown when a station is selected */}
+      {}
       {selectedStation && (
         <div className="sg-maintenance-page__body">
-
-          {/* Left column: anomaly selector */}
+          {}
           <div className="sg-maintenance-page__left">
             <div className="sg-maintenance-page__panel">
               <AnomalySelector
@@ -63,12 +58,10 @@ export const MaintenancePage: React.FC = () => {
               />
             </div>
           </div>
-
-          {/* Right column: preview / success / idle state */}
+          {}
           <div className="sg-maintenance-page__right">
             <div className="sg-maintenance-page__panel">
-
-              {/* Inline submission error */}
+              {}
               {submissionError && !createdTicket && (
                 <div className="sg-maintenance-page__error-banner" role="alert">
                   <AlertCircle size={16} aria-hidden="true" />
@@ -87,16 +80,14 @@ export const MaintenancePage: React.FC = () => {
                   </div>
                 </div>
               )}
-
-              {/* Success state */}
+              {}
               {createdTicket && (
                 <TicketSuccessCard
                   ticket={createdTicket}
                   onCreateAnother={resetCreatedTicket}
                 />
               )}
-
-              {/* Ticket preview — shown when an anomaly is selected and no ticket yet */}
+              {}
               {!createdTicket && selectedAnomaly && (
                 <TicketPreview
                   anomaly={selectedAnomaly}
@@ -104,8 +95,7 @@ export const MaintenancePage: React.FC = () => {
                   isSubmitting={isSubmitting}
                 />
               )}
-
-              {/* Idle state: no anomaly selected */}
+              {}
               {!createdTicket && !selectedAnomaly && !isLoadingAnomalies && anomalies.length > 0 && (
                 <EmptyState
                   icon={<AlertCircle size={28} />}
@@ -117,8 +107,7 @@ export const MaintenancePage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Confirmation dialog */}
+      {}
       {selectedAnomaly && (
         <ConfirmationDialog
           isOpen={isConfirmModalOpen}

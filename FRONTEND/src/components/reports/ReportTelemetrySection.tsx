@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { BarChart2, Thermometer, Gauge, Droplets } from 'lucide-react';
 import { MetricStatistics, TrendPoint, ReportPeriod } from '../../types';
 import './ReportTelemetrySection.css';
-
 export interface ReportTelemetrySectionProps {
   temperature: MetricStatistics;
   pressure: MetricStatistics;
@@ -12,7 +11,6 @@ export interface ReportTelemetrySectionProps {
   selectedMetricTab: 'temperature_c' | 'pressure_hpa' | 'humidity_pct';
   onSelectMetricTab: (metric: 'temperature_c' | 'pressure_hpa' | 'humidity_pct') => void;
 }
-
 export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
   temperature,
   pressure,
@@ -22,13 +20,11 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
   selectedMetricTab,
   onSelectMetricTab,
 }) => {
-  // Chart geometry
   const width = 800;
   const height = 200;
   const padding = { top: 20, right: 30, bottom: 30, left: 50 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-
   const currentMetricConfig = useMemo(() => {
     switch (selectedMetricTab) {
       case 'temperature_c':
@@ -58,11 +54,8 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
         };
     }
   }, [selectedMetricTab, temperature, pressure, humidity]);
-
-  // Coordinate projections
   const chartData = useMemo(() => {
     if (points.length === 0) return { pathD: '', areaD: '', yTicks: [] };
-
     const values = points.map(currentMetricConfig.accessor);
     const minVal = Math.min(...values);
     const maxVal = Math.max(...values);
@@ -70,7 +63,6 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
     const scaleMin = Math.floor(minVal - buffer);
     const scaleMax = Math.ceil(maxVal + buffer);
     const scaleRange = scaleMax - scaleMin || 1;
-
     const timestamps = points.map((point) => new Date(point.timestamp).getTime());
     const minTime = Math.min(...timestamps);
     const maxTime = Math.max(...timestamps);
@@ -83,7 +75,6 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
       const y = padding.top + chartHeight - ((val - scaleMin) / scaleRange) * chartHeight;
       return { x, y, val };
     });
-
     const pathD = coords.reduce(
       (acc, c, idx) => `${acc} ${idx === 0 ? 'M' : 'L'} ${c.x} ${c.y}`,
       ''
@@ -91,16 +82,13 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
     const areaD = `${pathD} L ${coords[coords.length - 1].x} ${padding.top + chartHeight} L ${
       coords[0].x
     } ${padding.top + chartHeight} Z`;
-
     const yTicks = [0, 0.5, 1].map((pct) => {
       const val = Number((scaleMin + pct * scaleRange).toFixed(1));
       const y = padding.top + chartHeight - pct * chartHeight;
       return { val, y };
     });
-
     return { pathD, areaD, yTicks };
   }, [points, currentMetricConfig, chartWidth, chartHeight, padding]);
-
   return (
     <section className="sg-report-section" aria-labelledby="report-section-2-heading">
       <div className="sg-report-section__header">
@@ -114,10 +102,9 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
           DERIVED FROM LIVE BACKEND DATA
         </span>
       </div>
-
-      {/* 3-Column Stats Grid */}
+      {}
       <div className="sg-report-stats-grid">
-        {/* Temperature Stats */}
+        {}
         <div className="sg-report-stat-card">
           <div className="sg-report-stat-header">
             <Thermometer size={16} className="text-warning" aria-hidden="true" />
@@ -142,8 +129,7 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Pressure Stats */}
+        {}
         <div className="sg-report-stat-card">
           <div className="sg-report-stat-header">
             <Gauge size={16} className="text-accent" aria-hidden="true" />
@@ -168,8 +154,7 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Humidity Stats */}
+        {}
         <div className="sg-report-stat-card">
           <div className="sg-report-stat-header">
             <Droplets size={16} className="text-optimal" aria-hidden="true" />
@@ -195,14 +180,12 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Telemetry Chart with Tabs */}
+      {}
       <div className="sg-report-chart-container">
         <div className="sg-report-chart-header">
           <span className="sg-report-chart-title">
             {currentMetricConfig.title} ({periodHours}H Trajectory)
           </span>
-
           <div
             className="sg-report-chart-tabs no-print"
             role="tablist"
@@ -243,8 +226,7 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Compact SVG Line Visualization */}
+        {}
         {points.length > 0 && chartData.pathD ? (
           <div className="sg-report-svg-wrapper">
             <svg
@@ -259,8 +241,7 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
                   <stop offset="100%" stopColor={currentMetricConfig.strokeColor} stopOpacity="0.0" />
                 </linearGradient>
               </defs>
-
-              {/* Gridlines */}
+              {}
               {chartData.yTicks.map((t, idx) => (
                 <g key={idx}>
                   <line
@@ -281,11 +262,9 @@ export const ReportTelemetrySection: React.FC<ReportTelemetrySectionProps> = ({
                   </text>
                 </g>
               ))}
-
-              {/* Area */}
+              {}
               <path d={chartData.areaD} fill="url(#reportGrad)" />
-
-              {/* Line */}
+              {}
               <path
                 d={chartData.pathD}
                 fill="none"

@@ -8,7 +8,6 @@ import {
 } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import './ReportAnomalySection.css';
-
 export interface ReportAnomalySectionProps {
   total: number;
   highestSeverity: AnomalySeverity | 'none';
@@ -16,7 +15,6 @@ export interface ReportAnomalySectionProps {
   typeDistribution: AnomalyTypeDistribution;
   latestAnomaly: LatestAnomaly | null;
 }
-
 export const ReportAnomalySection: React.FC<ReportAnomalySectionProps> = ({
   total,
   highestSeverity,
@@ -29,14 +27,12 @@ export const ReportAnomalySection: React.FC<ReportAnomalySectionProps> = ({
     severityDistribution.high +
     severityDistribution.medium +
     severityDistribution.low;
-
   const totalTypes =
     typeDistribution.spike +
     typeDistribution.frozen_value +
     typeDistribution.drift +
     typeDistribution.dropout +
     typeDistribution.multivariate_inconsistency;
-
   return (
     <section className="sg-report-section" aria-labelledby="report-section-3-heading">
       <div className="sg-report-section__header">
@@ -50,14 +46,12 @@ export const ReportAnomalySection: React.FC<ReportAnomalySectionProps> = ({
           DERIVED FROM LIVE BACKEND DATA
         </span>
       </div>
-
-      {/* Summary KPI Banner */}
+      {}
       <div className="sg-report-anomaly-kpi-row">
         <div className="sg-report-anomaly-kpi">
           <span className="sg-report-anomaly-kpi-label">Total Incidents</span>
           <span className="sg-report-anomaly-kpi-val sg-font-mono">{total}</span>
         </div>
-
         <div className="sg-report-anomaly-kpi">
           <span className="sg-report-anomaly-kpi-label">Highest Observed Severity</span>
           <div style={{ marginTop: '0.25rem' }}>
@@ -78,7 +72,6 @@ export const ReportAnomalySection: React.FC<ReportAnomalySectionProps> = ({
             />
           </div>
         </div>
-
         {latestAnomaly && (
           <div className="sg-report-anomaly-kpi">
             <span className="sg-report-anomaly-kpi-label">Latest Incident Classification</span>
@@ -97,10 +90,9 @@ export const ReportAnomalySection: React.FC<ReportAnomalySectionProps> = ({
           </div>
         )}
       </div>
-
-      {/* 2-Column Severity vs Type Distribution */}
+      {}
       <div className="sg-report-distribution-grid">
-        {/* Severity Distribution */}
+        {}
         <div className="sg-report-dist-card">
           <h3 className="sg-report-subheading">Severity Frequency Distribution</h3>
           {totalSev === 0 ? (
@@ -132,8 +124,7 @@ export const ReportAnomalySection: React.FC<ReportAnomalySectionProps> = ({
             </div>
           )}
         </div>
-
-        {/* Type Distribution */}
+        {}
         <div className="sg-report-dist-card">
           <h3 className="sg-report-subheading">Signal Anomaly Type Breakdown</h3>
           {totalTypes === 0 ? (

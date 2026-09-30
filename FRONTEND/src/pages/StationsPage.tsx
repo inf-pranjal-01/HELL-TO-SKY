@@ -8,7 +8,6 @@ import {
 import { EmptyState } from '../components/common/EmptyState';
 import { Card } from '../components/common/Card';
 import './StationsPage.css';
-
 export const StationsPage: React.FC = () => {
   const {
     selectedStation,
@@ -20,7 +19,6 @@ export const StationsPage: React.FC = () => {
     error,
     refresh,
   } = useStationNetworkData();
-
   if (!isLoading && !selectedStation) {
     return (
       <div className="page-container sg-stations-page" role="main" aria-label="Station network page">
@@ -33,7 +31,6 @@ export const StationsPage: React.FC = () => {
       </div>
     );
   }
-
   if (error && !isLoading) {
     return (
       <div className="page-container sg-stations-page" role="main" aria-label="Station network page">
@@ -47,7 +44,6 @@ export const StationsPage: React.FC = () => {
       </div>
     );
   }
-
   return (
     <div className="page-container sg-stations-page" role="main" aria-label="Station Network Map">
       <StationNetworkHeader
@@ -55,21 +51,18 @@ export const StationsPage: React.FC = () => {
         onRefresh={refresh}
         isLoading={isLoading}
       />
-
       <SelectedStationCard
         station={selectedStation}
         currentReading={currentReading}
         latestAnomaly={latestAnomaly}
         isLoading={isLoading}
       />
-
       <Card variant="glass" className="sg-stations-spatial-pause">
         <p>
           Spatial neighbor validation is paused. Stations in this network are more than 10 km apart,
           so distance-based cross-checks are not used operationally. The map below is a locator only.
         </p>
       </Card>
-
       <NetworkOverview
         stations={stations}
         selectedStation={selectedStation}
@@ -79,5 +72,4 @@ export const StationsPage: React.FC = () => {
     </div>
   );
 };
-
 export default StationsPage;

@@ -6,7 +6,6 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { RecentAnomalyItem } from '../../types';
 import './RecentAnomaliesCard.css';
-
 export interface RecentAnomaliesCardProps {
   anomalies?: RecentAnomalyItem[];
   isLoading?: boolean;
@@ -15,7 +14,6 @@ export interface RecentAnomaliesCardProps {
   className?: string;
   streamMode?: 'live' | 'replay';
 }
-
 export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
   anomalies = [],
   isLoading = false,
@@ -25,7 +23,6 @@ export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
   streamMode = 'live',
 }) => {
   const navigate = useNavigate();
-
   if (isLoading) {
     return (
       <Card variant="glass" className={`sg-recent-card ${className}`}>
@@ -41,7 +38,6 @@ export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className={`sg-recent-card ${className}`}>
@@ -59,7 +55,6 @@ export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
       </Card>
     );
   }
-
   return (
     <Card variant="glass" className={`sg-recent-card ${className}`}>
       <div className="sg-recent-header">
@@ -77,7 +72,6 @@ export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
           <ArrowRight size={14} aria-hidden="true" />
         </button>
       </div>
-
       <div className="sg-recent-body">
         {anomalies.length === 0 ? (
           <div className="sg-recent-empty">
@@ -102,7 +96,6 @@ export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
                   if (anom.severity === 'critical') badgeSev = 'critical';
                   else if (anom.severity === 'high') badgeSev = 'high';
                   else if (anom.severity === 'medium') badgeSev = 'moderate';
-
                   return (
                     <tr key={anom.anomaly_id}>
                       <td className="sg-font-mono">
@@ -137,7 +130,6 @@ export const RecentAnomaliesCard: React.FC<RecentAnomaliesCardProps> = ({
           </div>
         )}
       </div>
-
       <div className="sg-recent-footer">
         <span className="sg-recent-notice">
           ● {streamMode === 'replay' ? 'REPLAY MODE' : 'LIVE BACKEND'}

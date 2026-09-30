@@ -5,14 +5,12 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Skeleton } from '../common/Skeleton';
 import { CurrentSensorReading, SensorHealth } from '../../types';
 import './SensorChannelOverview.css';
-
 export interface SensorChannelOverviewProps {
   reading: CurrentSensorReading | null;
   health: SensorHealth | null;
   isLoading?: boolean;
   className?: string;
 }
-
 export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
   reading,
   health,
@@ -38,17 +36,14 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
       </div>
     );
   }
-
   const overallStatus = health?.sensor_health_status ?? 'HEALTHY';
   const isHealthy = overallStatus === 'HEALTHY';
   const isWarning = overallStatus === 'WARNING';
   const isCritical = overallStatus === 'CRITICAL';
-
   let badgeType: 'optimal' | 'moderate' | 'critical' | 'offline' = 'optimal';
   if (isWarning) badgeType = 'moderate';
   else if (isCritical) badgeType = 'critical';
   else if (overallStatus === 'OFFLINE') badgeType = 'offline';
-
   const channels = [
     {
       id: 'temp',
@@ -81,7 +76,6 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
       max: reading?.humidity_pct.normal_max ?? 90,
     },
   ];
-
   const formattedTime = reading?.timestamp
     ? (() => {
         const d = new Date(reading.timestamp);
@@ -91,7 +85,6 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
         return `${dateStr}, ${timeStr}`;
       })()
     : 'Live Ingestion';
-
   return (
     <section className={`sg-channels-section ${className}`} role="region" aria-label="Monitored sensor channels">
       <div className="sg-channels-section__header">
@@ -103,8 +96,7 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
           ● CONTINUOUS TELEMETRY AUDIT
         </span>
       </div>
-
-      {/* 3 Channel Cards */}
+      {}
       <div className="sg-channels-grid">
         {channels.map((ch) => (
           <Card key={ch.id} variant="glass" className="sg-channel-card">
@@ -118,19 +110,16 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
               </div>
               <StatusBadge status={badgeType} label={overallStatus} size="sm" />
             </div>
-
             <div className="sg-channel-card__reading">
               <span className="sg-channel-card__val">{ch.value}</span>
               <span className="sg-channel-card__unit">{ch.unit}</span>
             </div>
-
             <div className="sg-channel-card__range-row">
               <span className="sg-channel-card__range-label">Baseline Operating Range:</span>
               <span className="sg-channel-card__range-val">
                 {ch.min} {ch.unit} – {ch.max} {ch.unit}
               </span>
             </div>
-
             <div className="sg-channel-card__footer">
               <CheckCircle2 size={13} className={isHealthy ? 'text-optimal' : 'text-warning'} />
               <span>{isHealthy ? 'Signal Stability: Nominal (99.8%)' : 'Channel Audited under System Health'}</span>
@@ -138,8 +127,7 @@ export const SensorChannelOverview: React.FC<SensorChannelOverviewProps> = ({
           </Card>
         ))}
       </div>
-
-      {/* Operational Table */}
+      {}
       <Card variant="glass" className="sg-channels-table-card">
         <table className="sg-channels-table" aria-label="Sensor channels operational status table">
           <thead>

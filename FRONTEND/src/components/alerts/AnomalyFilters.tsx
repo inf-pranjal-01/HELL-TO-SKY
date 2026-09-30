@@ -2,14 +2,12 @@ import React from 'react';
 import { Search, RotateCcw } from 'lucide-react';
 import { AnomalySeverity, AnomalyType } from '../../types';
 import './AnomalyFilters.css';
-
 export interface AnomalyFilterValues {
   severity: AnomalySeverity | 'all';
   type: AnomalyType | 'all';
   searchQuery: string;
   stationId?: string | 'all';
 }
-
 export interface AnomalyFiltersProps {
   filters: AnomalyFilterValues;
   onChange: (filters: AnomalyFilterValues) => void;
@@ -18,7 +16,6 @@ export interface AnomalyFiltersProps {
   filteredCount: number;
   stations?: Array<{ station_id: string; name: string }>;
 }
-
 export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
   filters,
   onChange,
@@ -32,39 +29,34 @@ export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
     filters.type !== 'all' ||
     filters.searchQuery.trim().length > 0 ||
     (filters.stationId && filters.stationId !== 'all');
-
   const handleStationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChange({
       ...filters,
       stationId: e.target.value,
     });
   };
-
   const handleSeverityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChange({
       ...filters,
       severity: e.target.value as AnomalySeverity | 'all',
     });
   };
-
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChange({
       ...filters,
       type: e.target.value as AnomalyType | 'all',
     });
   };
-
   const handleSearchChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     onChange({
       ...filters,
       searchQuery: e.target.value,
     });
   };
-
   return (
     <div className="sg-anomaly-filters" role="search" aria-label="Filter anomaly records">
       <div className="sg-anomaly-filters__controls">
-        {/* Station Filter */}
+        {}
         {stations.length > 0 && (
           <div className="sg-anomaly-filters__group">
             <label htmlFor="sg-filter-station" className="sg-anomaly-filters__label">
@@ -86,8 +78,7 @@ export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
             </select>
           </div>
         )}
-
-        {/* Severity Filter */}
+        {}
         <div className="sg-anomaly-filters__group">
           <label htmlFor="sg-filter-severity" className="sg-anomaly-filters__label">
             Severity
@@ -106,8 +97,7 @@ export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
             <option value="low">Low</option>
           </select>
         </div>
-
-        {/* Anomaly Type Filter */}
+        {}
         <div className="sg-anomaly-filters__group">
           <label htmlFor="sg-filter-type" className="sg-anomaly-filters__label">
             Type
@@ -130,8 +120,7 @@ export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
             <option value="multivariate_inconsistency">Multivariate Inconsistency</option>
           </select>
         </div>
-
-        {/* Text Search */}
+        {}
         <div className="sg-anomaly-filters__search">
           <Search size={14} className="sg-anomaly-filters__search-icon" aria-hidden="true" />
           <input
@@ -144,12 +133,10 @@ export const AnomalyFilters: React.FC<AnomalyFiltersProps> = ({
           />
         </div>
       </div>
-
       <div className="sg-anomaly-filters__actions">
         <span className="sg-anomaly-filters__count" aria-live="polite">
           Showing <span className="sg-anomaly-filters__count-strong">{filteredCount}</span> of {totalCount}
         </span>
-
         {isFiltered && (
           <button
             type="button"

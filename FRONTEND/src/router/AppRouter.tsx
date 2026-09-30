@@ -4,11 +4,9 @@ import { AuthProvider } from '../context/AuthContext';
 import { StationProvider } from '../context/StationContext';
 import { ProtectedRoute } from './ProtectedRoute';
 import { AppShell } from '../components/layout/AppShell';
-
 import { LoginPage } from '../pages/LoginPage';
 import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
-
 import { DashboardPage } from '../pages/DashboardPage';
 import { MonitorPage } from '../pages/MonitorPage';
 import { AlertsPage } from '../pages/AlertsPage';
@@ -20,18 +18,16 @@ import { MaintenancePage } from '../pages/MaintenancePage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
-
 export const AppRouter: React.FC = () => {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public Out-of-Shell Authentication Routes */}
+          {}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-
-          {/* Protected Application Routes inside AppShell */}
+          {}
           <Route element={<ProtectedRoute />}>
             <Route
               element={

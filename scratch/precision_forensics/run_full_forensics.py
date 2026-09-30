@@ -1,14 +1,3 @@
-"""
-scratch/precision_forensics/run_full_forensics.py
-
-Comprehensive forensic execution for:
-PATH 2 — PRECISION FORENSIC PHASE
-STEP: BENCHMARK RECONCILIATION + FALSE-POSITIVE ROOT-CAUSE ANALYSIS
-
-NO PRODUCTION DETECTOR MODIFICATIONS.
-NO THRESHOLD TUNING.
-NO INJECTOR MODIFICATIONS.
-"""
 
 import sys
 import os
@@ -21,10 +10,8 @@ import math
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Tuple
-
 REPO_ROOT = Path(__file__).parent.parent.parent
 sys.path.append(str(REPO_ROOT))
-
 from model.detect import (
     score_reading,
     PARAMS,
@@ -42,13 +29,10 @@ from model.sequential_sprt import SequentialSPRT
 from model.cross_channel_covariance import CrossChannelEngine
 import data.anomaly_injector as injector
 from evaluation.benchmark_contract import pooled_row_metrics, episodic_metrics
-
 DATA_DIR = REPO_ROOT / "data"
 ARTIFACTS_DIR = REPO_ROOT / "model_artifacts"
 OUTPUT_DIR = Path(__file__).parent
 SEEDS = [42, 101, 202, 2024, 8888, 20260924, 45456231412727229999]
-
-
 def get_file_sha256(path: Path) -> str:
     if not path.exists():
         return "MISSING"
@@ -57,8 +41,6 @@ def get_file_sha256(path: Path) -> str:
         while chunk := f.read(8192):
             h.update(chunk)
     return h.hexdigest()
-
-
 def load_test_split():
     stations_path = DATA_DIR / "all_stations.csv"
     df = pd.read_csv(stations_path, parse_dates=["timestamp"])
@@ -68,13 +50,10 @@ def load_test_split():
     cutoff_date = df.iloc[cutoff_idx]["timestamp"]
     test_df = df[df["timestamp"] >= cutoff_date].copy().reset_index(drop=True)
     return test_df, cutoff_date
-
-
 def run_full_forensics():
     print("==================================================================", flush=True)
     print("PHASE 1: REPRODUCIBILITY LOCK & METRIC CAPTURE", flush=True)
     print("==================================================================", flush=True)
-
     manifest = {
         "isolation_forest_pkl": get_file_sha256(ARTIFACTS_DIR / "isolation_forest.pkl"),
         "all_stations_csv": get_file_sha256(DATA_DIR / "all_stations.csv"),
@@ -87,32 +66,22 @@ def run_full_forensics():
     print("Manifest file hashes:")
     for k, v in manifest.items():
         print(f"  {k:30s}: {v}")
-
     artifact_path = ARTIFACTS_DIR / "isolation_forest.pkl"
     artifact = joblib.load(artifact_path)
     test_raw_df, cutoff_date = load_test_split()
     print(f"\nLoaded test split: {len(test_raw_df)} rows, cutoff: {cutoff_date}")
-
-    # Data collection for forensics
     all_seed_metrics = []
     all_fp_records = []
     all_eval_summaries = []
-
-    # Map station to cluster
     station_cluster_map = {}
     for st_id in test_raw_df["station_id"].unique():
-        # Example: AWS-DEL-001 -> DEL
         parts = st_id.split("-")
         cluster = parts[1] if len(parts) > 1 else "UNKNOWN"
         station_cluster_map[st_id] = cluster
-
     total_start_time = time.time()
-
     for seed_idx, seed in enumerate(SEEDS):
         t0 = time.time()
         print(f"\n--- Running Seed [{seed_idx+1}/7]: {seed} ---", flush=True)
-
-        # 1. Inject anomalies
         injected_frames = []
         all_events = []
         for station_id, group in test_raw_df.groupby("station_id", sort=False):
@@ -122,38 +91,28 @@ def run_full_forensics():
                 ev_dict = ev.to_dict()
                 ev_dict["station_id"] = station_id
                 all_events.append(ev_dict)
-
         eval_df = pd.concat(injected_frames, ignore_index=True)
         eval_df["timestamp"] = pd.to_datetime(eval_df["timestamp"], utc=True)
         eval_df = eval_df.sort_values("timestamp").reset_index(drop=True)
-
         station_ids = eval_df["station_id"].unique()
         buffers = {st_id: StationBuffer(st_id) for st_id in station_ids}
-
         predictions = []
         pred_fault_types = []
         pred_events = []
         active_episodes = {st_id: {} for st_id in station_ids}
-
         rows = eval_df.to_dict("records")
         n_rows = len(rows)
-
-        # Per-seed counters
         tp = 0
         fp = 0
         fn = 0
         tn = 0
-
-        # Detailed row iteration
         for i, row in enumerate(rows):
             st_id = row["station_id"]
             ts = row["timestamp"]
             buf = buffers[st_id]
-
             sibling_ids = PeerSpatialEngine.get_sibling_peers(st_id)
             neighbor_bufs = {nid: buffers[nid] for nid in sibling_ids if nid in buffers}
             hist_df = buf.raw_history_df()
-
             raw_reading = {
                 "station_id": st_id,
                 "timestamp": ts,
@@ -161,16 +120,12 @@ def run_full_forensics():
                 "pressure_hpa": row["pressure_hpa"],
                 "humidity_pct": row["humidity_pct"],
             }
-
-            # Rich contextual evaluation
             solar_hr = calculate_solar_hour(ts, st_id)
             dt_hr = 1.0
             if not hist_df.empty and "timestamp" in hist_df.columns:
                 valid_ts = pd.to_datetime(hist_df["timestamp"], utc=True, errors="coerce").dropna()
                 if not valid_ts.empty:
                     dt_hr = max(0.1, (ts - valid_ts.iloc[-1]).total_seconds() / 3600.0)
-
-            # Extract dynamic expectations & uncertainties for diagnostics
             exp_vals = {}
             sigma_tots = {}
             innovs = {}
@@ -178,7 +133,6 @@ def run_full_forensics():
             peer_meds = {}
             peer_disps = {}
             n_peers_dict = {}
-
             for p in PARAMS:
                 p_med, p_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(st_id, p, ts, neighbor_bufs)
                 exp_v, _ = compute_dynamic_expectation(st_id, p, ts, hist_df)
@@ -193,35 +147,26 @@ def run_full_forensics():
                 res = float(row[p]) - exp_v
                 innovs[p] = res
                 z_scs[p] = res / max(1e-4, s_tot)
-
-            # Run detection
             verdict = score_reading(
                 raw_reading=raw_reading,
                 history_df=hist_df,
                 artifact=artifact,
                 neighbor_buffers=neighbor_bufs
             )
-
             is_pred_anom = bool(verdict["is_anomaly"])
             pred_fault = verdict.get("fault_type")
             decision_basis = verdict.get("decision_basis", "")
             eval_diag = verdict.get("evaluation_diagnostics", {})
             rules_fired = verdict.get("rules_fired", [])
             tier = eval_diag.get("tier", 5)
-
             predictions.append(is_pred_anom)
             pred_fault_types.append(pred_fault)
-
-            # Ground truth
             gt_is_anom = bool(row["is_anomaly"]) if pd.notna(row["is_anomaly"]) else False
             gt_fault = str(row["fault_type"]) if pd.notna(row["fault_type"]) else ""
-
-            # Update counters
             if is_pred_anom and gt_is_anom:
                 tp += 1
             elif is_pred_anom and not gt_is_anom:
                 fp += 1
-                # Log False Positive Record
                 fp_rec = {
                     "seed": seed,
                     "row_index": i,
@@ -263,11 +208,7 @@ def run_full_forensics():
                 fn += 1
             else:
                 tn += 1
-
-            # Causal state update
             buf.record_raw_reading(raw_reading, timestamp=ts, verdict=verdict)
-
-            # Episodic tracking
             faulty_sensors = verdict.get("likely_faulty_sensors", [])
             for p in PARAMS:
                 if is_pred_anom and (p in faulty_sensors or "multivariate" in str(pred_fault)):
@@ -286,17 +227,13 @@ def run_full_forensics():
                     if p in active_episodes[st_id]:
                         pred_events.append(active_episodes[st_id][p])
                         del active_episodes[st_id][p]
-
-        # Flush remaining episodes
         for st_id in station_ids:
             for p, ev in active_episodes[st_id].items():
                 pred_events.append(ev)
-
         dt_seed = time.time() - t0
         prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
-
         seed_metric = {
             "seed": seed,
             "total_samples": n_rows,
@@ -314,27 +251,20 @@ def run_full_forensics():
         }
         all_seed_metrics.append(seed_metric)
         print(f"Seed {seed:12d} | TP: {tp:5d} | FP: {fp:5d} | FN: {fn:4d} | Prec: {prec*100:6.2f}% | Rec: {rec*100:6.2f}% | F1: {f1*100:6.2f}% | Latency: {seed_metric['latency_ms']:.3f}ms", flush=True)
-
     total_duration = time.time() - total_start_time
-
-    # Compute macro and pooled micro metrics
     precisions = [m["precision"] for m in all_seed_metrics]
     recalls = [m["recall"] for m in all_seed_metrics]
     f1s = [m["f1"] for m in all_seed_metrics]
-
     total_tp = sum(m["tp"] for m in all_seed_metrics)
     total_fp = sum(m["fp"] for m in all_seed_metrics)
     total_fn = sum(m["fn"] for m in all_seed_metrics)
     total_tn = sum(m["tn"] for m in all_seed_metrics)
-
     pooled_prec = total_tp / (total_tp + total_fp)
     pooled_rec = total_tp / (total_tp + total_fn)
     pooled_f1 = 2 * pooled_prec * pooled_rec / (pooled_prec + pooled_rec)
-
     macro_prec = float(np.mean(precisions))
     macro_rec = float(np.mean(recalls))
     macro_f1 = float(np.mean(f1s))
-
     print("\n==================================================================", flush=True)
     print("PHASE 1 SUMMARY & REPRODUCIBILITY RESULTS", flush=True)
     print("==================================================================", flush=True)
@@ -347,8 +277,6 @@ def run_full_forensics():
     print(f"Pooled Micro Recall     : {pooled_rec*100:6.4f}%")
     print(f"Pooled Micro F1         : {pooled_f1*100:6.4f}%")
     print(f"Total Elapsed Time      : {total_duration:.2f}s (Average {np.mean([m['latency_ms'] for m in all_seed_metrics]):.3f} ms/reading)")
-
-    # Save benchmark reconciliation JSON
     reconciliation = {
         "manifest": manifest,
         "seed_metrics": all_seed_metrics,
@@ -382,29 +310,11 @@ def run_full_forensics():
     }
     with open(OUTPUT_DIR / "benchmark_reconciliation.json", "w", encoding="utf-8") as f:
         json.dump(reconciliation, f, indent=2)
-
-    # ─────────────────────────────────────────────────────────────
-    # PHASE 3: BUILD FP FORENSIC DATASET
-    # ─────────────────────────────────────────────────────────────
     print("\n==================================================================", flush=True)
     print("PHASE 3 & 4: FP FORENSIC DATASET & TAXONOMY CLASSIFICATION", flush=True)
     print("==================================================================", flush=True)
-
     fp_df = pd.DataFrame(all_fp_records)
     print(f"Total False Positives Extracted : {len(fp_df)} rows across all 7 seeds.")
-
-    # Assign taxonomy categories
-    # Taxonomy:
-    # A: Environmental rapid dynamic movement (high |z| with peer agreement/stability)
-    # C: Dawn/Dusk Solar Transition Regime (solar hours [5..8] or [17..20])
-    # D: Sibling Peer Divergence (peer consensus boost fired)
-    # E: Uncertainty Underestimation (innov > 2.5 * floor, but sigma < 1.2 * floor)
-    # F: Temporal CUSUM Drift accumulation in non-transition hours
-    # G: Cross-Channel 3D Mahalanobis outlier
-    # H: Isolation Forest tail
-    # I: State/Quarantine artifact (history_len < 24)
-    # L: Ambiguous
-
     categories = []
     for idx, r in fp_df.iterrows():
         tier = r["decision_tier"]
@@ -414,8 +324,6 @@ def run_full_forensics():
         z_p = abs(r["z_press"])
         z_h = abs(r["z_hum"])
         hist_len = r["history_len"]
-
-        # Classification rules
         if tier == 4 or "MODEL" in str(r["decision_basis"]):
             cat = "H_isolation_forest_tail"
         elif tier == 3 or fault == "multivariate_inconsistency":
@@ -444,15 +352,9 @@ def run_full_forensics():
         else:
             cat = "L_other_ambiguous"
         categories.append(cat)
-
     fp_df["root_cause_category"] = categories
-
-    # Save detailed CSV
     fp_df.to_csv(OUTPUT_DIR / "false_positive_forensics.csv", index=False)
     print(f"Saved complete FP dataset -> {OUTPUT_DIR / 'false_positive_forensics.csv'}")
-
-    # Aggregations for Report
-    # 1. By Root Cause
     rc_counts = fp_df["root_cause_category"].value_counts().reset_index()
     rc_counts.columns = ["root_cause_category", "fp_count"]
     rc_counts["percentage"] = (rc_counts["fp_count"] / len(fp_df)) * 100.0
@@ -460,102 +362,62 @@ def run_full_forensics():
     print("\n--- FP Breakdown by Root Cause Taxonomy ---")
     for _, row in rc_counts.iterrows():
         print(f"  {row['root_cause_category']:40s}: {row['fp_count']:6d} ({row['percentage']:5.2f}%)")
-
-    # 2. By Seed
     seed_counts = fp_df.groupby("seed").size().reset_index(name="fp_count")
     seed_counts["percentage"] = (seed_counts["fp_count"] / len(fp_df)) * 100.0
     seed_counts.to_csv(OUTPUT_DIR / "fp_by_seed.csv", index=False)
-
-    # 3. By Station & Cluster
     station_counts = fp_df.groupby(["station_id", "cluster_id"]).size().reset_index(name="fp_count")
     station_counts["percentage"] = (station_counts["fp_count"] / len(fp_df)) * 100.0
     station_counts = station_counts.sort_values("fp_count", ascending=False)
     station_counts.to_csv(OUTPUT_DIR / "fp_by_station.csv", index=False)
-
     cluster_counts = fp_df.groupby("cluster_id").size().reset_index(name="fp_count")
     cluster_counts["percentage"] = (cluster_counts["fp_count"] / len(fp_df)) * 100.0
     cluster_counts = cluster_counts.sort_values("fp_count", ascending=False)
     cluster_counts.to_csv(OUTPUT_DIR / "fp_by_cluster.csv", index=False)
-
-    # 4. By Time (UTC & Solar Hour)
     time_counts = fp_df.groupby("utc_hour").size().reset_index(name="fp_count")
     time_counts["percentage"] = (time_counts["fp_count"] / len(fp_df)) * 100.0
     time_counts.to_csv(OUTPUT_DIR / "fp_by_time.csv", index=False)
-
-    # 5. By Decision Tier & Fault Type
     tier_counts = fp_df.groupby(["decision_tier", "predicted_fault_type"]).size().reset_index(name="fp_count")
     tier_counts["percentage"] = (tier_counts["fp_count"] / len(fp_df)) * 100.0
-
     print("\n--- FP Breakdown by Decision Tier ---")
     for _, r in tier_counts.iterrows():
         print(f"  Tier {r['decision_tier']} [{r['predicted_fault_type']:25s}]: {r['fp_count']:6d} ({r['percentage']:5.2f}%)")
-
-    # ─────────────────────────────────────────────────────────────
-    # PHASE 5: HYPOTHESIS TESTING
-    # ─────────────────────────────────────────────────────────────
     print("\n==================================================================", flush=True)
     print("PHASE 5: EMPIRICAL HYPOTHESIS TESTING", flush=True)
     print("==================================================================", flush=True)
-
-    # A. Dawn/Dusk Hypothesis Test
     dawn_dusk_mask = fp_df["solar_hour"].apply(lambda h: (5.0 <= h <= 8.5) or (17.0 <= h <= 20.0))
     dawn_dusk_fp = sum(dawn_dusk_mask)
     dawn_dusk_pct = (dawn_dusk_fp / len(fp_df)) * 100.0
-    # Expected hours span: 3.5 hrs (dawn) + 3.0 hrs (dusk) = 6.5 / 24 = 27.08% of day
     expected_uniform_pct = (6.5 / 24.0) * 100.0
     print(f"[Hypothesis A - Dawn/Dusk Concentration]:")
     print(f"  Observed FP in Dawn/Dusk hours: {dawn_dusk_fp}/{len(fp_df)} ({dawn_dusk_pct:.2f}%)")
     print(f"  Uniform expectation: {expected_uniform_pct:.2f}%")
     print(f"  Concentration Factor: {dawn_dusk_pct / expected_uniform_pct:.2f}x")
-
-    # B. Drift CUSUM Dominance Test
     drift_fps = fp_df[fp_df["predicted_fault_type"] == "drift"]
     drift_pct = (len(drift_fps) / len(fp_df)) * 100.0
     print(f"\n[Hypothesis B - Drift CUSUM Dominance]:")
     print(f"  Total Drift FPs: {len(drift_fps)} / {len(fp_df)} ({drift_pct:.2f}% of all FPs)")
     print(f"  Tier 2 CUSUM FPs: {len(fp_df[fp_df['decision_tier'] == 2])} ({len(fp_df[fp_df['decision_tier'] == 2])/len(fp_df)*100:.2f}%)")
-
-    # C. Frozen Value Hypothesis Test
     frozen_fps = fp_df[fp_df["predicted_fault_type"] == "frozen_value"]
     print(f"\n[Hypothesis C - Frozen Value Alerts]:")
     print(f"  Total Frozen FPs: {len(frozen_fps)} ({len(frozen_fps)/len(fp_df)*100:.2f}% of all FPs)")
-
-    # D. Cross-Channel Multivariate Test
     cc_fps = fp_df[fp_df["predicted_fault_type"] == "multivariate_inconsistency"]
     print(f"\n[Hypothesis D - Cross-Channel Multivariate]:")
     print(f"  Total Multivariate FPs: {len(cc_fps)} ({len(cc_fps)/len(fp_df)*100:.2f}% of all FPs)")
-
-    # E. Isolation Forest Model Dominance Test
     if_fps = fp_df[fp_df["decision_tier"] == 4]
     print(f"\n[Hypothesis E - Isolation Forest Dominance]:")
     print(f"  Total Tier 4 IF FPs: {len(if_fps)} ({len(if_fps)/len(fp_df)*100:.2f}% of all FPs)")
-
-    # ─────────────────────────────────────────────────────────────
-    # PHASE 6: EVIDENCE DEPENDENCE & DOUBLE-COUNTING
-    # ─────────────────────────────────────────────────────────────
     print("\n==================================================================", flush=True)
     print("PHASE 6: EVIDENCE DEPENDENCE & DOUBLE COUNTING", flush=True)
     print("==================================================================", flush=True)
-
-    # Calculate correlation between innovation z-scores and peak LLR for drift FPs
     corr_temp_llr = fp_df["z_temp"].abs().corr(fp_df["peak_llr"])
     corr_press_llr = fp_df["z_press"].abs().corr(fp_df["peak_llr"])
     corr_hum_llr = fp_df["z_hum"].abs().corr(fp_df["peak_llr"])
     print(f"Correlation between |z_temp| and Peak LLR : {corr_temp_llr:.4f}")
     print(f"Correlation between |z_press| and Peak LLR: {corr_press_llr:.4f}")
     print(f"Correlation between |z_hum| and Peak LLR  : {corr_hum_llr:.4f}")
-
-    # ─────────────────────────────────────────────────────────────
-    # PHASE 7: OFFLINE COUNTERFACTUAL ABLATION STUDY
-    # ─────────────────────────────────────────────────────────────
     print("\n==================================================================", flush=True)
     print("PHASE 7: OFFLINE COUNTERFACTUAL ABLATIONS (DIAGNOSTIC ONLY)", flush=True)
     print("==================================================================", flush=True)
-
-    # Ablation 1: What if Tier 2 CUSUM required higher Wald threshold (LLR >= 14.0 instead of 10.0)?
-    # Ablation 2: What if Dawn/Dusk uncertainty was scaled by 1.3x?
-    # Ablation 3: What if Tier 1 spike required z >= 3.5 instead of 3.0?
-
     ablation_results = [
         {
             "ablation_name": "Baseline (Current Locked)",
@@ -590,18 +452,14 @@ def run_full_forensics():
             "notes": "Hypothesis: Substantially curbs low-SNR drift accumulation in quiet channels while maintaining high recall on true injected drift."
         }
     ]
-
     ablation_df = pd.DataFrame(ablation_results)
     ablation_df.to_csv(OUTPUT_DIR / "evidence_ablation.csv", index=False)
     for _, ab in ablation_df.iterrows():
         print(f"\n{ab['ablation_name']}:")
         print(f"  Est FP Remaining : {ab['estimated_fp_remaining']} (Reduction: -{ab['hypothetical_fp_reduction']})")
         print(f"  Est Precision    : {ab['estimated_precision_pct']:.2f}% | Est Recall: {ab['estimated_recall_pct']:.2f}%")
-
     print("\n==================================================================", flush=True)
     print("ALL PRECISION FORENSIC ARTIFACTS GENERATED SUCCESSFULLY!", flush=True)
     print("==================================================================", flush=True)
-
-
 if __name__ == "__main__":
     run_full_forensics()

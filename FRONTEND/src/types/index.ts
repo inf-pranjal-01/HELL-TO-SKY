@@ -1,14 +1,9 @@
-/**
- * SkyGuard AI — TypeScript Domain & API Schemas
- * Standardized data models strictly aligned with the API Contract specification.
- */
 
 export type RiskLevel = 'low' | 'moderate' | 'medium' | 'high' | 'critical';
 export type SensorHealthStatus = 'optimal' | 'warning' | 'degraded' | 'offline' | 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
 export type StationOperationalStatus = 'NORMAL' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
 export type AnomalyStatus = 'detected' | 'investigating' | 'resolved' | 'dismissed';
 export type SystemOverallStatus = 'NORMAL' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
-
 export type AnomalySeverity = 'low' | 'medium' | 'high' | 'critical';
 export type AnomalyType =
   | 'spike'
@@ -20,24 +15,12 @@ export type AnomalyType =
   | 'physical_bounds'
   | 'statistical_anomaly'
   | (string & {});
-
 export type NetworkCorroborationState = 'LOCALIZED' | 'REGIONAL' | 'INSUFFICIENT_CORROBORATION';
-
-/**
- * Metric Range & Value Schema
- * Sub-object inside current-reading contract
- */
 export interface MetricValueRange {
   value: number;
   normal_min: number;
   normal_max: number;
 }
-
-/**
- * Current Sensor Reading Schema
- * [API: GET /api/current-reading — INTEGRATED]
- * Matches exact backend response contract specified in Step 4.
- */
 export interface CurrentSensorReading {
   station_id: string;
   timestamp: string;
@@ -55,31 +38,16 @@ export interface CurrentSensorReading {
   source?: 'live' | 'replay';
   model_status?: string;
 }
-
-/**
- * Sensor Health Schema
- * [API: GET /api/sensor-health?station_id={station_id} — INTEGRATED]
- */
 export interface SensorHealth {
   station_id: string;
   sensor_health_pct: number;
   sensor_health_status: 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
 }
-
-/**
- * Sensor Health History Point
- * [FRONTEND DERIVED — DEMO HISTORY]
- */
 export interface HealthHistoryPoint {
   timestamp: string;
   health_pct: number;
   status: 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
 }
-
-/**
- * Trend Data Point Schema
- * [API: GET /api/trends — INTEGRATED]
- */
 export interface TrendPoint {
   timestamp: string;
   temperature_c: number;
@@ -95,42 +63,23 @@ export interface TrendPoint {
   health_status?: SensorHealthStatus;
   source?: 'live' | 'replay';
 }
-
-/**
- * Anomaly Window Schema
- * [API: GET /api/trends — INTEGRATED]
- */
 export interface AnomalyWindow {
   start: string;
   end: string;
   label?: string;
 }
-
-/**
- * Trends Response Schema
- * [API: GET /api/trends — INTEGRATED]
- */
 export interface TrendsResponse {
   station_id: string;
   hours: number;
   points: TrendPoint[];
   anomaly_windows?: AnomalyWindow[];
 }
-
-/** Backend control-plane state. The frontend renders it; it never infers mode. */
 export interface SystemStreamStatus {
   mode: 'live' | 'replay';
   replay_step_seconds: number | null;
   live_poll_interval_seconds: number;
   is_pre_warming?: boolean;
 }
-
-/**
- * Telemetry History Record
- * [FRONTEND ONLY]
- * Derived from sequential current readings or trend points for the telemetry monitor table.
- * Maximum 100-200 entries kept in memory.
- */
 export interface TelemetryHistoryRecord {
   id: string;
   timestamp: string;
@@ -139,11 +88,6 @@ export interface TelemetryHistoryRecord {
   humidity_pct: number;
   status: 'NORMAL' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
 }
-
-/**
- * Latest Anomaly Schema
- * [API: GET /api/anomalies/latest — INTEGRATED]
- */
 export interface LatestAnomaly {
   anomaly_id: string;
   timestamp: string;
@@ -153,23 +97,14 @@ export interface LatestAnomaly {
   type: AnomalyType;
   root_cause: string;
   description: string;
-  /** Optional sensor correction hints provided by the backend model */
   suggested_values?: Record<string, number>;
-  /** Parameters implicated by the detector and their original readings. */
   affected_parameters?: string[];
   observed_values?: Record<string, number | null>;
   regime?: string;
   network_corroboration?: NetworkCorroborationState;
-  /** Explicit basis for the detection decision per audit §10.2 */
   decision_basis?: string;
-  /** ML model availability status per audit §8.2 */
   model_status?: string;
 }
-
-/**
- * Recent Anomaly Item Schema
- * [API: GET /api/anomalies/recent — INTEGRATED]
- */
 export interface RecentAnomalyItem {
   anomaly_id: string;
   timestamp: string;
@@ -179,35 +114,24 @@ export interface RecentAnomalyItem {
   type: AnomalyType;
   root_cause: string;
   description: string;
-  /** Optional sensor correction hints provided by the backend model */
   suggested_values?: Record<string, number>;
-  /** Parameters implicated by the detector and their original readings. */
   affected_parameters?: string[];
   observed_values?: Record<string, number | null>;
   regime?: string;
   network_corroboration?: NetworkCorroborationState;
-  /** Explicit basis for the detection decision per audit §10.2 */
   decision_basis?: string;
-  /** ML model availability status per audit §8.2 */
   model_status?: string;
 }
-
-/**
- * Feature Contribution / Explainability Schema
- * [API: GET /api/explain/{anomaly_id} — INTEGRATED]
- */
 export interface ExplanationFeature {
   name: string;
   impact: number;
 }
-
 export interface PeerStationReading {
   station_id: string;
   name: string;
   reading: number;
   unit: string;
 }
-
 export interface ThermodynamicContext {
   is_violation: boolean;
   law?: string;
@@ -216,7 +140,6 @@ export interface ThermodynamicContext {
   pressure_hpa?: number;
   explanation: string;
 }
-
 export interface SpatialContext {
   cluster_id: string;
   target_station: {
@@ -233,13 +156,11 @@ export interface SpatialContext {
   spatial_impact: string;
   thermodynamic_context?: ThermodynamicContext | null;
 }
-
 export interface AnomalyExplanation {
   anomaly_id: string;
   station_id?: string;
   timestamp?: string;
   features: ExplanationFeature[];
-  /** Optional list of sensor IDs most likely responsible for the anomaly */
   likely_faulty_sensors?: string[];
   affected_parameters?: string[];
   observed_values?: Record<string, number | null>;
@@ -254,31 +175,18 @@ export interface AnomalyExplanation {
   model_status?: string;
   spatial_context?: SpatialContext;
 }
-
-/**
- * SIH Demo Anomaly Injection Schema
- * [SIH DEMO PREPARATION]
- * [API: POST /api/inject-anomaly — INTEGRATED]
- */
 export interface InjectAnomalyRequest {
   station_id: string;
   type: AnomalyType;
 }
-
 export interface InjectAnomalyResponse {
   success: boolean;
   anomaly_id: string;
   message: string;
 }
-
-/**
- * Sensor Repair Request/Response Schema
- * [API: POST /api/repair-sensor — INTEGRATED]
- */
 export interface RepairSensorRequest {
   station_id: string;
 }
-
 export interface RepairSensorResponse {
   success: boolean;
   station_id: string;
@@ -286,11 +194,6 @@ export interface RepairSensorResponse {
   recovery_active: boolean;
   message: string;
 }
-
-/**
- * Legacy/Simple Sensor Reading Schema
- * Retained for compatibility with existing components
- */
 export interface SensorReading {
   station_id: string;
   timestamp: string;
@@ -302,12 +205,6 @@ export interface SensorReading {
   sensor_health_pct: number;
   sensor_health_status: SensorHealthStatus;
 }
-
-/**
- * Station Metadata Schema
- * [API: GET /api/stations — INTEGRATED]
- * Exactly matches backend station contract specification.
- */
 export interface Station {
   station_id: string;
   name: string;
@@ -318,10 +215,6 @@ export interface Station {
   region?: string;
   last_ping?: string;
 }
-
-/**
- * Meteorological Anomaly Event Schema
- */
 export interface AnomalyRecord {
   anomaly_id: string;
   station_id: string;
@@ -334,10 +227,6 @@ export interface AnomalyRecord {
   description: string;
   affected_metrics: string[];
 }
-
-/**
- * Overall System Health Summary Schema
- */
 export interface SystemStatusSummary {
   overall_status: SystemOverallStatus;
   active_stations_count: number;
@@ -347,21 +236,12 @@ export interface SystemStatusSummary {
   last_updated: string;
   mode?: 'live' | 'replay';
 }
-
-/**
- * Application Navigation Route Specification
- */
 export interface AppNavigationRoute {
   path: string;
   label: string;
   iconName: string;
   badgeCount?: number;
 }
-
-/**
- * Metric Statistical Summary
- * [FRONTEND ONLY] [DERIVED FROM EXISTING DATA]
- */
 export interface MetricStatistics {
   average: number;
   min: number;
@@ -369,22 +249,12 @@ export interface MetricStatistics {
   range: number;
   count: number;
 }
-
-/**
- * Anomaly Severity Distribution
- * [FRONTEND ONLY] [DERIVED FROM EXISTING DATA]
- */
 export interface SeverityDistribution {
   critical: number;
   high: number;
   medium: number;
   low: number;
 }
-
-/**
- * Anomaly Type Distribution
- * [FRONTEND ONLY] [DERIVED FROM EXISTING DATA]
- */
 export interface AnomalyTypeDistribution {
   spike: number;
   frozen_value: number;
@@ -396,11 +266,6 @@ export interface AnomalyTypeDistribution {
   statistical_anomaly?: number;
   [key: string]: number | undefined;
 }
-
-/**
- * Analytics Summary Data Object
- * [FRONTEND ONLY] [DERIVED FROM EXISTING DATA]
- */
 export interface AnalyticsSummary {
   temperature: MetricStatistics;
   pressure: MetricStatistics;
@@ -412,11 +277,6 @@ export interface AnalyticsSummary {
   anomalyTimeline: RecentAnomalyItem[];
   insights: string[];
 }
-
-/**
- * Station Network Telemetry Reading
- * [FRONTEND ONLY — DEMO TELEMETRY]
- */
 export interface StationNetworkReading {
   station_id: string;
   timestamp: string;
@@ -426,21 +286,11 @@ export interface StationNetworkReading {
   anomaly_score_pct?: number;
   sensor_health_pct?: number;
 }
-
-/**
- * Neighbor Station with calculated distance and telemetry
- * [FRONTEND ONLY] [DERIVED FROM STATION COORDINATES & MOCK TELEMETRY]
- */
 export interface NeighborStationItem {
   station: Station;
   distance_km: number;
   reading?: StationNetworkReading;
 }
-
-/**
- * Spatial Comparison for a Single Metric
- * [FRONTEND ONLY] [DERIVED FROM MOCK NETWORK TELEMETRY]
- */
 export interface MetricSpatialComparison {
   selected: number;
   neighborAverage: number;
@@ -448,23 +298,8 @@ export interface MetricSpatialComparison {
   isSignificantDeviation: boolean;
   unit: string;
 }
-
-/**
- * Spatial Consistency Status
- * [FRONTEND DEMO LOGIC] [NOT PRODUCTION ML]
- */
 export type SpatialConsistencyStatus = 'CONSISTENT' | 'DEVIATION_DETECTED' | 'INSUFFICIENT_DATA';
-
-/**
- * Spatial Demo Scenario Identifier
- * [SIH DEMO] [FRONTEND ONLY]
- */
 export type SpatialDemoScenario = 'regional_consistency' | 'localized_deviation';
-
-/**
- * Overall Spatial Comparison Summary
- * [FRONTEND ONLY] [DERIVED FROM MOCK NETWORK TELEMETRY]
- */
 export interface SpatialComparisonSummary {
   selectedStationId: string;
   neighborCount: number;
@@ -475,28 +310,13 @@ export interface SpatialComparisonSummary {
   multivariateSummary: string;
   demoScenario: SpatialDemoScenario;
 }
-
-/**
- * Report Observation Period
- */
 export type ReportPeriod = 6 | 12 | 24;
-
-/**
- * Operational Report Metadata
- * [FRONTEND ONLY] [DERIVED FROM EXISTING DATA]
- */
 export interface ReportMetadata {
   reportId: string;
   generatedAt: string;
   periodHours: ReportPeriod;
   systemVersion: string;
 }
-
-/**
- * Station Operational Report Model
- * [FRONTEND ONLY] [DERIVED FROM EXISTING DATA]
- * Standardized data model aggregating all operational aspects for preview and print export.
- */
 export interface StationOperationalReport {
   metadata: ReportMetadata;
   station: Station;
@@ -520,21 +340,9 @@ export interface StationOperationalReport {
   insights: string[];
   recommendations: string[];
 }
-
-/**
- * Maintenance Ticket Creation Request Schema
- * [API: POST /api/maintenance-ticket — INTEGRATED]
- * Strictly matches approved backend API contract.
- */
 export interface MaintenanceTicketRequest {
   anomaly_id: string;
 }
-
-/**
- * Maintenance Ticket Creation Response Schema
- * [API: POST /api/maintenance-ticket — INTEGRATED]
- * Strictly matches approved backend API contract response fields.
- */
 export interface MaintenanceTicketResponse {
   ticket_id: string;
   station_id: string;

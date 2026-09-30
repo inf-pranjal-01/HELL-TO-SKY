@@ -4,7 +4,6 @@ import { Station } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { Button } from '../common/Button';
 import './AnalyticsHeader.css';
-
 export interface AnalyticsHeaderProps {
   station: Station | null | undefined;
   hours: number;
@@ -13,7 +12,6 @@ export interface AnalyticsHeaderProps {
   onRefresh: () => void;
   isLoading?: boolean;
 }
-
 export const AnalyticsHeader: React.FC<AnalyticsHeaderProps> = ({
   station,
   hours,
@@ -34,7 +32,6 @@ export const AnalyticsHeader: React.FC<AnalyticsHeaderProps> = ({
           operational intelligence.
         </p>
       </div>
-
       <div className="sg-analytics-header__controls">
         {station && (
           <div className="sg-analytics-header__station-badge">
@@ -42,7 +39,6 @@ export const AnalyticsHeader: React.FC<AnalyticsHeaderProps> = ({
             <span>{station.name} ({station.station_id})</span>
           </div>
         )}
-
         <StatusBadge
           status={
             staleStatusText === 'LIVE'
@@ -54,8 +50,7 @@ export const AnalyticsHeader: React.FC<AnalyticsHeaderProps> = ({
           label={staleStatusText}
           size="sm"
         />
-
-        {/* Time-Range Selector */}
+        {}
         <div
           className="sg-analytics-header__time-selector"
           role="group"
@@ -75,7 +70,6 @@ export const AnalyticsHeader: React.FC<AnalyticsHeaderProps> = ({
             </button>
           ))}
         </div>
-
         <Button
           variant="ghost"
           size="sm"

@@ -1,22 +1,12 @@
-"""Fault-oriented helper model trained on independent injector replays.
-
-This module deliberately does not alter ``data/anomaly_injector.py``.  It
-learns from new, sparse network replays and is evaluated on a separate replay.
-All temporal signals are trailing/causal; frozen episodes may be confirmed
-late, then their buffered onset is backfilled for incident reporting.
-"""
 
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-
 from data.anomaly_injector import inject_anomalies
 from model.features import build_feature_matrix
-
 DATA_DIR = Path(__file__).parent.parent / "data"
 RAW_COLUMNS = ("temperature_c", "pressure_hpa", "humidity_pct")
 PREFIXES = ("temp", "pressure", "humidity")
@@ -27,8 +17,6 @@ BASE_FEATURES = [
     "temp_roc_3h", "pressure_roc_3h", "humidity_roc_3h",
     "dewpoint_depression_c",
 ]
-
-
 def feature_columns() -> list[str]:
     cols = list(BASE_FEATURES)
     for prefix in PREFIXES:
@@ -45,10 +33,7 @@ def feature_columns() -> list[str]:
                 f"{prefix}_peer_change_lag_{lag}",
             ])
     return cols
-
-
 def build_network_features(frame: pd.DataFrame) -> pd.DataFrame:
-    """Produce causal station and leave-one-out cluster features."""
     required = ["station_id", "timestamp", "is_anomaly", "fault_type"]
     if "__network" in frame:
         required.append("__network")
@@ -59,10 +44,8 @@ def build_network_features(frame: pd.DataFrame) -> pd.DataFrame:
         errors="ignore",
     )
     featured = build_feature_matrix(raw)
-    
     featured["timestamp"] = pd.to_datetime(featured["timestamp"]).dt.tz_localize(None)
     labels["timestamp"] = pd.to_datetime(labels["timestamp"]).dt.tz_localize(None)
-    
     featured = featured.merge(labels, on=["station_id", "timestamp"], how="left")
     featured["is_anomaly"] = featured["is_anomaly"].fillna(False).astype(bool)
     featured["fault_type"] = featured["fault_type"].fillna("none")
@@ -73,15 +56,12 @@ def build_network_features(frame: pd.DataFrame) -> pd.DataFrame:
     featured = featured.merge(meta, left_on="__base_station", right_on="station_id", how="left", suffixes=("", "_meta"))
     featured = featured.sort_values(["station_id", "timestamp"]).reset_index(drop=True)
     featured = featured.copy()
-
     for raw_col, prefix in zip(RAW_COLUMNS, PREFIXES):
         featured[f"{prefix}_was_missing"] = featured[raw_col].isna().astype(float)
-        
         by_station = featured.groupby("station_id", group_keys=False)[raw_col]
         featured[f"{prefix}_range_6h"] = by_station.transform(
             lambda s: s.rolling(6, min_periods=4).max() - s.rolling(6, min_periods=4).min()
         )
-        
         lookup = featured[["__network", "cluster_id", "timestamp", "station_id", raw_col]]
         merged = featured[["__network", "cluster_id", "timestamp", "station_id"]].merge(
             lookup, on=["__network", "cluster_id", "timestamp"], suffixes=("", "_peer")
@@ -90,7 +70,6 @@ def build_network_features(frame: pd.DataFrame) -> pd.DataFrame:
         res = merged.groupby(["__network", "cluster_id", "timestamp", "station_id"])[raw_col].median()
         df_idx = featured.set_index(["__network", "cluster_id", "timestamp", "station_id"])
         featured[f"{prefix}_peer_value"] = res.reindex(df_idx.index).values
-        
         residual = featured[raw_col] - featured[f"{prefix}_peer_value"]
         featured[f"{prefix}_peer_residual"] = residual
         featured[f"{prefix}_peer_residual_6h_change"] = residual.groupby(featured["station_id"]).diff(6)
@@ -105,14 +84,10 @@ def build_network_features(frame: pd.DataFrame) -> pd.DataFrame:
             featured[f"{prefix}_peer_residual_lag_{lag}"] = residual.groupby(featured["station_id"]).shift(lag)
             featured[f"{prefix}_own_change_lag_{lag}"] = own_change.groupby(featured["station_id"]).shift(lag - 1)
             featured[f"{prefix}_peer_change_lag_{lag}"] = peer_change.groupby(featured["station_id"]).shift(lag - 1)
-
     cols = feature_columns()
     featured[cols] = featured[cols].replace([np.inf, -np.inf], np.nan).clip(-1e10, 1e10)
     return featured
-
-
 def make_sparse_training_replays(excluded_stations: set[str], seeds: list[int]) -> pd.DataFrame:
-    """Generate fresh independent replays while leaving most peers clean."""
     ids = sorted(p.stem for p in DATA_DIR.glob("AWS-*.csv") if "_labeled" not in p.name and p.stem not in excluded_stations)
     networks = []
     for network_id, seed in enumerate(seeds):
@@ -126,10 +101,6 @@ def make_sparse_training_replays(excluded_stations: set[str], seeds: list[int]) 
             else:
                 raw["is_anomaly"] = False
                 raw["fault_type"] = None
-            # The injector's row label deliberately does not record which
-            # channel was changed.  Recover that training-only attribution by
-            # comparing its output to the untouched input; this does not alter
-            # injection behavior or expose a label to serving.
             frozen_rows = raw["fault_type"].eq("frozen_value")
             for raw_col, prefix in zip(RAW_COLUMNS, PREFIXES):
                 changed = ~np.isclose(
@@ -141,14 +112,7 @@ def make_sparse_training_replays(excluded_stations: set[str], seeds: list[int]) 
             raw["__network"] = network_id
             networks.append(raw)
     return pd.concat(networks, ignore_index=True)
-
-
 def add_frozen_channel_labels_from_reference(frame: pd.DataFrame) -> pd.DataFrame:
-    """Attach evaluation-only frozen channel labels from untouched source CSVs.
-
-    This is ground-truth attribution for reporting and validation; the helper
-    itself never reads these labels when it scores a network.
-    """
     result = frame.copy()
     for prefix in PREFIXES:
         result[f"frozen_param_{prefix}"] = False
@@ -165,10 +129,7 @@ def add_frozen_channel_labels_from_reference(frame: pd.DataFrame) -> pd.DataFram
             )
             result.loc[positions, f"frozen_param_{prefix}"] = frozen & changed
     return result
-
-
 def frozen_channel_columns(prefix: str) -> list[str]:
-    """Features visible to one sensor channel's frozen specialist."""
     return [
         f"{prefix}_deviation", f"{prefix}_roc_1h", f"{prefix}_roc_3h",
         f"{prefix}_range_6h", f"{prefix}_peer_range_6h",
@@ -180,10 +141,7 @@ def frozen_channel_columns(prefix: str) -> list[str]:
         *[f"{prefix}_own_change_lag_{lag}" for lag in range(1, 7)],
         *[f"{prefix}_peer_change_lag_{lag}" for lag in range(1, 7)],
     ]
-
-
 def fit_frozen_channel_helpers(training_networks: pd.DataFrame):
-    """Fit three channel-specific frozen confirmation classifiers."""
     featured = build_network_features(training_networks)
     helpers = {}
     for prefix in PREFIXES:
@@ -204,10 +162,7 @@ def fit_frozen_channel_helpers(training_networks: pd.DataFrame):
         model.fit(sample[cols], target.loc[sample.index])
         helpers[prefix] = (model, cols)
     return helpers
-
-
 def score_frozen_channels(scored: pd.DataFrame, helpers: dict, threshold: float) -> pd.DataFrame:
-    """Return a row alert when any channel has high-confidence frozen evidence."""
     result = scored.copy()
     alerts = np.zeros(len(result), dtype=bool)
     for prefix, (model, cols) in helpers.items():
@@ -216,10 +171,7 @@ def score_frozen_channels(scored: pd.DataFrame, helpers: dict, threshold: float)
         alerts |= probability >= threshold
     result["frozen_helper_alert"] = alerts
     return result
-
-
 def fit_fault_helper(training_networks: pd.DataFrame):
-    """Fit a conservative binary detector on balanced fresh-replay samples."""
     featured = build_network_features(training_networks)
     cols = feature_columns()
     positive = featured[featured["is_anomaly"]]
@@ -234,8 +186,6 @@ def fit_fault_helper(training_networks: pd.DataFrame):
     ])
     model.fit(sample[cols], sample["is_anomaly"])
     return model, cols
-
-
 def predict_faults(model, cols: list[str], network: pd.DataFrame, threshold: float) -> pd.DataFrame:
     result = build_network_features(network)
     probability = model.predict_proba(result[cols])[:, 1]

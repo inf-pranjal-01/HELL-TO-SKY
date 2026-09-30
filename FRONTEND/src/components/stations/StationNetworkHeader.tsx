@@ -4,13 +4,11 @@ import { Station } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { Button } from '../common/Button';
 import './StationNetworkHeader.css';
-
 export interface StationNetworkHeaderProps {
   selectedStation: Station | null;
   onRefresh: () => void;
   isLoading?: boolean;
 }
-
 export const StationNetworkHeader: React.FC<StationNetworkHeaderProps> = ({
   selectedStation,
   onRefresh,
@@ -27,7 +25,6 @@ export const StationNetworkHeader: React.FC<StationNetworkHeaderProps> = ({
           Locator for every Automatic Weather Station. Zoom the map to separate overlapping sites.
         </p>
       </div>
-
       <div className="sg-station-header__controls">
         {selectedStation && (
           <div className="sg-station-header__status-group">
@@ -47,8 +44,7 @@ export const StationNetworkHeader: React.FC<StationNetworkHeaderProps> = ({
             />
           </div>
         )}
-
-        {/* Refresh button */}
+        {}
         <Button
           variant="ghost"
           size="sm"

@@ -20,12 +20,9 @@ import { Button } from '../components/common/Button';
 import { Tooltip } from '../components/common/Tooltip';
 import { EmptyState } from '../components/common/EmptyState';
 import './MonitorPage.css';
-
 export const MonitorPage: React.FC = () => {
   const { selectedStation, isLoading: isLoadingStation } = useStation();
   const [selectedHours, setSelectedHours] = useState<number>(10);
-
-  // Single centralized polling architecture shared with dashboard
   const {
     currentReading,
     trends,
@@ -45,13 +42,10 @@ export const MonitorPage: React.FC = () => {
     autoPoll: true,
     trendHours: selectedHours,
   });
-
   const handleHoursChange = (h: number) => {
     setSelectedHours(h);
     refreshTrends(h);
   };
-
-  // If no station is selected in context
   if (!isLoadingStation && !selectedStation) {
     return (
       <div className="page-container">
@@ -63,25 +57,20 @@ export const MonitorPage: React.FC = () => {
       </div>
     );
   }
-
   const stationName = selectedStation?.name || 'Observatory Telemetry';
   const stationId = selectedStation?.station_id || 'AWS-001';
   const stationStatus = selectedStation?.status || 'NORMAL';
-
-  // Sensor Health Status
   const healthStatus = currentReading?.sensor_health_status || 'HEALTHY';
   const healthPct = currentReading?.sensor_health_pct ?? 96;
-
   let healthBadgeStatus: 'optimal' | 'warning' | 'critical' | 'offline' = 'optimal';
   if (healthStatus === 'WARNING') healthBadgeStatus = 'warning';
   else if (healthStatus === 'CRITICAL') healthBadgeStatus = 'critical';
   else if (healthStatus === 'OFFLINE') healthBadgeStatus = 'offline';
-
   return (
     <div className="page-container sg-monitor-page">
-      {/* ---------------------------------------------------- */}
-      {/* 1. MONITOR PAGE HEADER & LIVE CONTROLS               */}
-      {/* ---------------------------------------------------- */}
+      {}
+      {}
+      {}
       <header className="sg-page-header">
         <div className="sg-monitor-header-left">
           <div className="sg-monitor-station-row">
@@ -96,9 +85,8 @@ export const MonitorPage: React.FC = () => {
             {stationName} • Detailed multi-sensor telemetry stream & high-resolution observation
           </p>
         </div>
-
         <div className="sg-page-actions sg-monitor-header-actions">
-          {/* Freshness Status Pill */}
+          {}
           <div
             className={`sg-freshness-pill ${
               isPaused
@@ -119,8 +107,7 @@ export const MonitorPage: React.FC = () => {
               </span>
             )}
           </div>
-
-          {/* Pause / Resume Monitoring Toggle [FRONTEND ONLY] */}
+          {}
           <Tooltip
             content={
               isPaused
@@ -140,8 +127,7 @@ export const MonitorPage: React.FC = () => {
               {isPaused ? 'Resume Monitoring' : 'Pause Monitoring'}
             </Button>
           </Tooltip>
-
-          {/* Manual Telemetry Refresh Button */}
+          {}
           <Tooltip content="Trigger immediate telemetry sample fetch" position="bottom">
             <Button
               variant="outline"
@@ -156,8 +142,7 @@ export const MonitorPage: React.FC = () => {
           </Tooltip>
         </div>
       </header>
-
-      {/* Pause Notification Banner */}
+      {}
       {isPaused && (
         <div className="sg-paused-banner" role="status">
           <Pause size={16} className="text-warning" aria-hidden="true" />
@@ -166,10 +151,9 @@ export const MonitorPage: React.FC = () => {
           </span>
         </div>
       )}
-
-      {/* ---------------------------------------------------- */}
-      {/* 2. CURRENT SENSOR OVERVIEW (3 SENSORS + STATUS)      */}
-      {/* ---------------------------------------------------- */}
+      {}
+      {}
+      {}
       <section className="sg-monitor-section" aria-label="Current sensor measurements">
         <div className="sg-section-header-row">
           <h3 className="sg-section-title">Current Sensor Overview</h3>
@@ -177,9 +161,8 @@ export const MonitorPage: React.FC = () => {
             ● LIVE BACKEND
           </span>
         </div>
-
         <div className="sg-sensor-cards-grid">
-          {/* Temperature Sensor Overview Card */}
+          {}
           <SensorMetricCard
             title="Temperature"
             icon={<Thermometer size={18} />}
@@ -192,8 +175,7 @@ export const MonitorPage: React.FC = () => {
             onRetry={refreshReading}
             accentColor="#3b82f6"
           />
-
-          {/* Pressure Sensor Overview Card */}
+          {}
           <SensorMetricCard
             title="Atmospheric Pressure"
             icon={<Gauge size={18} />}
@@ -206,8 +188,7 @@ export const MonitorPage: React.FC = () => {
             onRetry={refreshReading}
             accentColor="#06b6d4"
           />
-
-          {/* Humidity Sensor Overview Card */}
+          {}
           <SensorMetricCard
             title="Relative Humidity"
             icon={<Droplets size={18} />}
@@ -220,8 +201,7 @@ export const MonitorPage: React.FC = () => {
             onRetry={refreshReading}
             accentColor="#10b981"
           />
-
-          {/* Sensor Hardware Health Compact Indicator */}
+          {}
           <div className="sg-sensor-health-card">
             <div className="sg-health-card-header">
               <span className="sg-health-card-title">Hardware Telemetry Health</span>
@@ -239,10 +219,9 @@ export const MonitorPage: React.FC = () => {
           </div>
         </div>
       </section>
-
-      {/* ---------------------------------------------------- */}
-      {/* 3. HIGH-RESOLUTION LIVE TELEMETRY CHART             */}
-      {/* ---------------------------------------------------- */}
+      {}
+      {}
+      {}
       <section className="sg-monitor-section" aria-label="Expanded live telemetry trend visualization">
         <TrendChart
           points={trends?.points}
@@ -253,10 +232,9 @@ export const MonitorPage: React.FC = () => {
           onRetry={() => refreshTrends(selectedHours)}
         />
       </section>
-
-      {/* ---------------------------------------------------- */}
-      {/* 4. DETAILED RECENT TELEMETRY HISTORY TABLE           */}
-      {/* ---------------------------------------------------- */}
+      {}
+      {}
+      {}
       <section className="sg-monitor-section" aria-label="Sequential telemetry reading log">
         <TelemetryHistoryTable
           records={telemetryHistory}
@@ -267,5 +245,4 @@ export const MonitorPage: React.FC = () => {
     </div>
   );
 };
-
 export default MonitorPage;

@@ -1,13 +1,8 @@
-"""Checks that persistent evidence needs model or regional context."""
 
 import unittest
-
 import pandas as pd
-
 from config import RULE_CONFIDENCE_BYPASS, graduated_confidence_drift, graduated_confidence_frozen
 from model.detect import _corroborate_network, _fuse_and_score
-
-
 class WeatherFusionTests(unittest.TestCase):
     def _network(self, peer_rocs):
         timestamp = pd.Timestamp("2025-01-01T12:00:00Z")
@@ -37,25 +32,20 @@ class WeatherFusionTests(unittest.TestCase):
             precomputed_neighbors=peer_features,
         )
         return decision
-
     def test_local_frozen_and_drift_confidence_stay_below_bypass(self):
         self.assertEqual(graduated_confidence_frozen(5, 5), 80.0)
         self.assertLess(graduated_confidence_frozen(10, 5), RULE_CONFIDENCE_BYPASS)
         self.assertEqual(graduated_confidence_drift(6.0, 6.0), 85.0)
         self.assertLess(graduated_confidence_drift(100.0, 6.0), RULE_CONFIDENCE_BYPASS)
-
     def test_peer_agreement_vetoes_frozen_but_peer_divergence_confirms_it(self):
         frozen = {"type": "frozen_value", "parameter": "temperature_c", "confidence": 80.0}
         regional = self._network((0.05, 0.08, 0.0))
         self.assertTrue(regional["veto"])
         self.assertFalse(_fuse_and_score(10.0, [frozen])[1])
         self.assertFalse(_fuse_and_score(10.0, [])[1])
-
         divergent = self._network((0.8, 0.8, 0.05))
         self.assertFalse(divergent["veto"])
         confirmed = {**frozen, "confidence": frozen["confidence"] + divergent["confidence_bonus"]}
         self.assertTrue(_fuse_and_score(10.0, [confirmed])[1])
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -1,24 +1,9 @@
-/**
- * Global Search Modal (Ctrl+K / Cmd+K)
- * 
- * [LOCAL NAVIGATION SEARCH INDEX]
- *
- * Full-screen search modal with accessible focus management.
- * - Focus moves to the search input on open (via useFocusTrap initialFocusRef).
- * - Tab / Shift+Tab cycle within the modal (focus trap).
- * - Escape closes the modal.
- * - Backdrop click closes the modal.
- * - Focus returns to the trigger button (triggerRef) or previously focused element on close.
- * - Screen-reader announcements on open/close.
- */
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Search, X, MapPin, Activity, BarChart2, Wrench, Settings } from "lucide-react";
 import { useFocusTrap, announceToScreenReader } from "../../hooks/useFocusTrap";
 import { useNavigate } from "react-router-dom";
 import "./GlobalSearchModal.css";
-
-// [LOCAL INDEX] — client-side searchable routes and stations interface
 interface SearchResult {
   id: string;
   label: string;
@@ -27,7 +12,6 @@ interface SearchResult {
   category: string;
   icon: React.ReactNode;
 }
-
 const ALL_RESULTS: SearchResult[] = [
   { id: "r-dashboard", label: "Dashboard", description: "Live overview of all station metrics", route: "/", category: "Pages", icon: <Activity size={15} aria-hidden="true" /> },
   { id: "r-monitor", label: "Live Monitor", description: "Real-time sensor data feeds", route: "/monitor", category: "Pages", icon: <Activity size={15} aria-hidden="true" /> },
@@ -39,36 +23,28 @@ const ALL_RESULTS: SearchResult[] = [
   { id: "r-maintenance", label: "Maintenance", description: "Planned and active maintenance tasks", route: "/maintenance", category: "Pages", icon: <Wrench size={15} aria-hidden="true" /> },
   { id: "r-settings", label: "Settings", description: "Application and alert configuration", route: "/settings", category: "Pages", icon: <Settings size={15} aria-hidden="true" /> },
 ];
-
 interface GlobalSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   triggerRef?: React.RefObject<HTMLElement>;
 }
-
 export function GlobalSearchModal({ isOpen, onClose, triggerRef }: GlobalSearchModalProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-
   const handleClose = useCallback(() => {
     setQuery("");
     onClose();
   }, [onClose]);
-
-  // Focus trap with initial focus directed to the search input, and triggerRef for focus restoration
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, handleClose, {
     initialFocusRef: inputRef,
     triggerRef,
   });
-
-  // Screen-reader announcements (concise and meaningful)
   useEffect(() => {
     if (isOpen) {
       announceToScreenReader("Search dialog opened");
     }
   }, [isOpen]);
-
   const wasOpenRef = useRef(false);
   useEffect(() => {
     if (wasOpenRef.current && !isOpen) {
@@ -76,7 +52,6 @@ export function GlobalSearchModal({ isOpen, onClose, triggerRef }: GlobalSearchM
     }
     wasOpenRef.current = isOpen;
   }, [isOpen]);
-
   const filtered = query.trim()
     ? ALL_RESULTS.filter(
         (r) =>
@@ -84,7 +59,6 @@ export function GlobalSearchModal({ isOpen, onClose, triggerRef }: GlobalSearchM
           r.description.toLowerCase().includes(query.toLowerCase()),
       )
     : ALL_RESULTS;
-
   const handleSelect = useCallback(
     (route: string) => {
       navigate(route);
@@ -92,16 +66,13 @@ export function GlobalSearchModal({ isOpen, onClose, triggerRef }: GlobalSearchM
     },
     [navigate, handleClose],
   );
-
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target === e.currentTarget) handleClose();
     },
     [handleClose],
   );
-
   if (!isOpen) return null;
-
   return (
     <div
       className="sg-search-backdrop"
@@ -115,7 +86,7 @@ export function GlobalSearchModal({ isOpen, onClose, triggerRef }: GlobalSearchM
         aria-label="Global search"
         className="sg-search-modal"
       >
-        {/* Search input row */}
+        {}
         <div className="sg-search-modal__input-row">
           <Search size={18} className="sg-search-modal__icon" aria-hidden="true" />
           <input
@@ -138,8 +109,7 @@ export function GlobalSearchModal({ isOpen, onClose, triggerRef }: GlobalSearchM
             <kbd className="sg-kbd">Esc</kbd>
           </button>
         </div>
-
-        {/* Results */}
+        {}
         <div className="sg-search-modal__results" role="listbox" aria-label="Search results">
           <p className="sg-search-notice-tag">
             <span className="sg-notice-tag-inline">LOCAL INDEX</span>
@@ -165,7 +135,6 @@ export function GlobalSearchModal({ isOpen, onClose, triggerRef }: GlobalSearchM
             </button>
           ))}
         </div>
-
         <div className="sg-search-modal__footer">
           <span className="sg-kbd-hint"><kbd className="sg-kbd">↑</kbd><kbd className="sg-kbd">↓</kbd> navigate</span>
           <span className="sg-kbd-hint"><kbd className="sg-kbd">↵</kbd> open</span>
@@ -175,5 +144,4 @@ export function GlobalSearchModal({ isOpen, onClose, triggerRef }: GlobalSearchM
     </div>
   );
 }
-
 export default GlobalSearchModal;

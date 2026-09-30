@@ -6,7 +6,6 @@ import { Button } from '../common/Button';
 import { Skeleton } from '../common/Skeleton';
 import { LatestAnomaly } from '../../types';
 import './LatestAnomalyBanner.css';
-
 export interface LatestAnomalyBannerProps {
   latestAnomaly: LatestAnomaly | null;
   isLoading?: boolean;
@@ -16,7 +15,6 @@ export interface LatestAnomalyBannerProps {
   onOpenShap?: (anomaly: LatestAnomaly) => void;
   className?: string;
 }
-
 export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
   latestAnomaly,
   isLoading = false,
@@ -40,7 +38,6 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
       </Card>
     );
   }
-
   if (error) {
     return (
       <Card variant="glass" className={`sg-latest-banner sg-latest-banner--critical ${className}`}>
@@ -59,7 +56,6 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
       </Card>
     );
   }
-
   if (!latestAnomaly) {
     return (
       <Card variant="glass" className={`sg-latest-banner sg-latest-banner--nominal ${className}`}>
@@ -85,14 +81,12 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
       </Card>
     );
   }
-
   const isCritical = latestAnomaly.severity === 'critical';
   const bannerClass = isCritical
     ? 'sg-latest-banner--critical'
     : latestAnomaly.severity === 'high'
     ? 'sg-latest-banner--high'
     : '';
-
   const formattedTime = new Date(latestAnomaly.timestamp).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
@@ -101,7 +95,6 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
   const suggestedReading = Object.entries(latestAnomaly.suggested_values ?? {})
     .map(([parameter, value]) => `${parameter.replace(/_/g, ' ')}: ${value.toFixed(2)}`)
     .join(' · ');
-
   return (
     <Card variant="glass" className={`sg-latest-banner ${bannerClass} ${className}`}>
       <div className="sg-latest-banner__header">
@@ -130,27 +123,23 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
           </span>
         </div>
       </div>
-
       <div className="sg-latest-banner__grid">
         <div className="sg-latest-banner__block">
           <span className="sg-latest-banner__block-label">Event Timestamp</span>
           <p className="sg-latest-banner__block-value">{formattedTime} (ID: {latestAnomaly.anomaly_id})</p>
         </div>
-
         <div className="sg-latest-banner__block">
           <span className="sg-latest-banner__block-label">Anomaly Indication</span>
           <p className="sg-latest-banner__block-value sg-latest-banner__root-cause">
             {latestAnomaly.root_cause}
           </p>
         </div>
-
         {suggestedReading && (
           <div className="sg-latest-banner__block">
             <span className="sg-latest-banner__block-label">Suggested Replacement</span>
             <p className="sg-latest-banner__block-value">{suggestedReading}</p>
           </div>
         )}
-
         <div className="sg-latest-banner__action" style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
           {onOpenShap && (
             <Button
@@ -175,7 +164,6 @@ export const LatestAnomalyBanner: React.FC<LatestAnomalyBannerProps> = ({
           </Button>
         </div>
       </div>
-
       <span className="sg-latest-banner__notice">
         ● LIVE BACKEND
       </span>
