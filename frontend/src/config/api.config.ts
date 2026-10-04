@@ -71,7 +71,7 @@ const resolveBaseUrl = (): string => {
     // In production (served by Nginx on port 80/443), Nginx proxies /api and /docs directly at same origin
     return window.location.origin;
   }
-  return 'https://34-93-226-151.sslip.io';
+  return 'https://35-200-179-39.sslip.io';
 };
 
 const resolvedBaseUrl = resolveBaseUrl();
