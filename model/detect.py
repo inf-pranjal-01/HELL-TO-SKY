@@ -223,10 +223,18 @@ def evaluate_frozen_evidence(
     peer_dispersion: Optional[float],
     eligible_peers: int,
     peer_median: Optional[float] = None,
+    current_time: Optional[pd.Timestamp] = None,
+    raw_reading: Optional[dict] = None,
 ) -> Tuple[float, Optional[str], Dict[str, any]]:
     """
     Tier 1 Frozen Check: Closed-form Bayesian F-ratio variance collapse test vs peer network.
-    Evaluates likelihood of transducer mechanism failure vs regional atmospheric movement.
+    Adheres strictly to WMO-No. 8 physical standards and minimal fixed thresholds:
+      1. Minimum Active Window: Requires >= 5 sequential historical readings.
+      2. Dynamic Movement Horizon: Rejects frozen classification if signal exhibits genuine movement
+         exceeding the sensor resolution floor.
+      3. Psychrometric Latent Heat Buffering: Radiative cooling halts during nocturnal near-saturation (RH >= 90%).
+      4. Regional Consensus Protection: When target reading is steady but in concordance with calm peers,
+         identifies nocturnal atmospheric stagnation rather than sensor mechanism lockup.
     """
     if history_df.empty or param not in history_df.columns or len(history_df) < 5:
         return 0.0, None, {"frozen_llr": 0.0, "is_frozen": False}
@@ -236,51 +244,112 @@ def evaluate_frozen_evidence(
     # Extract last K readings fast
     raw_col = history_df[param].to_numpy()
     valid_vals = [float(v) for v in raw_col[-8:] if v is not None and not pd.isna(v)]
-    recent_vals = valid_vals[-5:] + [current_val]
+    recent_vals = valid_vals[-5:] + [float(current_val)]
     
     if len(recent_vals) < 5:
         return 0.0, None, {"frozen_llr": 0.0, "is_frozen": False}
     
     target_var = float(np.var(recent_vals))
     target_range = float(max(recent_vals) - min(recent_vals))
-    
-    # 1. Saturation Equilibrium Guard for Relative Humidity:
-    # Saturated ambient condensation is a natural thermodynamic equilibrium when peers agree
-    if param == "humidity_pct" and current_val >= 98.0:
-        if peer_median is None or peer_median >= 88.0:
-            return 0.0, None, {"frozen_llr": 0.0, "is_frozen": False, "saturation_hold": True}
-        else:
-            return 12.0, f"Humidity sensor pinned at 100% saturation while cluster peers report {peer_median:.1f}%", {"frozen_llr": 12.0, "is_frozen": True}
+    k_len = len(recent_vals)
 
-    # 2. Expected Active Physical Variance under H0:
-    # When peers are available, H0 variance reflects regional ambient dynamics + quantization noise.
-    # When regional peers are also steady (peer_dispersion -> 0), peer_var naturally approaches sensor_floor^2,
-    # causing F -> 1.0 and LLR -> 0.0 with zero magic thresholds.
+    # 1. WMO-No. 8 Physical Duration Horizon:
+    # Requires sufficient physical time to elapse (>= 2.0h for T/P, >= 2.5h for RH) before declaring freeze
+    if current_time is not None and "timestamp" in history_df.columns:
+        try:
+            ts_series = pd.to_datetime(history_df["timestamp"], utc=True)
+            k_tail = len(recent_vals) - 1
+            if 0 < k_tail <= len(ts_series):
+                t_start = ts_series.iloc[-k_tail]
+                dt_span_hours = max(0.0, (pd.to_datetime(current_time, utc=True) - t_start).total_seconds() / 3600.0)
+                min_duration_hours = 2.0 if param in ("temperature_c", "pressure_hpa") else 2.5
+                if dt_span_hours < min_duration_hours:
+                    return 0.0, None, {
+                        "target_var": target_var,
+                        "target_range": target_range,
+                        "frozen_llr": 0.0,
+                        "is_frozen": False,
+                        "status": "insufficient_duration",
+                        "dt_span_hours": dt_span_hours
+                    }
+        except Exception:
+            pass
+
+    # 2. Physical Sensor Resolution Floor:
+    # A genuinely frozen sensor has range bounded by sub-quantization ADC electronic noise.
+    # If the signal actively fluctuates across multiple discrete quantization steps (target_range > 0.08 for T/P),
+    # it is physically dynamic rather than a mechanically seized transducer.
+    max_frozen_range = 0.08 if param in ("temperature_c", "pressure_hpa") else 0.50
+    if target_range > max_frozen_range:
+        return 0.0, None, {
+            "target_var": target_var,
+            "target_range": target_range,
+            "frozen_llr": 0.0,
+            "is_frozen": False,
+            "status": "active_variation"
+        }
+
+    # 2. Saturation Equilibrium Guard for Relative Humidity:
+    if param == "humidity_pct" and current_val >= 95.0:
+        if peer_median is None or peer_median >= 85.0:
+            return 0.0, None, {
+                "target_var": target_var,
+                "target_range": target_range,
+                "frozen_llr": 0.0,
+                "is_frozen": False,
+                "saturation_hold": True
+            }
+
+    # 3. Psychrometric Clausius-Clapeyron & Latent Heat Buffering Guard
+    if raw_reading is not None and param in ("temperature_c", "humidity_pct"):
+        rh_val = float(raw_reading.get("humidity_pct", 50.0))
+        t_val = float(raw_reading.get("temperature_c", 25.0))
+        if rh_val >= 90.0:
+            td = compute_dewpoint_c(t_val, rh_val)
+            if (t_val - td) <= 1.2:
+                if peer_median is None or abs(current_val - float(peer_median)) <= 1.5 * max(sensor_floor, peer_dispersion or 0.0):
+                    return 0.0, None, {
+                        "target_var": target_var,
+                        "target_range": target_range,
+                        "frozen_llr": 0.0,
+                        "is_frozen": False,
+                        "saturation_hold": True
+                    }
+
+    # 4. Expected Active Physical Variance under H0:
     if peer_dispersion is not None and eligible_peers >= 2:
         peer_var = (peer_dispersion ** 2) + (sensor_floor ** 2)
     else:
-        peer_var = (1.5 * sensor_floor) ** 2
+        # Climatological environmental baseline variance over 6h (~0.8C std dev)
+        expected_std = 0.8 if param == "temperature_c" else (1.2 if param == "pressure_hpa" else 5.0)
+        peer_var = (expected_std ** 2) + (sensor_floor ** 2)
 
-    # 3. Observed Target Variance under H1:
+    # 5. Observed Target Variance under H1:
     target_observed_var = target_var + (sensor_floor ** 2)
     
-    # 4. Bayesian F-Ratio Log-Likelihood Ratio:
+    # 6. Bayesian F-Ratio Log-Likelihood Ratio:
     f_ratio = target_observed_var / peer_var
-    k_len = len(recent_vals)
-    
     if f_ratio < 1.0:
         frozen_llr = float(0.5 * k_len * (math.log(1.0 / max(1e-4, f_ratio)) + f_ratio - 1.0))
     else:
         frozen_llr = 0.0
     
-    # Physical Wald alert criterion: transducer stuck range limit
-    max_noise_range = 0.08 if param == "pressure_hpa" else 0.15
-    max_target_var = (0.05 ** 2) if param == "pressure_hpa" else ((0.8 * sensor_floor) ** 2)
-    
-    if peer_dispersion is not None and eligible_peers >= 2:
-        is_frozen = (frozen_llr >= WALD_UPPER_ALERT and target_var <= max_target_var and target_range <= max_noise_range and peer_dispersion >= 1.5 * sensor_floor)
-    else:
-        is_frozen = (frozen_llr >= WALD_UPPER_ALERT and target_var <= max_target_var and target_range <= (max_noise_range * 0.7))
+    # Decisive variance collapse (bit-exact lockup / sub-noise flatline)
+    if target_range < 0.02:
+        frozen_llr = max(frozen_llr, 10.0)
+
+    is_frozen = (frozen_llr >= WALD_UPPER_ALERT)
+
+    # 7. Nocturnal Cluster Concordance Veto:
+    # If target station is flat, but cluster peers are also calm and target agrees with peer median,
+    # it is regional nocturnal stagnation, NOT an isolated transducer lockup!
+    if is_frozen and peer_median is not None and eligible_peers >= 2:
+        spatial_deviation = abs(current_val - float(peer_median))
+        cluster_calm = (peer_dispersion is not None and peer_dispersion <= 1.2 * sensor_floor)
+        if cluster_calm and spatial_deviation <= 1.5 * sensor_floor:
+            is_frozen = False
+            frozen_llr = 0.0
+
     reason = f"Variance collapse (target_var={target_var:.4f} vs peer_var={peer_var:.4f}, range={target_range:.2f}, LLR={frozen_llr:.2f})" if is_frozen else None
     
     diagnostics = {
@@ -537,7 +606,12 @@ def score_reading(
         if neighbor_buffers:
             peer_med, peer_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(station_id, param, current_time, neighbor_buffers)
             
-        f_llr, f_reason, f_diag = evaluate_frozen_evidence(param, history_df, val, peer_disp, n_p, peer_median=peer_med)
+        f_llr, f_reason, f_diag = evaluate_frozen_evidence(
+            param, history_df, val, peer_disp, n_p,
+            peer_median=peer_med,
+            current_time=current_time,
+            raw_reading=raw_reading
+        )
         if f_diag["is_frozen"]:
             tier1_evidence.append({
                 "tier": 1,

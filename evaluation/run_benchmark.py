@@ -252,6 +252,13 @@ def run_benchmark():
         buf.record_raw_reading(raw_reading, timestamp=ts, verdict=verdict)
         
         # Track ongoing continuous episodes for contract matching
+        TIER_PRIORITY = {
+            "dropout": 0, "sensor_fail_low": 0, "physical_bounds": 0,
+            "frozen_value": 1, "drift": 1,
+            "multivariate_inconsistency": 2,
+            "spike": 3,
+            "unstructured_anomaly": 4, "none": 5
+        }
         for p in PARAMS:
             if is_pred and (p in faulty_sensors or "multivariate" in fault_pred):
                 if p not in active_episodes[sid]:
@@ -264,6 +271,9 @@ def run_benchmark():
                     }
                 else:
                     active_episodes[sid][p]["end_timestamp"] = ts
+                    curr_type = active_episodes[sid][p]["fault_type"]
+                    if TIER_PRIORITY.get(fault_pred, 5) < TIER_PRIORITY.get(curr_type, 5):
+                        active_episodes[sid][p]["fault_type"] = fault_pred
             else:
                 if p in active_episodes[sid]:
                     pred_episodes.append(active_episodes[sid][p])
