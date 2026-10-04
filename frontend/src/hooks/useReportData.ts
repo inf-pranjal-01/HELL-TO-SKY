@@ -169,9 +169,61 @@ export function useReportData(): UseReportDataResult {
     setIsGenerating(false);
   }, [loadReportRawData]);
 
-  // Print Report action
+  // Print Report action with extension & overlay sanitization
   const printReport = useCallback(() => {
+    const hiddenNodes: { node: HTMLElement; prevDisplay: string }[] = [];
+    try {
+      // 1. Hide all elements injected into body that are not our app root (Chrome extensions inject here)
+      document.querySelectorAll('body > *:not(#root)').forEach((el) => {
+        if (el instanceof HTMLElement) {
+          hiddenNodes.push({ node: el, prevDisplay: el.style.display });
+          el.style.setProperty('display', 'none', 'important');
+        }
+      });
+
+      // 2. Hide any floating / fixed extension containers or widgets across the entire DOM
+      document.querySelectorAll('*').forEach((el) => {
+        if (el instanceof HTMLElement && !el.closest('.sg-report-document') && !el.closest('.sg-report-header')) {
+          const tag = el.tagName.toLowerCase();
+          const id = el.id.toLowerCase();
+          const cls = typeof el.className === 'string' ? el.className.toLowerCase() : '';
+          const pos = window.getComputedStyle(el).position;
+          
+          if (
+            pos === 'fixed' ||
+            tag.includes('-') ||
+            id.includes('extension') || id.includes('sider') || id.includes('monica') ||
+            id.includes('harpa') || id.includes('liner') || id.includes('chatgpt') ||
+            id.includes('claude') || id.includes('copilot') ||
+            cls.includes('extension') || cls.includes('sider') || cls.includes('monica') ||
+            cls.includes('harpa') || cls.includes('liner') || cls.includes('chatgpt') ||
+            cls.includes('claude') || cls.includes('copilot')
+          ) {
+            hiddenNodes.push({ node: el, prevDisplay: el.style.display });
+            el.style.setProperty('display', 'none', 'important');
+          }
+        }
+      });
+      document.body.classList.add('sg-is-printing-report');
+    } catch (err) {
+      console.warn('Pre-print sanitization error:', err);
+    }
+
     window.print();
+
+    const cleanup = () => {
+      document.body.classList.remove('sg-is-printing-report');
+      hiddenNodes.forEach(({ node, prevDisplay }) => {
+        if (prevDisplay) {
+          node.style.display = prevDisplay;
+        } else {
+          node.style.removeProperty('display');
+        }
+      });
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+    setTimeout(cleanup, 2000);
   }, []);
 
   return {

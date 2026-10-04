@@ -136,11 +136,12 @@
 
 /* ─────────────────────────────────────────────────────────────
    PRINT STYLESHEET OPTIMIZATION (@media print)
+   Publication-Grade Typography, Full Contrast & Extension Shield
    ───────────────────────────────────────────────────────────── */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 12mm 14mm;
+    margin: 8mm 10mm;
   }
 
   *, *::before, *::after {
@@ -150,7 +151,33 @@
     text-shadow: none !important;
   }
 
-  /* Hide non-printable interactive controls and UI chrome */
+  /* ── 1. Aggressively Suppress Browser Extensions, Injected Overlays & UI Chrome ── */
+  body > *:not(#root),
+  *[style*="position: fixed"],
+  *[style*="position:fixed"],
+  *[style*="fixed"],
+  [class*="extension"],
+  [id*="extension"],
+  [class*="sider"],
+  [id*="sider"],
+  [class*="monica"],
+  [id*="monica"],
+  [class*="harpa"],
+  [id*="harpa"],
+  [class*="liner"],
+  [id*="liner"],
+  [class*="chatgpt"],
+  [id*="chatgpt"],
+  [class*="claude"],
+  [id*="claude"],
+  [class*="copilot"],
+  [id*="copilot"],
+  [class*="floating"],
+  [id*="floating"],
+  [class*="widget"]:not(.sg-report-document *),
+  [id*="widget"]:not(.sg-report-document *),
+  [data-floating],
+  [data-extension],
   .no-print,
   .sg-header,
   .sg-sidebar,
@@ -164,8 +191,17 @@
   .sg-report-table-btn,
   .sg-report-section__badge {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    left: -99999px !important;
+    top: -99999px !important;
+    width: 0 !important;
+    height: 0 !important;
   }
 
+  /* ── 2. Canvas & Document Root Resets ── */
   html,
   body,
   #root,
@@ -183,61 +219,91 @@
     box-shadow: none !important;
   }
 
+  /* ── 3. Document Header & Meta Banner ── */
   .sg-report-header {
     border-bottom: 2pt solid #0f172a !important;
-    padding-bottom: 8pt !important;
-    margin-bottom: 12pt !important;
+    padding-bottom: 6pt !important;
+    margin-bottom: 8pt !important;
     background: transparent !important;
   }
 
   .sg-report-header__title {
     color: #0f172a !important;
-    font-size: 1.5rem !important;
+    font-size: 1.4rem !important;
     font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
   }
 
   .sg-report-header__subtitle {
     color: #334155 !important;
-    font-size: 0.85rem !important;
+    font-size: 0.8rem !important;
+    line-height: 1.3 !important;
   }
 
   .sg-report-header__meta-banner {
     background: #f8fafc !important;
     border: 1pt solid #cbd5e1 !important;
     color: #0f172a !important;
-    margin-top: 6pt !important;
-    padding: 6pt 10pt !important;
+    margin-top: 4pt !important;
+    padding: 5pt 8pt !important;
+    border-radius: 4pt !important;
+  }
+
+  .sg-report-header__meta-label {
+    color: #475569 !important;
+    font-size: 6.5pt !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
   }
 
   .sg-report-header__meta-val {
     color: #0f172a !important;
+    font-size: 8pt !important;
     font-weight: 700 !important;
   }
 
+  /* ── 4. Natural Section Flow & Elimination of Awkward Gaps ── */
   .sg-report-section {
     background: #ffffff !important;
     background-color: #ffffff !important;
     border: 1pt solid #cbd5e1 !important;
     color: #0f172a !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    margin-bottom: 12pt !important;
-    padding: 10pt 12pt !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    margin-bottom: 8pt !important;
+    padding: 6pt 8pt !important;
     border-radius: 4pt !important;
   }
 
   .sg-report-section__header {
     border-bottom: 1pt solid #e2e8f0 !important;
-    padding-bottom: 4pt !important;
-    margin-bottom: 8pt !important;
+    padding-bottom: 3pt !important;
+    margin-bottom: 6pt !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   .sg-report-section__title {
     color: #0f172a !important;
-    font-size: 1.05rem !important;
+    font-size: 0.95rem !important;
     font-weight: 700 !important;
+    letter-spacing: -0.01em !important;
   }
 
+  /* Keep discrete functional units intact across page breaks */
+  .sg-report-station-grid,
+  .sg-report-stats-grid,
+  .sg-report-chart-container,
+  .sg-report-anomaly-kpi-row,
+  .sg-report-distribution-grid,
+  .sg-report-health-layout,
+  .sg-report-spatial-grid,
+  .sg-report-certification {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* ── 5. Publication Color Grading for All Metric & Surface Cards ── */
   .sg-report-station-card,
   .sg-report-stat-card,
   .sg-report-dist-card,
@@ -248,32 +314,248 @@
   .sg-report-chart-container,
   .sg-report-meta-item,
   .sg-report-spatial-card,
-  .sg-report-health-card {
+  .sg-report-health-card,
+  .sg-report-anomaly-kpi {
     background: #f8fafc !important;
     background-color: #f8fafc !important;
-    border: 1pt solid #e2e8f0 !important;
+    border: 1pt solid #cbd5e1 !important;
     color: #0f172a !important;
     box-shadow: none !important;
     border-radius: 4pt !important;
+    padding: 6pt 8pt !important;
   }
 
-  .sg-report-meta-val,
-  .sg-report-meta-key,
-  .sg-report-stat-title,
-  .sg-report-stat-value,
-  .sg-report-insights-text,
-  .sg-report-spatial-verdict-text,
-  .sg-report-health-info-text,
-  .sg-report-subheading,
-  .sg-report-dist-name,
-  .sg-report-dist-count {
-    color: #0f172a !important;
+  /* Station Overview Specifics */
+  .sg-report-status-pill-item {
+    background: #f1f5f9 !important;
+    border: 1pt solid #cbd5e1 !important;
+    padding: 4pt 6pt !important;
   }
 
-  .sg-report-meta-sub {
+  .sg-report-status-pill-label {
+    color: #334155 !important;
+    font-weight: 600 !important;
+    font-size: 8pt !important;
+  }
+
+  .sg-report-meta-row {
+    border-bottom: 1pt solid #e2e8f0 !important;
+    padding-bottom: 3pt !important;
+  }
+
+  .sg-report-meta-key {
     color: #475569 !important;
+    font-weight: 600 !important;
+    font-size: 7.5pt !important;
   }
 
+  .sg-report-meta-val {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    font-size: 7.5pt !important;
+  }
+
+  /* Section 2: Telemetry Summary Metrics */
+  .sg-report-stat-title {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    font-size: 8.5pt !important;
+  }
+
+  .sg-report-stat-header {
+    border-bottom: 1pt solid #e2e8f0 !important;
+    padding-bottom: 2pt !important;
+  }
+
+  .sg-report-stat-row {
+    color: #0f172a !important;
+    border-bottom: 0.5pt solid #e2e8f0 !important;
+    padding: 1.5pt 0 !important;
+    font-size: 7.5pt !important;
+  }
+
+  .sg-report-stat-row span:first-child {
+    color: #475569 !important;
+    font-weight: 600 !important;
+  }
+
+  .sg-report-stat-row span:last-child {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  /* Telemetry Chart Layout in Print */
+  .sg-report-chart-title {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    font-size: 8pt !important;
+  }
+
+  .sg-report-svg-wrapper {
+    max-height: 170px !important;
+  }
+
+  .sg-report-svg {
+    max-height: 170px !important;
+  }
+
+  .sg-report-svg line {
+    stroke: #cbd5e1 !important;
+    stroke-dasharray: 2 2 !important;
+  }
+
+  .sg-report-axis-text {
+    fill: #334155 !important;
+    font-weight: 600 !important;
+    font-size: 7.5pt !important;
+  }
+
+  /* Section 3: Anomaly Detection & Incident Classification KPIs */
+  .sg-report-anomaly-kpi-label {
+    color: #475569 !important;
+    font-weight: 700 !important;
+    font-size: 7pt !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+  }
+
+  .sg-report-anomaly-kpi-val {
+    color: #0f172a !important;
+    font-weight: 800 !important;
+    font-size: 10pt !important;
+  }
+
+  .sg-report-anomaly-kpi-val.text-accent,
+  .text-accent {
+    color: #0369a1 !important; /* High-contrast Navy/Sky blue */
+    font-weight: 700 !important;
+  }
+
+  .sg-report-subheading {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    font-size: 8pt !important;
+    margin-bottom: 4pt !important;
+  }
+
+  .sg-report-dist-meta {
+    color: #334155 !important;
+    font-size: 7.5pt !important;
+  }
+
+  .sg-report-dist-meta span:first-child {
+    color: #334155 !important;
+    font-weight: 600 !important;
+  }
+
+  .sg-report-dist-meta span:last-child {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  .sg-report-dist-track {
+    background: #e2e8f0 !important;
+    height: 5px !important;
+    border-radius: 3px !important;
+  }
+
+  /* Section 4: Sensor Hardware Condition */
+  .sg-report-health-score-title {
+    color: #475569 !important;
+    font-weight: 700 !important;
+    font-size: 7.5pt !important;
+  }
+
+  .sg-report-health-score-val {
+    color: #0f172a !important;
+    font-weight: 800 !important;
+    font-size: 1.4rem !important;
+  }
+
+  .sg-report-health-progress-track {
+    background: #e2e8f0 !important;
+    height: 6px !important;
+  }
+
+  .sg-report-health-score-desc,
+  .sg-report-health-info-text {
+    color: #334155 !important;
+    font-size: 7.5pt !important;
+  }
+
+  /* Section 5: Regional Spatial Consistency */
+  .sg-report-spatial-verdict--ok {
+    background: #f0fdf4 !important;
+    border: 1pt solid #86efac !important;
+    color: #166534 !important;
+  }
+
+  .sg-report-spatial-verdict--dev {
+    background: #fffbeb !important;
+    border: 1pt solid #fde68a !important;
+    color: #92400e !important;
+  }
+
+  .sg-report-spatial-verdict-text {
+    color: #1e293b !important;
+    font-size: 7.5pt !important;
+  }
+
+  .sg-report-spatial-delta-title {
+    color: #475569 !important;
+    font-weight: 600 !important;
+  }
+
+  .sg-report-spatial-delta-val {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  /* Section 6: Operational Insights */
+  .sg-report-insights-text {
+    color: #334155 !important;
+    font-size: 7.5pt !important;
+    line-height: 1.4 !important;
+  }
+
+  /* ── 6. Publication Status Badges (High Contrast WCAG AAA) ── */
+  .sg-badge {
+    border-width: 1pt !important;
+    font-weight: 700 !important;
+    padding: 1.5pt 5pt !important;
+    font-size: 6.5pt !important;
+  }
+
+  .sg-badge--optimal {
+    background-color: #ecfdf5 !important;
+    border-color: #10b981 !important;
+    color: #065f46 !important;
+  }
+  .sg-badge--optimal .sg-badge__dot {
+    background-color: #059669 !important;
+  }
+
+  .sg-badge--critical {
+    background-color: #fef2f2 !important;
+    border-color: #ef4444 !important;
+    color: #991b1b !important;
+  }
+  .sg-badge--critical .sg-badge__dot {
+    background-color: #dc2626 !important;
+  }
+
+  .sg-badge--warning,
+  .sg-badge--degraded {
+    background-color: #fffbeb !important;
+    border-color: #f59e0b !important;
+    color: #92400e !important;
+  }
+  .sg-badge--warning .sg-badge__dot,
+  .sg-badge--degraded .sg-badge__dot {
+    background-color: #d97706 !important;
+  }
+
+  /* ── 7. Incident Records Log Table ── */
   .sg-report-table-wrapper {
     background: #ffffff !important;
     overflow: visible !important;
@@ -287,7 +569,7 @@
     border-collapse: collapse !important;
     width: 100% !important;
     page-break-inside: auto !important;
-    font-size: 8pt !important;
+    font-size: 7pt !important;
   }
 
   thead {
@@ -298,10 +580,11 @@
     background: #f1f5f9 !important;
     background-color: #f1f5f9 !important;
     color: #0f172a !important;
-    border-bottom: 1.5pt solid #94a3b8 !important;
-    font-size: 7.5pt !important;
+    border-bottom: 1.5pt solid #64748b !important;
+    font-size: 6.5pt !important;
     font-weight: 700 !important;
-    padding: 5pt 6pt !important;
+    padding: 3.5pt 5pt !important;
+    text-transform: uppercase !important;
   }
 
   .sg-report-table tbody td {
@@ -309,13 +592,13 @@
     background-color: #ffffff !important;
     color: #0f172a !important;
     border-bottom: 0.5pt solid #e2e8f0 !important;
-    font-size: 7.5pt !important;
-    padding: 4pt 6pt !important;
+    font-size: 6.5pt !important;
+    padding: 3pt 5pt !important;
   }
 
   .sg-report-type-cell {
     color: #0f172a !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
   }
 
   .sg-report-cause-cell {
@@ -327,31 +610,7 @@
     break-inside: avoid !important;
   }
 
-  .sg-report-dist-track,
-  .sg-report-health-progress-track {
-    background: #e2e8f0 !important;
-  }
-
-  .sg-report-spatial-verdict--ok {
-    background: #f0fdf4 !important;
-    border: 1pt solid #86efac !important;
-    color: #166534 !important;
-  }
-
-  .sg-report-spatial-verdict--dev {
-    background: #fffbeb !important;
-    border: 1pt solid #fde68a !important;
-    color: #92400e !important;
-  }
-
-  .sg-report-svg line {
-    stroke: #cbd5e1 !important;
-  }
-
-  .sg-report-axis-text {
-    fill: #475569 !important;
-  }
-
+  /* ── 8. Official Certification & Sign-off Block ── */
   .sg-report-certification {
     background: #f8fafc !important;
     background-color: #f8fafc !important;
@@ -359,8 +618,8 @@
     color: #0f172a !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    margin-top: 14pt !important;
-    padding: 10pt 12pt !important;
+    margin-top: 10pt !important;
+    padding: 8pt 10pt !important;
     border-radius: 4pt !important;
   }
 
@@ -370,7 +629,7 @@
 
   .sg-report-certification__header {
     border-bottom: 1pt solid #cbd5e1 !important;
-    padding-bottom: 4pt !important;
+    padding-bottom: 3pt !important;
   }
 
   .sg-report-certification__badge {
@@ -378,16 +637,43 @@
     background-color: #0f172a !important;
     color: #ffffff !important;
     border: none !important;
-    padding: 2pt 6pt !important;
+    padding: 2pt 5pt !important;
+    font-size: 6.5pt !important;
+    font-weight: 700 !important;
+  }
+
+  .sg-report-certification__classification {
+    color: #475569 !important;
     font-size: 7pt !important;
+    font-weight: 700 !important;
   }
 
   .sg-report-certification__statement {
     color: #334155 !important;
-    font-size: 8pt !important;
+    font-size: 7.5pt !important;
+    line-height: 1.35 !important;
+  }
+
+  .sg-report-certification__label {
+    color: #475569 !important;
+    font-size: 6.5pt !important;
+    font-weight: 700 !important;
+  }
+
+  .sg-report-certification__val {
+    color: #0f172a !important;
+    font-size: 7.5pt !important;
+    font-weight: 700 !important;
   }
 
   .sg-report-certification__sig-line {
     border-bottom: 1pt solid #0f172a !important;
+    height: 24px !important;
+  }
+
+  .sg-report-certification__sub {
+    color: #64748b !important;
+    font-size: 6.5pt !important;
   }
 }
+
