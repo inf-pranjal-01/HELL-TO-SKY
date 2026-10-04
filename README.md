@@ -11,7 +11,7 @@
 [![Google Cloud](https://img.shields.io/badge/GCP-Cloud%20Run%20Ready-4285F4.svg?logo=googlecloud&logoColor=white)](https://cloud.google.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**[🌐 Live Demo Dashboard (HTTPS Secure)](https://34-93-226-151.sslip.io)** • **[⚡ Backend API Docs](https://34-93-226-151.sslip.io/docs)** • **[📊 Fast Benchmark Engine](evaluation/fast_benchmark.py)**
+**[🌐 Live Demo Dashboard (HTTPS Secure)](https://35-200-179-39.sslip.io)** • **[⚡ Backend API Docs](https://35-200-179-39.sslip.io/docs)** • **[📊 Fast Benchmark Engine](evaluation/fast_benchmark.py)**
 
 ---
 
@@ -257,9 +257,9 @@ pm2 start "./venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000" --
 sudo systemctl restart nginx
 ```
 
-- **Live Production Dashboard (HTTPS):** [https://34-93-226-151.sslip.io](https://34-93-226-151.sslip.io)
-- **Live Interactive API Docs (Swagger):** [https://34-93-226-151.sslip.io/docs](https://34-93-226-151.sslip.io/docs)
-- **Live Station Health Telemetry:** [https://34-93-226-151.sslip.io/api/stations](https://34-93-226-151.sslip.io/api/stations)
+- **Live Production Dashboard (HTTPS):** [https://35-200-179-39.sslip.io](https://35-200-179-39.sslip.io)
+- **Live Interactive API Docs (Swagger):** [https://35-200-179-39.sslip.io/docs](https://35-200-179-39.sslip.io/docs)
+- **Live Station Health Telemetry:** [https://35-200-179-39.sslip.io/api/stations](https://35-200-179-39.sslip.io/api/stations)
 
 ---
 

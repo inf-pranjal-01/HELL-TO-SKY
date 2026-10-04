@@ -89,7 +89,7 @@ export const API_CONFIG: ApiConfig = {
   // Mode switch: 'mock' or 'real' (FastAPI backend)
   mode: resolvedMode,
   
-  // Base URL for backend requests (auto-resolves to http://34.93.226.151:8000)
+  // Base URL for backend requests (auto-resolves to http://35.200.179.39:8000)
   baseUrl: resolvedBaseUrl,
 
   // WebSocket Live Push URL
