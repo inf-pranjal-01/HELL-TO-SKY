@@ -714,13 +714,30 @@ def score_reading(
         }
 
     # ── TIER 3: Cross-Channel 3D Mahalanobis & Spatial Contrast ──────────
-    # Pure peer-driven microclimate adaptation: compute spatial contrast against regional peer cluster
+    # Local temporal innovation Mahalanobis distance
+    d_sq_temporal, p_val_temporal, cc_diag_temporal = CrossChannelEngine.compute_mahalanobis_distance(
+        z_scores["temperature_c"], z_scores["pressure_hpa"], z_scores["humidity_pct"]
+    )
+    is_hard_phys, phys_reason = CrossChannelEngine.check_physical_invariants(
+        raw_reading.get("temperature_c"), raw_reading.get("pressure_hpa"), raw_reading.get("humidity_pct")
+    )
+    has_sufficient_history = (
+        not history_df.empty
+        and len(history_df[pd.to_datetime(history_df["timestamp"], utc=True) < current_time]) >= 3
+        if "timestamp" in history_df.columns
+        else len(history_df) >= 3
+    )
+
     peer_z = {}
+    peer_medians = {}
+    peer_dispersions = {}
     eligible_peer_count = 0
     for p in PARAMS:
         p_med, p_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(
             station_id, p, current_time, neighbor_buffers or {}, target_reading=raw_reading
         )
+        peer_medians[p] = p_med
+        peer_dispersions[p] = p_disp
         if p_med is not None and not pd.isna(p_med) and n_p >= 2:
             spatial_diff = float(raw_reading[p]) - float(p_med)
             spatial_sigma = math.sqrt((uncertainties[p] ** 2) + ((p_disp or 0.5) ** 2))
@@ -729,30 +746,58 @@ def score_reading(
         else:
             peer_z[p] = z_scores[p]
 
+    is_dewpoint_violation = False
+    z_td = 0.0
+    if (
+        eligible_peer_count >= 2
+        and peer_medians.get("temperature_c") is not None
+        and peer_medians.get("humidity_pct") is not None
+        and not pd.isna(peer_medians["temperature_c"])
+        and not pd.isna(peer_medians["humidity_pct"])
+        and raw_reading.get("temperature_c") is not None
+        and raw_reading.get("humidity_pct") is not None
+        and not pd.isna(raw_reading["temperature_c"])
+        and not pd.isna(raw_reading["humidity_pct"])
+    ):
+        z_td, p_dew = CrossChannelEngine.compute_dewpoint_divergence_z(
+            target_t=float(raw_reading["temperature_c"]),
+            target_rh=float(raw_reading["humidity_pct"]),
+            peer_t=float(peer_medians["temperature_c"]),
+            peer_rh=float(peer_medians["humidity_pct"]),
+            target_sigma_t=uncertainties["temperature_c"],
+            target_sigma_rh=uncertainties["humidity_pct"],
+            peer_sigma_t=peer_dispersions.get("temperature_c") or 0.5,
+            peer_sigma_rh=peer_dispersions.get("humidity_pct") or 2.0
+        )
+        # Statistically significant psychrometric departure at alpha = 0.01 (|z| > 2.58)
+        is_dewpoint_violation = abs(z_td) > 2.58
+
     if eligible_peer_count >= 2:
         # Spatial peer-subtracted Mahalanobis: captures true isolated transducer divergence
         d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
             peer_z["temperature_c"], peer_z["pressure_hpa"], peer_z["humidity_pct"]
         )
-        is_multivariate = cc_diag["is_multivariate_outlier"]
+        # Sibling microclimate principle:
+        # Topography & coastal differences cause persistent spatial offsets, but
+        # a genuine physical sensor failure requires:
+        # 1. Hard physical boundary violation, OR
+        # 2. Local temporal innovation dislocation corroborated by spatial peer divergence or psychrometric breakdown
+        is_multivariate = is_hard_phys or (
+            has_sufficient_history and cc_diag_temporal["is_multivariate_outlier"] and (
+                cc_diag["is_multivariate_outlier"] or is_dewpoint_violation
+            )
+        )
     else:
         # Isolated station fallback: evaluate local temporal innovation with strict physical invariants
-        d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
-            z_scores["temperature_c"], z_scores["pressure_hpa"], z_scores["humidity_pct"]
-        )
-        is_hard_phys, _ = CrossChannelEngine.check_physical_invariants(
-            raw_reading.get("temperature_c"), raw_reading.get("pressure_hpa"), raw_reading.get("humidity_pct")
-        )
-        has_sufficient_history = (
-            not history_df.empty
-            and len(history_df[pd.to_datetime(history_df["timestamp"], utc=True) < current_time]) >= 3
-            if "timestamp" in history_df.columns
-            else len(history_df) >= 3
-        )
+        d_sq, p_val, cc_diag = d_sq_temporal, p_val_temporal, cc_diag_temporal
         is_multivariate = is_hard_phys or (has_sufficient_history and cc_diag["is_multivariate_outlier"])
 
     if is_multivariate:
         implicated = ["temperature_c", "humidity_pct"]
+        rule_reason = phys_reason if is_hard_phys else (
+            f"3D Mahalanobis D^2={d_sq:.2f} (p={p_val:.4e}) with "
+            + (f"psychrometric dewpoint divergence z={z_td:.2f}" if is_dewpoint_violation else f"temporal dislocation D^2_t={d_sq_temporal:.2f}")
+        )
         return {
             "is_anomaly": True,
             "fault_type": "multivariate_inconsistency",
@@ -761,13 +806,15 @@ def score_reading(
             "decision_basis": "TIER_3_MAHALANOBIS_CROSS_CHANNEL",
             "likely_faulty_sensors": implicated,
             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
-            "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "joint", "confidence": 90.0, "reason": f"3D Spatial Mahalanobis distance D^2={d_sq:.2f} exceeded critical threshold (p={p_val:.4e})"}],
+            "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "joint", "confidence": 90.0, "reason": rule_reason}],
             "regime": regime,
             "sprt_updates": sprt_updates,
             "evaluation_diagnostics": {
                 "tier": 3,
                 "d_squared": d_sq,
+                "d_squared_temporal": d_sq_temporal,
                 "p_value": p_val,
+                "z_dewpoint": z_td if eligible_peer_count >= 2 else None,
                 "eligible_peers": eligible_peer_count
             }
         }

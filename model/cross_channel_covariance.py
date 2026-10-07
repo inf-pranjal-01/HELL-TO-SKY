@@ -1,4 +1,4 @@
-"""
+r"""
 model/cross_channel_covariance.py
 
 Path 2 — Cross-Channel Thermodynamic Consistency & 3D Covariance Engine.
@@ -78,6 +78,71 @@ class CrossChannelEngine:
         return False, None
 
     @classmethod
+    def compute_dewpoint_variance(
+        cls,
+        temp_c: float,
+        humidity_pct: float,
+        sigma_t: float,
+        sigma_rh: float
+    ) -> float:
+        """
+        Computes dynamic dewpoint variance via First-Order Delta Method (Taylor expansion).
+        sigma_{Td}^2 = (d Td / d T)^2 * sigma_T^2 + (d Td / d RH)^2 * sigma_RH^2
+        Zero arbitrary magic numbers -- derived directly from Magnus-Tetens analytical partial derivatives.
+        """
+        if pd.isna(temp_c) or pd.isna(humidity_pct):
+            return float("nan")
+        t = float(temp_c)
+        rh = max(0.01, min(100.0, float(humidity_pct)))
+        a, b = 17.67, 243.5
+        
+        gamma = (a * t) / (b + t) + math.log(rh / 100.0)
+        denom = a - gamma
+        if abs(denom) < 1e-4:
+            return float(sigma_t ** 2)
+            
+        d_td_d_gamma = (a * b) / (denom ** 2)
+        d_gamma_d_t = (a * b) / ((b + t) ** 2)
+        d_gamma_d_rh = 1.0 / rh
+        
+        d_td_d_t = d_td_d_gamma * d_gamma_d_t
+        d_td_d_rh = d_td_d_gamma * d_gamma_d_rh
+        
+        var_td = (d_td_d_t * sigma_t) ** 2 + (d_td_d_rh * sigma_rh) ** 2
+        return float(max(1e-6, var_td))
+
+    @classmethod
+    def compute_dewpoint_divergence_z(
+        cls,
+        target_t: float,
+        target_rh: float,
+        peer_t: float,
+        peer_rh: float,
+        target_sigma_t: float,
+        target_sigma_rh: float,
+        peer_sigma_t: float,
+        peer_sigma_rh: float
+    ) -> Tuple[float, float]:
+        """
+        Computes standardized dewpoint discrepancy z_Td between target station and regional peers.
+        z_Td follows N(0, 1) under H_0 (shared ambient air mass in thermodynamic equilibrium).
+        Returns: (z_td, p_value)
+        """
+        td_target = compute_dewpoint_c(target_t, target_rh)
+        td_peer = compute_dewpoint_c(peer_t, peer_rh)
+        if pd.isna(td_target) or pd.isna(td_peer):
+            return 0.0, 1.0
+            
+        var_target = cls.compute_dewpoint_variance(target_t, target_rh, target_sigma_t, target_sigma_rh)
+        var_peer = cls.compute_dewpoint_variance(peer_t, peer_rh, peer_sigma_t, peer_sigma_rh)
+        sigma_diff = math.sqrt(max(1e-6, var_target + var_peer))
+        
+        z_td = (td_target - td_peer) / max(1e-4, sigma_diff)
+        # Two-tailed normal tail probability
+        p_val = math.erfc(abs(z_td) / math.sqrt(2.0))
+        return float(z_td), float(p_val)
+
+    @classmethod
     def compute_mahalanobis_distance(
         cls,
         temp_z: float,
@@ -85,7 +150,7 @@ class CrossChannelEngine:
         humidity_z: float,
         cov_matrix: Optional[np.ndarray] = None
     ) -> Tuple[float, float, Dict[str, any]]:
-        """
+        r"""
         Computes 3D Mahalanobis distance D_\Sigma^2 = z^T \Sigma^{-1} z.
         D_\Sigma^2 follows \chi_3^2 distribution under H_0 (clean atmospheric coupling).
         Returns: (d_squared, p_value, diagnostics)
