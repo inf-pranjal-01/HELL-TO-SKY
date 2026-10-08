@@ -229,6 +229,8 @@ export interface RecentAnomalyItem {
   decision_basis?: string;
   /** ML model availability status per audit §8.2 */
   model_status?: string;
+  model_confidence_pct?: number | null;
+  rule_confidence_pct?: number | null;
   edge_inference?: EdgeInference | null;
   source?: 'live' | 'replay' | 'edge' | string;
 }

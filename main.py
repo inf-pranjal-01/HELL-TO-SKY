@@ -1666,6 +1666,16 @@ def get_explanation(anomaly_id: str):
         except Exception as e:
             logger.warning(f"Fallback model evaluation failed for {anomaly_id}: {e}")
 
+    rule_conf = match.get("rule_confidence_pct")
+    if rule_conf is None:
+        rules = match.get("rules_fired") or []
+        confs = [r.get("confidence") for r in rules if isinstance(r, dict) and r.get("confidence") is not None]
+        if confs:
+            rule_conf = float(max(confs))
+        elif match.get("anomaly_score_pct") is not None and (rules or match.get("type")):
+            rule_conf = float(match["anomaly_score_pct"])
+        match["rule_confidence_pct"] = rule_conf
+
     spatial_ctx = _compute_spatial_context(sim, match)
     features = _compute_explanation_features(match, spatial_ctx)
     structured_conclusion = _generate_operator_conclusion(match, spatial_ctx, features)

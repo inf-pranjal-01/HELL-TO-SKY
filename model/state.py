@@ -463,6 +463,15 @@ class StateManager:
             except Exception:
                 pass
 
+        # Populate rule_confidence_pct if rules fired and not explicitly set
+        if verdict.get("is_anomaly") and verdict.get("rule_confidence_pct") is None:
+            rules = verdict.get("rules_fired") or []
+            confs = [r.get("confidence") for r in rules if isinstance(r, dict) and r.get("confidence") is not None]
+            if confs:
+                verdict["rule_confidence_pct"] = float(max(confs))
+            elif verdict.get("anomaly_score_pct") is not None and (rules or verdict.get("fault_type")):
+                verdict["rule_confidence_pct"] = float(verdict["anomaly_score_pct"])
+
         # A spike can only be proved after the following reading
         # returns to baseline.  Count that confirmed, prior event for
         # the repeated-fault health policy, while keeping THIS normal

@@ -231,7 +231,21 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
               </div>
               <div>
                 <span>Rule evidence · 40% weight</span>
-                <strong>{explanation?.rule_confidence_pct == null ? 'n.a.' : `${Math.round(explanation.rule_confidence_pct)}%`}</strong>
+                <strong>
+                  {(() => {
+                    const rc = explanation?.rule_confidence_pct ?? selected?.rule_confidence_pct;
+                    if (rc != null) return `${Math.round(rc)}% evidence strength`;
+                    const fallback = explanation?.anomaly_score_pct ?? selected?.anomaly_score_pct;
+                    if (fallback != null && (
+                      explanation?.decision_basis?.includes('RULE') || 
+                      selected?.decision_basis?.includes('RULE') || 
+                      explanation?.decision_basis?.includes('PHYSICS')
+                    )) {
+                      return `${Math.round(fallback)}% evidence strength`;
+                    }
+                    return 'n.a.';
+                  })()}
+                </strong>
               </div>
               {(explanation?.decision_basis || selected?.decision_basis) && (
                 <div style={{ gridColumn: '1/-1' }}>
