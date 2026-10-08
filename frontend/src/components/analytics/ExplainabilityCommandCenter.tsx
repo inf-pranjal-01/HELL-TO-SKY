@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BrainCircuit, CheckCircle2, ChevronRight, ExternalLink, Gauge, ShieldAlert, Sparkles, Zap } from 'lucide-react';
+import { Activity, BrainCircuit, CheckCircle2, ChevronRight, ExternalLink, Gauge, ShieldAlert, Sparkles, Wrench, Zap } from 'lucide-react';
 import { RecentAnomalyItem, AnomalyExplanation } from '../../types';
 import { anomalyService } from '../../services/anomalyService';
 import { Card } from '../common/Card';
@@ -19,6 +19,9 @@ export interface ExplainabilityCommandCenterProps {
 
 const displayParameter = (value: string) => {
   const lower = value.toLowerCase();
+  if (lower.includes('coupled transducer inconsistency')) {
+    return 'Coupled Transducer Inconsistency (Thermodynamic Envelope)';
+  }
   if (lower.includes('cross-channel cluster divergence') || lower.includes('cross channel cluster divergence')) {
     return 'Cross-Channel Cluster Divergence (3D Mahalanobis)';
   }
@@ -413,8 +416,8 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                       )}
 
                       <div className="sg-spatial-peers">
-                        <div className="sg-spatial-peer is-target">
-                          <span className="sg-spatial-peer__label">{spatial.target_station.name} (Target)</span>
+                        <div className={`sg-spatial-peer is-target ${isMinimalSpatial ? 'is-agreed' : 'is-divergent'}`}>
+                          <span className="sg-spatial-peer__label">{spatial.target_station.name} (Target{isMinimalSpatial ? ' - Agreed' : ' - Divergent'})</span>
                           <span className="sg-spatial-peer__value">
                             {spatial.target_station.reading}{spatial.target_station.unit.startsWith('°') ? spatial.target_station.unit : ` ${spatial.target_station.unit}`}
                           </span>
@@ -485,6 +488,43 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
             <section>
               <h4><ChevronRight size={15} /> Operator-ready conclusion</h4>
               {(() => {
+                const structured = explanation?.structured_conclusion;
+                if (structured) {
+                  return (
+                    <div className="sg-conclusion-box">
+                      <div className="sg-conclusion-header">
+                        <span className="sg-conclusion-badge">PHYSICAL DIAGNOSIS</span>
+                        <h5 className="sg-conclusion-title">{structured.title}</h5>
+                      </div>
+                      <p className="sg-conclusion-diagnosis">{structured.diagnosis}</p>
+
+                      <div className="sg-conclusion-actions">
+                        <div className="sg-conclusion-action-card technician">
+                          <div className="sg-conclusion-action-header">
+                            <Wrench size={14} />
+                            <strong>Field Technician Checklist</strong>
+                          </div>
+                          <div className="sg-conclusion-action-body">
+                            {structured.technician_action.split('\n').map((line, idx) => (
+                              <p key={idx}>{line}</p>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="sg-conclusion-action-card pipeline">
+                          <div className="sg-conclusion-action-header">
+                            <Activity size={14} />
+                            <strong>Data Pipeline &amp; Assimilation Action</strong>
+                          </div>
+                          <div className="sg-conclusion-action-body">
+                            <p>{structured.pipeline_action}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const isMultivariate = selected?.type === 'multivariate_inconsistency' || explanation?.fault_type === 'multivariate_inconsistency';
                 const thermo = explanation?.spatial_context?.thermodynamic_context;
 
@@ -511,11 +551,13 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
                 );
               })()}
 
-              {observed.length > 0 && <p><strong>Observed:</strong> {formatSuggestedList(observed)}</p>}
+              {observed.length > 0 && <p style={{ marginTop: '0.6rem' }}><strong>Observed:</strong> {formatSuggestedList(observed)}</p>}
               <SuggestedValues items={suggested} emptyLabel="Suggested replacement becomes available after the baseline warm-up." />
-              <p className="sg-explain-card__action">
-                <CheckCircle2 size={15} /> Suggested action: Keep raw telemetry visible; use the suggested reconstructed values for downstream meteorological pipelines while investigating.
-              </p>
+              {!explanation?.structured_conclusion && (
+                <p className="sg-explain-card__action">
+                  <CheckCircle2 size={15} /> Suggested action: Keep raw telemetry visible; use the suggested reconstructed values for downstream meteorological pipelines while investigating.
+                </p>
+              )}
             </section>
           </div>
         </>

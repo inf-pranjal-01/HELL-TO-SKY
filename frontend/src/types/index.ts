@@ -275,6 +275,13 @@ export interface SpatialContext {
   thermodynamic_context?: ThermodynamicContext | null;
 }
 
+export interface OperatorConclusion {
+  title: string;
+  diagnosis: string;
+  technician_action: string;
+  pipeline_action: string;
+}
+
 export interface AnomalyExplanation {
   anomaly_id: string;
   station_id?: string;
@@ -295,6 +302,7 @@ export interface AnomalyExplanation {
   model_status?: string;
   spatial_context?: SpatialContext;
   edge_inference?: EdgeInference | null;
+  structured_conclusion?: OperatorConclusion;
 }
 
 /**

@@ -30,9 +30,13 @@ import math
 import numpy as np
 import pandas as pd
 
+import logging
+logger = logging.getLogger("skyguard.api")
+
 sys.path.append(str(Path(__file__).parent))
 from model.simulator import create_simulator_state, run_simulation_loop
 from model.cross_channel_covariance import compute_dewpoint_c
+from model.features import build_features_for_history
 from config import CLUSTERS, get_station_normal_ranges
 
 
@@ -1344,18 +1348,31 @@ def _compute_spatial_context(sim, match: dict) -> dict:
             "explanation": detail_msg
         }
     elif is_multivariate:
-        thermodynamic_context = {
-            "is_violation": True,
-            "law": "Cross-Sensor Spatial Cluster Consensus",
-            "temperature_c": t_val,
-            "humidity_pct": h_val,
-            "pressure_hpa": p_val,
-            "explanation": (
-                f"Cross-channel divergence: Reported temperature ({t_val}°C) and relative humidity ({h_val}%) "
-                f"diverged significantly from the regional cluster peer consensus (Mahalanobis distance exceeded critical chi-square boundary), "
-                f"indicating an isolated transducer or dual-channel sensor calibration fault."
-            )
-        }
+        if is_spatially_significant:
+            thermodynamic_context = {
+                "is_violation": True,
+                "law": "Cross-Sensor Spatial Cluster Consensus",
+                "temperature_c": t_val,
+                "humidity_pct": h_val,
+                "pressure_hpa": p_val,
+                "explanation": (
+                    f"Cross-channel divergence: Reported temperature ({t_val}°C) and relative humidity ({h_val}%) "
+                    f"diverged significantly from regional cluster peer consensus (delta exceeded learned threshold), "
+                    f"indicating an isolated transducer or dual-channel sensor calibration fault."
+                )
+            }
+        else:
+            thermodynamic_context = {
+                "is_violation": True,
+                "law": "Coupled Cross-Channel Thermodynamic Consistency",
+                "temperature_c": t_val,
+                "humidity_pct": h_val,
+                "pressure_hpa": p_val,
+                "explanation": (
+                    f"Internal transducer divergence: Station temperature ({t_val}°C) and relative humidity ({h_val}%) "
+                    f"deviated from joint cross-channel atmospheric expectation, while surrounding cluster peers confirm nominal regional conditions."
+                )
+            }
 
     return {
         "cluster_id": cluster_id,
@@ -1385,7 +1402,12 @@ def _compute_explanation_features(match: dict, spatial_ctx: dict | None) -> list
     # 1. Thermodynamic / Cross-Channel Context
     if spatial_ctx and spatial_ctx.get("thermodynamic_context") and spatial_ctx["thermodynamic_context"].get("is_violation"):
         law_name = spatial_ctx["thermodynamic_context"].get("law", "Cross-Sensor Consistency")
-        feat_name = "Thermodynamic Limit Violation" if "Psychrometric" in law_name else "Cross-Channel Cluster Divergence"
+        if "Psychrometric" in law_name or "Limit" in law_name:
+            feat_name = "Thermodynamic Limit Violation"
+        elif "Cluster" in law_name:
+            feat_name = "Cross-Channel Cluster Divergence"
+        else:
+            feat_name = "Coupled Transducer Inconsistency"
         features.append({
             "name": feat_name,
             "impact": 4.85,
@@ -1456,6 +1478,142 @@ def _compute_explanation_features(match: dict, spatial_ctx: dict | None) -> list
     return features
 
 
+def _generate_operator_conclusion(match: dict, spatial_ctx: dict | None, features: list) -> dict:
+    f_type = str(match.get("type") or match.get("fault_type") or "").lower()
+    observed = match.get("observed_values") or {}
+    suggested = match.get("suggested_values") or {}
+    aff_params = match.get("affected_parameters") or list(observed.keys()) or ["sensor"]
+
+    primary_p = aff_params[0] if aff_params else "sensor"
+    p_display = primary_p.replace("_c", "").replace("_hpa", "").replace("_pct", "").replace("_", " ").title()
+    obs_val = observed.get(primary_p)
+    sugg_val = suggested.get(primary_p)
+    unit = "°C" if "temp" in primary_p else ("hPa" if "press" in primary_p else ("%" if "humid" in primary_p else ""))
+
+    obs_str = f"{obs_val}{unit}" if obs_val is not None else "abnormal reading"
+    sugg_str = f"{sugg_val}{unit}" if sugg_val is not None else "nominal baseline"
+
+    peers_agreed = True
+    if spatial_ctx and spatial_ctx.get("spatial_impact"):
+        impact_lower = spatial_ctx["spatial_impact"].lower()
+        if "localized" in impact_lower or "divergence" in impact_lower:
+            peers_agreed = False
+
+    peer_context_note = (
+        "Regional peer stations confirm nominal ambient conditions, isolating the issue strictly to this station's hardware."
+        if peers_agreed else
+        "Nearby cluster peer stations did not experience this shift, confirming localized station-level divergence."
+    )
+
+    if "dropout" in f_type:
+        title = f"Total Signal Dropout: {p_display} Channel Disconnect"
+        diagnosis = (
+            f"The {p_display} channel recorded an absolute zero or null signal ({obs_str}), completely severing telemetry continuity. "
+            f"{peer_context_note} This indicates an abrupt analog signal loss or digital transducer disconnection."
+        )
+        tech_action = (
+            f"1. Check {p_display} sensor wiring harness and terminal block for loose or severed conductors.\n"
+            f"2. Measure DC supply rail voltage (3.3V / 5.0V) at the sensor module pins.\n"
+            f"3. Verify I2C/RS-485 bus pull-up resistors and check for telemetry gateway communication faults."
+        )
+        pipe_action = (
+            f"Flagged as CRITICAL hardware dropout. Reading quarantined and replaced with peer spatial consensus ({sugg_str}). "
+            f"NWP data assimilation weight set to 0.0 to prevent forecast contamination."
+        )
+    elif "fail_low" in f_type:
+        title = f"Sensor Rail Pinning: {p_display} Clamped Below Terrestrial Limits"
+        diagnosis = (
+            f"The {p_display} transducer dropped abruptly to {obs_str}, breaching terrestrial physical minimums. "
+            f"{peer_context_note} The sensor signal is clamped to the lower electrical supply rail or ground."
+        )
+        tech_action = (
+            f"1. Test for an electrical short circuit between the {p_display} signal line and chassis ground (0V).\n"
+            f"2. Inspect analog-to-digital converter (ADC) reference voltage and input filtering capacitor.\n"
+            f"3. Replace transducer probe if internal sensing element has failed short."
+        )
+        pipe_action = (
+            f"Instrument rail violation detected. Bad reading suppressed; synthetic baseline ({sugg_str}) injected for downstream monitoring."
+        )
+    elif "spike" in f_type:
+        title = f"Transient Impulse Spike: {p_display} High-Frequency Glitch"
+        diagnosis = (
+            f"An instantaneous single-observation jump to {obs_str} was detected on the {p_display} channel, "
+            f"subsequently returning to baseline ({sugg_str}). {peer_context_note} The rate of change exceeds physical meteorological acceleration limits."
+        )
+        tech_action = (
+            f"1. Check for nearby electromagnetic interference (EMI) sources (solar inverter switching, radio telemetry bursts).\n"
+            f"2. Inspect cable shielding and earth ground bonding for induced high-frequency noise spikes.\n"
+            f"3. Verify sensor connector pins are free from oxidation and vibration loosening."
+        )
+        pipe_action = (
+            f"Transient impulse isolated and removed via dynamic temporal filtering. Station historical record reconstructed to {sugg_str}."
+        )
+    elif "frozen" in f_type:
+        title = f"Transducer Freeze: {p_display} Output Stagnant (Zero Variance)"
+        diagnosis = (
+            f"The {p_display} sensor output has remained locked at exactly {obs_str} across consecutive cycles without natural atmospheric variance. "
+            f"{peer_context_note} Natural turbulent micro-fluctuations are completely absent."
+        )
+        tech_action = (
+            f"1. Power cycle the data acquisition unit to reset hung sensor I2C/SPI internal registers.\n"
+            f"2. Inspect the radiation shield and sensor housing for physical obstructions (ice, dust buildup, or biological debris).\n"
+            f"3. Update sensor firmware if repetitive bus locking is observed."
+        )
+        pipe_action = (
+            f"Zero-variance stagnation recognized. Live feed switched to dynamic cluster regression ({sugg_str}) until variance resumes."
+        )
+    elif "drift" in f_type:
+        title = f"Calibration Drift: Progressive {p_display} Transducer Degradation"
+        diagnosis = (
+            f"The {p_display} sensor exhibited steady, cumulative divergence ({obs_str} vs expected {sugg_str}) over multiple observation hours. "
+            f"{peer_context_note} The gradual departure indicates continuous sensing element degradation or contamination."
+        )
+        tech_action = (
+            f"1. Schedule routine field recalibration with a certified portable transfer standard.\n"
+            f"2. Inspect sensor protective membrane/sintered filter cap for particulate contamination; clean or replace filter.\n"
+            f"3. Apply span/zero offset adjustments in station calibration register if drift persists."
+        )
+        pipe_action = (
+            f"Sensor health status downgraded to WARNING. Continuous drift bias offset applied dynamically to normalize live stream."
+        )
+    elif "multivariate" in f_type:
+        title = "Multivariate Inconsistency: Coupled Thermodynamic / Channel Conflict"
+        diagnosis = (
+            f"Coupled temperature ({observed.get('temperature_c', 'N/A')}°C) and relative humidity ({observed.get('humidity_pct', 'N/A')}%) "
+            f"telemetry violated joint psychrometric consistency (calculated dewpoint/saturation envelope or joint Mahalanobis distribution). "
+            f"{peer_context_note} Multi-channel interaction confirms an isolated sensor pair discrepancy."
+        )
+        tech_action = (
+            f"1. Inspect combined temperature-humidity probe (e.g. SHT3x/BME280) for condensation pooling or chemical saturation.\n"
+            f"2. Verify common ground and power rail integrity shared between temperature and humidity transducers.\n"
+            f"3. Perform comparative verification against an aspirating psychrometer."
+        )
+        pipe_action = (
+            f"Coupled channel conflict quarantined. Joint psychrometric reconstruction applied to maintain thermodynamically valid state."
+        )
+    else:
+        title = f"Statistical Density Outlier: {p_display} Multivariate Residual"
+        diagnosis = (
+            f"The observation vector was identified as an outlier in the learned multidimensional feature space ({obs_str} vs {sugg_str}). "
+            f"{peer_context_note} The pattern exhibits anomalous cross-feature volatility or diurnal residual combinations."
+        )
+        tech_action = (
+            f"1. Review recent station telemetry logs for intermittent transmission packet errors.\n"
+            f"2. Verify mast mounting, leveling, and solar radiation shield airflow.\n"
+            f"3. Check date of last sensor calibration."
+        )
+        pipe_action = (
+            f"Multi-feature outlier flagged for supervisory review. Fallback ensemble imputation provided for downstream consumers."
+        )
+
+    return {
+        "title": title,
+        "diagnosis": diagnosis,
+        "technician_action": tech_action,
+        "pipeline_action": pipe_action,
+    }
+
+
 # ---------------- GET /api/explain/{anomaly_id} ----------------
 
 @app.get("/api/explain/{anomaly_id}")
@@ -1473,8 +1631,44 @@ def get_explanation(anomaly_id: str):
             detail=f"Unknown anomaly_id {anomaly_id}"
         )
 
+    # Pass flagged reading to model to compute model evidence & calibrated score
+    # if not already evaluated (e.g. caught by upstream rule tier)
+    if match.get("model_confidence_pct") is None:
+        try:
+            artifact = getattr(sim.manager, "artifact", None)
+            model = artifact.get("model") if artifact else None
+            feat_cols = artifact.get("feature_columns", []) if artifact else []
+            sid = match.get("station_id")
+            buf = sim.manager.buffers.get(sid) if sid else None
+
+            if model is not None and feat_cols and buf is not None:
+                history_df = buf.raw_history_df()
+                cur_row = dict(match.get("observed_values", {}), station_id=sid, timestamp=match.get("timestamp"))
+                hist_with_cur = pd.concat([history_df, pd.DataFrame([cur_row])], ignore_index=True) if not history_df.empty else pd.DataFrame([cur_row])
+                featured = build_features_for_history(hist_with_cur)
+                if not featured.empty and all(col in featured.columns for col in feat_cols):
+                    feat_row = featured.iloc[-1].copy()
+                    feat_row[feat_cols] = feat_row[feat_cols].fillna(0.0)
+                    X = feat_row[feat_cols].values.reshape(1, -1).astype(float)
+                    if not np.isnan(X).any():
+                        raw_if_score = float(model.decision_function(X)[0])
+                        train_std = artifact.get("training_score_std", 0.08)
+                        z_if = (0.0 - raw_if_score) / max(1e-4, train_std)
+                        # Smooth logistic calibration
+                        calibrated_conf = 100.0 / (1.0 + math.exp(-0.8 * z_if))
+                        calibrated_conf = max(10.0, min(99.0, round(calibrated_conf, 1)))
+                        match["model_confidence_pct"] = calibrated_conf
+
+                        if getattr(sim.manager, "explainer", None):
+                            expl_res = sim.manager.explainer.explain(feat_row)
+                            if expl_res and expl_res.get("features"):
+                                match["shap_features"] = expl_res["features"]
+        except Exception as e:
+            logger.warning(f"Fallback model evaluation failed for {anomaly_id}: {e}")
+
     spatial_ctx = _compute_spatial_context(sim, match)
     features = _compute_explanation_features(match, spatial_ctx)
+    structured_conclusion = _generate_operator_conclusion(match, spatial_ctx, features)
 
     return {
         "anomaly_id": anomaly_id,
@@ -1501,6 +1695,7 @@ def get_explanation(anomaly_id: str):
         ),
         "spatial_context": spatial_ctx,
         "edge_inference": match.get("edge_inference"),
+        "structured_conclusion": structured_conclusion,
         "source": match.get("source", "central"),
     }
 

@@ -136,6 +136,8 @@ from collections import deque
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
 
+import math
+import numpy as np
 import pandas as pd
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -436,6 +438,31 @@ class StateManager:
             precomputed_history_featured=featured_history,
             include_evaluation_diagnostics=include_evaluation_diagnostics,
         )
+        # If reading is flagged an anomaly by any rule tier, evaluate Isolation Forest
+        # so frontend Decision X-Ray has authentic model confidence & feature evidence
+        if verdict.get("is_anomaly") and verdict.get("model_confidence_pct") is None:
+            try:
+                model = self.artifact.get("model") if self.artifact else None
+                feat_cols = self.artifact.get("feature_columns", []) if self.artifact else []
+                if model is not None and feat_cols and not featured_history.empty:
+                    feat_row = featured_history.iloc[-1].copy()
+                    if all(c in feat_row.index for c in feat_cols):
+                        feat_row[feat_cols] = feat_row[feat_cols].fillna(0.0)
+                        X = feat_row[feat_cols].values.reshape(1, -1).astype(float)
+                        if not np.isnan(X).any():
+                            raw_if_score = float(model.decision_function(X)[0])
+                            train_std = self.artifact.get("training_score_std", 0.08)
+                            z_if = (0.0 - raw_if_score) / max(1e-4, train_std)
+                            calibrated_conf = 100.0 / (1.0 + math.exp(-0.8 * z_if))
+                            verdict["model_confidence_pct"] = max(10.0, min(99.0, round(calibrated_conf, 1)))
+                            if self.explainer:
+                                expl_res = self.explainer.explain(feat_row)
+                                if expl_res and expl_res.get("features"):
+                                    verdict["shap_features"] = expl_res["features"]
+                                    verdict["explanation_method"] = expl_res.get("method")
+            except Exception:
+                pass
+
         # A spike can only be proved after the following reading
         # returns to baseline.  Count that confirmed, prior event for
         # the repeated-fault health policy, while keeping THIS normal
