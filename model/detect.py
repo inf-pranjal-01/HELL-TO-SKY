@@ -740,7 +740,9 @@ def score_reading(
         peer_dispersions[p] = p_disp
         if p_med is not None and not pd.isna(p_med) and n_p >= 2:
             spatial_diff = float(raw_reading[p]) - float(p_med)
-            spatial_sigma = math.sqrt((uncertainties[p] ** 2) + ((p_disp or 0.5) ** 2))
+            # Physical spatial dispersion floor to accommodate natural regional microclimate gradients (e.g. coastal vs inland)
+            phys_disp_floor = 1.0 if p == "temperature_c" else (5.0 if p == "humidity_pct" else 1.0)
+            spatial_sigma = math.sqrt((uncertainties[p] ** 2) + (max(phys_disp_floor, p_disp or 0.5) ** 2))
             peer_z[p] = spatial_diff / max(1e-4, spatial_sigma)
             eligible_peer_count = max(eligible_peer_count, n_p)
         else:

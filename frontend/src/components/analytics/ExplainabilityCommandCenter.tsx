@@ -353,10 +353,21 @@ export const ExplainabilityCommandCenter: React.FC<ExplainabilityCommandCenterPr
 
                 if (isMultivariate || thermo?.is_violation) {
                   const isHardPhys = thermo?.law?.includes('Psychrometric') || thermo?.law?.includes('Limit');
+                  const isInternal = thermo?.law?.includes('Coupled') || thermo?.law?.includes('Internal') ||
+                    explanation?.spatial_context?.spatial_impact?.toLowerCase().includes('agreement') ||
+                    explanation?.spatial_context?.spatial_impact?.toLowerCase().includes('minimal');
+
+                  const stateLabel = isHardPhys
+                    ? 'THERMODYNAMIC SATURATION VIOLATION'
+                    : isInternal
+                    ? 'INTERNAL TRANSDUCER COUPLING'
+                    : 'CROSS-CHANNEL CLUSTER DIVERGENCE';
+
+                  const stateColor = isHardPhys || !isInternal ? '#f87171' : '#38bdf8';
                   return (
                     <>
                       <p className="sg-explain-card__muted">
-                        State: <strong style={{ color: '#f87171' }}>{isHardPhys ? 'THERMODYNAMIC SATURATION VIOLATION' : 'CROSS-CHANNEL CLUSTER DIVERGENCE'}</strong>
+                        State: <strong style={{ color: stateColor }}>{stateLabel}</strong>
                       </p>
                       <p className="sg-explain-card__muted" style={{ fontSize: '0.78rem' }}>
                         {thermo?.explanation || 'Coupled cross-sensor conflict: Reported temperature and relative humidity diverged significantly from the regional cluster peer consensus.'}
