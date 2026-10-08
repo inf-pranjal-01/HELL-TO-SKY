@@ -1,0 +1,6 @@
+station_id,station_name,role,total_obs,true_positives,false_positives,false_negatives,true_negatives,precision_pct,fpr_pct,sensor_disconnection_adc_failure,invalid_sentinel_readings,hard_range_physical_bounds,sensor_saturation_clipping,missing_samples_heartbeat,timestamp_rtc_integrity,established_sensor_freeze
+AWS-CHN-024,Chennai (Center),center,2160,189,0,24,1947,100.0,0.0,10,18,25,0,0,0,136
+AWS-CHN-101,Tambaram (Peer),neighbor,2160,192,0,18,1950,100.0,0.0,10,21,25,0,0,0,136
+AWS-CHN-102,Ambattur (Peer),neighbor,2160,187,0,23,1950,100.0,0.0,10,15,24,0,0,0,138
+AWS-CHN-103,Sriperumbudur (Peer),neighbor,2160,185,0,20,1955,100.0,0.0,10,21,23,0,0,0,131
+CHENNAI_CLUSTER_TOTAL,Whole Chennai Cluster Aggregated,cluster_total,8640,753,0,85,7802,100.0,0.0,40,75,97,0,0,0,541
