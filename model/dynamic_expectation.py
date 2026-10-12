@@ -160,15 +160,22 @@ def compute_dynamic_expectation(
     b_min, b_max = p_bounds.get(param, (-100.0, 200.0))
 
     if not history_df.empty and param in history_df.columns:
-        valid_rows = history_df[history_df[param].notna()]
+        ts_col = "timestamp" if "timestamp" in history_df.columns else ("time" if "time" in history_df.columns else None)
+        if ts_col:
+            ts_series = pd.to_datetime(history_df[ts_col], utc=True, errors="coerce")
+            prior_mask = ts_series < current_time
+            valid_rows = history_df[prior_mask & history_df[param].notna()]
+        else:
+            valid_rows = history_df.iloc[:-1][history_df[param].iloc[:-1].notna()]
+
         if not valid_rows.empty:
             # Filter strictly for uncorrupted physical readings to prevent anomaly feedback loops
             clean_rows = valid_rows[(valid_rows[param] >= b_min) & (valid_rows[param] <= b_max)]
             if not clean_rows.empty:
                 prior_val = float(clean_rows[param].iloc[-1])
-                if "timestamp" in clean_rows.columns:
-                    p_ts = pd.to_datetime(clean_rows["timestamp"].iloc[-1], utc=True)
-                    dt_hours = max(0.1, min(24.0, (current_time - p_ts).total_seconds() / 3600.0))
+                if ts_col:
+                    p_ts = pd.to_datetime(clean_rows[ts_col].iloc[-1], utc=True)
+                    dt_hours = max(0.01, (current_time - p_ts).total_seconds() / 3600.0)
 
     if prior_val is not None and dt_hours <= 6.0:
         # Primary causal momentum: station's own preceding clean baseline + continuous astronomical solar flux

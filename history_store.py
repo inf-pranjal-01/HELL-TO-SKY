@@ -990,3 +990,138 @@ class HistoryStore:
                     path.unlink(missing_ok=True)
             else:
                 self.clear_source(station_id, source, sync_db=False)
+
+    def get_recent_anomalies(
+        self,
+        station_id: Optional[str] = None,
+        limit: int = 50,
+        source: Optional[str] = None,
+    ) -> list[dict]:
+        """
+        Retrieves recent anomalies directly from TimescaleDB hypertable or CSV mirror.
+        Guarantees that frontend anomaly displays persist across server reboots.
+        """
+        results = []
+        if self.use_db:
+            try:
+                with self._get_db_conn() as conn:
+                    if conn:
+                        with conn.cursor() as cur:
+                            cur.execute("SET statement_timeout = '3500ms';")
+                            query = """
+                                SELECT
+                                    time as timestamp,
+                                    station_id,
+                                    temperature_c,
+                                    pressure_hpa,
+                                    humidity_pct,
+                                    is_anomaly,
+                                    fault_type,
+                                    severity,
+                                    anomaly_score_pct,
+                                    decision_basis,
+                                    suggested_temperature_c,
+                                    suggested_pressure_hpa,
+                                    suggested_humidity_pct,
+                                    health_status,
+                                    source,
+                                    model_confidence_pct,
+                                    rule_confidence_pct
+                                FROM sensor_readings
+                                WHERE is_anomaly = TRUE
+                            """
+                            params = []
+                            if station_id and station_id.lower() != "all":
+                                query += " AND station_id = %s"
+                                params.append(station_id)
+                            if source:
+                                query += " AND source = %s"
+                                params.append(source)
+                            query += " ORDER BY time DESC LIMIT %s;"
+                            params.append(limit)
+                            cur.execute(query, tuple(params))
+                            rows = cur.fetchall()
+                            if rows:
+                                colnames = [desc[0] for desc in cur.description]
+                                for idx, row in enumerate(rows):
+                                    rd = dict(zip(colnames, row))
+                                    ts = rd["timestamp"].isoformat() if hasattr(rd["timestamp"], "isoformat") else str(rd["timestamp"])
+                                    ft = rd.get("fault_type") or "sensor_anomaly"
+                                    sid = rd["station_id"]
+                                    results.append({
+                                        "anomaly_id": f"db_{sid}_{int(pd.to_datetime(ts).timestamp())}",
+                                        "timestamp": ts,
+                                        "station_id": sid,
+                                        "anomaly_score_pct": float(rd.get("anomaly_score_pct") or 90.0),
+                                        "severity": rd.get("severity") or "medium",
+                                        "type": ft,
+                                        "root_cause": ft,
+                                        "description": f"{ft} detected at {sid}.",
+                                        "suggested_values": {
+                                            "temperature_c": rd.get("suggested_temperature_c"),
+                                            "pressure_hpa": rd.get("suggested_pressure_hpa"),
+                                            "humidity_pct": rd.get("suggested_humidity_pct"),
+                                        },
+                                        "observed_values": {
+                                            "temperature_c": rd.get("temperature_c"),
+                                            "pressure_hpa": rd.get("pressure_hpa"),
+                                            "humidity_pct": rd.get("humidity_pct"),
+                                        },
+                                        "affected_parameters": [p for p in RAW_PARAMS if rd.get(f"suggested_{p}") is not None or ft in p],
+                                        "source": rd.get("source", "live"),
+                                        "decision_basis": rd.get("decision_basis", "PERSISTENT_STORE"),
+                                    })
+                                return results
+            except Exception as e:
+                print(f"[HistoryStore] DB get_recent_anomalies query error: {e!r}. Falling back to CSV.")
+
+        # Fallback to local CSV files
+        all_csv_anoms = []
+        target_files = [self._path(station_id)] if station_id and station_id.lower() != "all" else list(self.base_dir.glob("*_history.csv"))
+        for p in target_files:
+            if not p.exists():
+                continue
+            try:
+                df = self._read_csv(p)
+                if df.empty or "is_anomaly" not in df.columns:
+                    continue
+                anom_mask = (df["is_anomaly"] == True) | (df["is_anomaly"].astype(str).str.lower() == "true")
+                if source and "source" in df.columns:
+                    anom_mask = anom_mask & (df["source"] == source)
+                anom_rows = df[anom_mask]
+                if not anom_rows.empty:
+                    for _, row in anom_rows.iterrows():
+                        all_csv_anoms.append(row.to_dict())
+            except Exception:
+                pass
+
+        if all_csv_anoms:
+            all_csv_anoms.sort(key=lambda x: pd.to_datetime(x["timestamp"]), reverse=True)
+            for idx, rd in enumerate(all_csv_anoms[:limit]):
+                ts = rd["timestamp"].isoformat() if hasattr(rd["timestamp"], "isoformat") else str(rd["timestamp"])
+                ft = rd.get("fault_type") or "sensor_anomaly"
+                sid = rd["station_id"]
+                results.append({
+                    "anomaly_id": f"csv_{sid}_{int(pd.to_datetime(ts).timestamp())}",
+                    "timestamp": ts,
+                    "station_id": sid,
+                    "anomaly_score_pct": float(rd.get("anomaly_score_pct") or 90.0),
+                    "severity": rd.get("severity") or "medium",
+                    "type": ft,
+                    "root_cause": ft,
+                    "description": f"{ft} detected at {sid}.",
+                    "suggested_values": {
+                        "temperature_c": rd.get("suggested_temperature_c"),
+                        "pressure_hpa": rd.get("suggested_pressure_hpa"),
+                        "humidity_pct": rd.get("suggested_humidity_pct"),
+                    },
+                    "observed_values": {
+                        "temperature_c": rd.get("temperature_c"),
+                        "pressure_hpa": rd.get("pressure_hpa"),
+                        "humidity_pct": rd.get("humidity_pct"),
+                    },
+                    "affected_parameters": [p for p in RAW_PARAMS if rd.get(f"suggested_{p}") is not None or ft in p],
+                    "source": rd.get("source", "live"),
+                    "decision_basis": rd.get("decision_basis", "CSV_MIRROR"),
+                })
+        return results

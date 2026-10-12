@@ -225,7 +225,7 @@ def _compute_time_offset_slope(df_station: pd.DataFrame, col: str, target_offset
     Computes (x(t) - x(t_past)) / dt_actual in continuous physical time.
     Uses causal merge_asof with exact timestamps rather than row position shift(N).
     """
-    ts = pd.to_datetime(df_station["timestamp"], utc=True)
+    ts = pd.to_datetime(df_station["timestamp"], utc=True, format="mixed")
     vals = pd.to_numeric(df_station[col], errors="coerce")
     
     df_lookup = pd.DataFrame({"target_time": ts - pd.to_timedelta(target_offset_hours, unit="h"), "orig_ts": ts, "orig_val": vals})
@@ -312,7 +312,7 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     # Live and replay readings can mix naive provider timestamps with
     # timezone-aware simulator timestamps; normalize both to UTC before
     # sorting and using time-based rolling windows.
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, format="mixed")
     df = df.sort_values("timestamp").set_index("timestamp", drop=False)
     exclude_mask = df["is_anomaly"].fillna(False).astype(bool) if "is_anomaly" in df.columns else None
 

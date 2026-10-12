@@ -938,6 +938,7 @@ async def get_latest_anomaly(station_id: str):
 async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50):
     sim = app.state.sim
     valid_anoms = []
+    seen_keys = set()
     for a in sim.recent_anomalies:
         try:
             a_source = a.get("source", "live")
@@ -949,12 +950,40 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
                     continue
         except Exception:
             pass
+        key = (str(a.get("station_id")), str(a.get("timestamp")))
+        seen_keys.add(key)
         valid_anoms.append(a)
 
     if station_id and station_id.lower() != "all":
-        matches = [a for a in valid_anoms if a["station_id"] == station_id][:limit]
-    else:
-        matches = valid_anoms[:limit]
+        valid_anoms = [a for a in valid_anoms if a.get("station_id") == station_id]
+
+    # Hydrate from persistent storage (TimescaleDB / CSV mirror) if in-memory buffer has fewer items than requested
+    if len(valid_anoms) < limit and hasattr(sim, "manager") and hasattr(sim.manager, "history"):
+        try:
+            target_source = sim.mode if sim.mode in ("live", "replay", "edge") else None
+            sid_query = station_id if station_id and station_id.lower() != "all" else None
+            db_anoms = sim.manager.history.get_recent_anomalies(
+                station_id=sid_query,
+                limit=limit,
+                source=target_source
+            )
+            for a in db_anoms:
+                key = (str(a.get("station_id")), str(a.get("timestamp")))
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    valid_anoms.append(a)
+                    if len(valid_anoms) >= limit:
+                        break
+        except Exception as e:
+            print(f"[/api/anomalies/recent] Error hydrating from HistoryStore: {e!r}")
+
+    # Monotonic sort descending by timestamp
+    try:
+        valid_anoms.sort(key=lambda x: pd.to_datetime(x.get("timestamp")), reverse=True)
+    except Exception:
+        pass
+
+    matches = valid_anoms[:limit]
     return [
         {
             "anomaly_id": a["anomaly_id"],
@@ -970,7 +999,7 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
             "affected_parameters": a.get("affected_parameters", []),
             "regime": a.get("regime"),
             "network_corroboration": a.get("network_corroboration"),
-            "decision_basis": _compute_decision_basis(
+            "decision_basis": a.get("decision_basis") or _compute_decision_basis(
                 a.get("model_confidence_pct"),
                 a.get("rules_fired") or [],
             ),

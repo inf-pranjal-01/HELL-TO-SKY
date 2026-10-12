@@ -160,8 +160,13 @@ def evaluate_spike_evidence(
       1. Sibling peer derivative consensus veto for regional environmental shifts.
       2. Cold-start warmup safeguards to eliminate startup/reset false alarms.
     """
+    # Meteorological invariant (WMO-No. 8): A spike represents an instantaneous physical impulse
+    # between consecutive/near-consecutive readings (dt <= 3.0 hours). Any multi-hour telemetry gap
+    # represents station downtime / reboot cold-start, across which rate-of-change jumps cannot be certified.
     if prior_val is None:
         return 0.0, None, {"jump_llr": 0.0, "is_spike": False, "status": "INSUFFICIENT_CONTEXT"}
+    if dt_hours > 3.0:
+        return 0.0, None, {"jump_llr": 0.0, "is_spike": False, "status": "COLD_START_OR_TELEMETRY_GAP"}
 
     sensor_floor = SENSOR_QUANTIZATION_FLOORS.get(param, 0.10)
     delta = current_val - prior_val
@@ -479,15 +484,17 @@ def score_reading(
     
     # ── Compute Elapsed Physical Time (\Delta t) ────────────────────────
     prior_time = None
-    if not history_df.empty and "timestamp" in history_df.columns:
-        valid_ts = pd.to_datetime(history_df["timestamp"], utc=True, errors="coerce").dropna()
-        prior_ts = valid_ts[valid_ts < current_time]
-        if not prior_ts.empty:
-            prior_time = prior_ts.iloc[-1]
+    if not history_df.empty:
+        ts_col = "timestamp" if "timestamp" in history_df.columns else ("time" if "time" in history_df.columns else None)
+        if ts_col:
+            valid_ts = pd.to_datetime(history_df[ts_col], utc=True, errors="coerce").dropna()
+            prior_ts = valid_ts[valid_ts < current_time]
+            if not prior_ts.empty:
+                prior_time = prior_ts.iloc[-1]
     
     if prior_time is not None:
         raw_dt = (current_time - prior_time).total_seconds() / 3600.0
-        dt_hours = max(0.1, min(24.0, raw_dt))
+        dt_hours = max(0.01, raw_dt)
     else:
         dt_hours = 1.0
     solar_hour = calculate_solar_hour(current_time, station_id)
@@ -554,8 +561,9 @@ def score_reading(
         
         prior_val = None
         if not history_df.empty and param in history_df.columns:
-            if "timestamp" in history_df.columns:
-                valid_prior_rows = history_df[pd.to_datetime(history_df["timestamp"], utc=True) < current_time]
+            ts_col = "timestamp" if "timestamp" in history_df.columns else ("time" if "time" in history_df.columns else None)
+            if ts_col:
+                valid_prior_rows = history_df[pd.to_datetime(history_df[ts_col], utc=True, errors="coerce") < current_time]
             else:
                 valid_prior_rows = history_df.iloc[:-1]
             if not valid_prior_rows.empty and param in valid_prior_rows.columns:
@@ -721,12 +729,13 @@ def score_reading(
     is_hard_phys, phys_reason = CrossChannelEngine.check_physical_invariants(
         raw_reading.get("temperature_c"), raw_reading.get("pressure_hpa"), raw_reading.get("humidity_pct")
     )
-    has_sufficient_history = (
-        not history_df.empty
-        and len(history_df[pd.to_datetime(history_df["timestamp"], utc=True) < current_time]) >= 3
-        if "timestamp" in history_df.columns
-        else len(history_df) >= 3
-    )
+    has_sufficient_history = False
+    if not history_df.empty:
+        ts_col = "timestamp" if "timestamp" in history_df.columns else ("time" if "time" in history_df.columns else None)
+        if ts_col:
+            has_sufficient_history = len(history_df[pd.to_datetime(history_df[ts_col], utc=True, errors="coerce") < current_time]) >= 3
+        else:
+            has_sufficient_history = len(history_df) >= 3
 
     peer_z = {}
     peer_medians = {}

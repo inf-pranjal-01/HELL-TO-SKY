@@ -164,8 +164,12 @@ class CrossChannelEngine:
         cov = cov_matrix if cov_matrix is not None else DEFAULT_CORRELATION_MATRIX
         
         try:
-            # Regularized precision matrix
-            inv_cov = np.linalg.pinv(cov + 1e-4 * np.eye(3))
+            # Regularized precision matrix: Ledoit-Wolf shrinkage to diagonal plus condition floor
+            # Guarantees strictly positive-definite covariance even during calm low-variance weather regimes
+            shrinkage = 0.15
+            diag_cov = np.diag(np.diag(cov))
+            cov_shrunk = (1.0 - shrinkage) * cov + shrinkage * diag_cov + 1e-3 * np.eye(3)
+            inv_cov = np.linalg.pinv(cov_shrunk)
             d_squared = float(z_vec.T @ inv_cov @ z_vec)
         except Exception:
             d_squared = float(np.sum(z_vec ** 2))
