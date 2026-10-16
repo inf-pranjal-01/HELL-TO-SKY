@@ -147,12 +147,11 @@ async def _db_monitor_loop(history_store):
 async def lifespan(app: FastAPI):
     app.state.ws_manager = ws_manager
     app.state.sim = create_simulator_state(broadcast_callback=ws_manager.broadcast)
-    # Start simulation loop in background task
-    app.state.sim_task = asyncio.create_task(run_simulation_loop(app.state.sim))
-    # Start DB health monitor & auto-reconnect task
     if "pytest" not in sys.modules:
+        app.state.sim_task = asyncio.create_task(run_simulation_loop(app.state.sim))
         app.state.db_monitor_task = asyncio.create_task(_db_monitor_loop(app.state.sim.manager.history))
     else:
+        app.state.sim_task = None
         app.state.db_monitor_task = None
     try:
         yield
@@ -163,11 +162,12 @@ async def lifespan(app: FastAPI):
                 await app.state.db_monitor_task
             except asyncio.CancelledError:
                 pass
-        app.state.sim_task.cancel()
-        try:
-            await app.state.sim_task
-        except asyncio.CancelledError:
-            pass
+        if app.state.sim_task:
+            app.state.sim_task.cancel()
+            try:
+                await app.state.sim_task
+            except asyncio.CancelledError:
+                pass
         await app.state.sim.close()
 
 

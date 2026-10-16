@@ -41,7 +41,36 @@ STATION_SIBLING_PEERS: Dict[str, List[str]] = {
 }
 
 # Dynamic Station Geopotential Elevation Registry
-STATION_ALTITUDES: Dict[str, float] = {}
+STATION_ALTITUDES: Dict[str, float] = {
+    "AWS-BHO-030": 488.1,
+    "AWS-BHO-101": 493.0,
+    "AWS-BHO-102": 421.3,
+    "AWS-BHO-103": 436.7,
+    "AWS-CHN-024": 21.3,
+    "AWS-CHN-101": 29.9,
+    "AWS-CHN-102": 30.8,
+    "AWS-CHN-103": 57.7,
+    "AWS-DEL-011": 204.6,
+    "AWS-DEL-101": 191.4,
+    "AWS-DEL-102": 217.7,
+    "AWS-DEL-103": 207.4,
+    "AWS-KOL-015": 16.8,
+    "AWS-KOL-101": 8.1,
+    "AWS-KOL-102": 13.4,
+    "AWS-KOL-103": 14.2,
+    "AWS-MUM-007": 20.4,
+    "AWS-MUM-101": 26.5,
+    "AWS-MUM-102": 31.0,
+    "AWS-MUM-103": 29.2,
+    "AWS-RAN-067": 631.1,
+    "AWS-RAN-101": 630.7,
+    "AWS-RAN-102": 343.0,
+    "AWS-RAN-103": 310.0,
+    "AWS-VAR-052": 81.6,
+    "AWS-VAR-101": 81.5,
+    "AWS-VAR-102": 80.5,
+    "AWS-VAR-103": 89.0,
+}
 
 
 def configure_station_network(station_list: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -224,6 +253,8 @@ class PeerSpatialEngine:
                 target_reading.get("pressure_hpa"),
                 target_reading.get("humidity_pct")
             )
+            if target_alt:
+                STATION_ALTITUDES[target_station_id] = target_alt
             
         peer_raw_rows = {}
         peer_alts = {}
@@ -246,11 +277,16 @@ class PeerSpatialEngine:
                 if abs((current_time - latest_time).total_seconds()) > 5400:
                     continue
                 peer_raw_rows[pid] = last_row
-                peer_alts[pid] = compute_dynamic_hypsometric_elevation(
-                    last_row.get("temperature_c"),
-                    last_row.get("pressure_hpa"),
-                    last_row.get("humidity_pct")
-                )
+                p_alt = STATION_ALTITUDES.get(pid)
+                if p_alt is None:
+                    p_alt = compute_dynamic_hypsometric_elevation(
+                        last_row.get("temperature_c"),
+                        last_row.get("pressure_hpa"),
+                        last_row.get("humidity_pct")
+                    )
+                    if p_alt:
+                        STATION_ALTITUDES[pid] = p_alt
+                peer_alts[pid] = p_alt
                 continue
                 
             ndf = buf_obj.raw_history_df() if hasattr(buf_obj, "raw_history_df") else buf_obj
@@ -269,11 +305,16 @@ class PeerSpatialEngine:
             
             last_series = ndf[valid_mask].iloc[-1]
             peer_raw_rows[pid] = last_series.to_dict()
-            peer_alts[pid] = compute_dynamic_hypsometric_elevation(
-                last_series.get("temperature_c"),
-                last_series.get("pressure_hpa"),
-                last_series.get("humidity_pct")
-            )
+            p_alt = STATION_ALTITUDES.get(pid)
+            if p_alt is None:
+                p_alt = compute_dynamic_hypsometric_elevation(
+                    last_series.get("temperature_c"),
+                    last_series.get("pressure_hpa"),
+                    last_series.get("humidity_pct")
+                )
+                if p_alt:
+                    STATION_ALTITUDES[pid] = p_alt
+            peer_alts[pid] = p_alt
 
         if not peer_raw_rows:
             return None, None, 0
