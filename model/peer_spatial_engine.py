@@ -40,6 +40,76 @@ STATION_SIBLING_PEERS: Dict[str, List[str]] = {
     for station_id, cluster_id in STATION_TO_CLUSTER.items()
 }
 
+# Dynamic Station Geopotential Elevation Registry
+STATION_ALTITUDES: Dict[str, float] = {}
+
+
+def configure_station_network(station_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Dynamically configures and adapts SkyGuard AI to any set of meteorological stations worldwide.
+    Accepts:
+      station_list: List of dicts, each with:
+        - 'station_id': str (required, e.g. 'AWS-DEL-011')
+        - 'lat' or 'latitude': float (required)
+        - 'lon' or 'longitude': float (required)
+        - 'altitude_m' or 'elevation_m': Optional[float]
+    
+    Extracts and updates:
+      1. Coordinates: Updates STATION_COORDS so astronomical solar hour and solar flux match
+         each station's true longitude and latitude.
+      2. Spatial Cluster Topology: Computes pairwise Haversine distances and groups stations
+         into regional clusters (< 100km radius).
+      3. Hypsometric Elevation: Stores or derives geopotential elevation, enabling dynamic
+         barometric hydrostatic pressure reduction across stations.
+    """
+    for st in station_list:
+        sid = str(st["station_id"])
+        lat = float(st.get("lat", st.get("latitude", 20.0)))
+        lon = float(st.get("lon", st.get("longitude", 77.0)))
+        STATION_COORDS[sid] = (lat, lon)
+        alt = st.get("altitude_m", st.get("elevation_m"))
+        if alt is not None and not pd.isna(alt):
+            STATION_ALTITUDES[sid] = float(alt)
+
+    all_stations = list(STATION_COORDS.keys())
+    for sid1 in all_stations:
+        lat1, lon1 = STATION_COORDS[sid1]
+        distances = []
+        for sid2 in all_stations:
+            if sid1 == sid2:
+                continue
+            lat2, lon2 = STATION_COORDS[sid2]
+            d = haversine_distance_km(lat1, lon1, lat2, lon2)
+            distances.append((sid2, d))
+        distances.sort(key=lambda x: x[1])
+        peers = [p[0] for p in distances if p[1] <= 100.0][:3]
+        if peers:
+            STATION_SIBLING_PEERS[sid1] = peers
+
+    return {
+        "total_stations": len(all_stations),
+        "sibling_peers": STATION_SIBLING_PEERS,
+        "altitudes": STATION_ALTITUDES
+    }
+
+
+def update_station_elevation_from_barometer(
+    station_id: str,
+    pressure_hpa: float,
+    temp_c: float = 25.0,
+    humidity_pct: float = 50.0
+) -> float:
+    """
+    Dynamically extracts geopotential station elevation from coordinates & initial thermobaric telemetry:
+      z = (R_d * T_v / g) * ln(P_0 / P)
+    Zero manual lookup tables required.
+    """
+    if pressure_hpa is not None and not pd.isna(pressure_hpa) and float(pressure_hpa) > 0:
+        z = compute_dynamic_hypsometric_elevation(temp_c, pressure_hpa, humidity_pct)
+        STATION_ALTITUDES[station_id] = z
+        return z
+    return STATION_ALTITUDES.get(station_id, 0.0)
+
 
 def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculates great-circle distance between two GPS points in km."""
@@ -146,6 +216,8 @@ class PeerSpatialEngine:
             return None, None, 0
 
         # Compute dynamic geopotential altitude of target station
+        if target_alt is None:
+            target_alt = STATION_ALTITUDES.get(target_station_id)
         if target_alt is None and target_reading:
             target_alt = compute_dynamic_hypsometric_elevation(
                 target_reading.get("temperature_c"),

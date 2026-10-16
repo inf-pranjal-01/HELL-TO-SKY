@@ -205,8 +205,8 @@ def evaluate_spike_evidence(
 
     # Cold-start warmup safeguard (history_len < 6):
     is_warmup = history_len < 6
-    alert_z_threshold = 4.8 if is_warmup else 4.4
-    alert_llr_threshold = max(WALD_UPPER_ALERT, 10.0 if is_warmup else 7.5)
+    alert_z_threshold = 4.8 if is_warmup else 4.0
+    alert_llr_threshold = max(WALD_UPPER_ALERT, 9.0 if is_warmup else 6.0)
 
     is_spike = jump_llr >= alert_llr_threshold and z_jump >= alert_z_threshold
     reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})" if is_spike else None
