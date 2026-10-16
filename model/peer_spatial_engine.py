@@ -129,7 +129,8 @@ class PeerSpatialEngine:
         param: str,
         current_time: pd.Timestamp,
         neighbor_buffers: Dict[str, pd.DataFrame],
-        target_reading: Optional[dict] = None
+        target_reading: Optional[dict] = None,
+        target_alt: Optional[float] = None
     ) -> Tuple[Optional[float], Optional[float], int]:
         """
         Computes robust weighted median of peer derivatives/innovations.
@@ -145,8 +146,7 @@ class PeerSpatialEngine:
             return None, None, 0
 
         # Compute dynamic geopotential altitude of target station
-        target_alt = None
-        if target_reading:
+        if target_alt is None and target_reading:
             target_alt = compute_dynamic_hypsometric_elevation(
                 target_reading.get("temperature_c"),
                 target_reading.get("pressure_hpa"),

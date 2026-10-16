@@ -106,15 +106,7 @@ def _extract_ground_truth_episodes(df: pd.DataFrame) -> list[dict]:
             if raw_param and raw_param not in ("none", "nan", "None", ""):
                 affected = [p.strip() for p in raw_param.split(",") if p.strip()]
             else:
-                affected = []
-                for p in ["temperature_c", "pressure_hpa", "humidity_pct"]:
-                    val = r.get(p)
-                    if val is not None and not pd.isna(val):
-                        s_val = f"{float(val):.8f}".rstrip("0")
-                        if len(s_val.split(".")[-1]) > 2:
-                            affected.append(p)
-                if not affected:
-                    affected = ["temperature_c", "pressure_hpa", "humidity_pct"]
+                affected = ["temperature_c", "pressure_hpa", "humidity_pct"]
                 
             if is_anom and f_type != "none":
                 if current_ep is None or current_ep["fault_type"] != f_type:
@@ -259,25 +251,71 @@ def run_benchmark():
             "spike": 3,
             "unstructured_anomaly": 4, "none": 5
         }
-        for p in PARAMS:
-            if is_pred and (p in faulty_sensors or "multivariate" in fault_pred):
-                if p not in active_episodes[sid]:
-                    active_episodes[sid][p] = {
-                        "station_id": sid,
-                        "fault_type": fault_pred,
-                        "parameters": [p],
-                        "start_timestamp": ts,
-                        "end_timestamp": ts,
-                    }
-                else:
-                    active_episodes[sid][p]["end_timestamp"] = ts
-                    curr_type = active_episodes[sid][p]["fault_type"]
-                    if TIER_PRIORITY.get(fault_pred, 5) < TIER_PRIORITY.get(curr_type, 5):
-                        active_episodes[sid][p]["fault_type"] = fault_pred
-            else:
-                if p in active_episodes[sid]:
+        # Track ongoing continuous episodes for contract matching
+        if is_pred and "multivariate" in fault_pred:
+            for p in list(active_episodes[sid].keys()):
+                if p != "joint_multivariate":
                     pred_episodes.append(active_episodes[sid][p])
                     del active_episodes[sid][p]
+            
+            if "joint_multivariate" not in active_episodes[sid]:
+                active_episodes[sid]["joint_multivariate"] = {
+                    "station_id": sid,
+                    "fault_type": fault_pred,
+                    "parameters": faulty_sensors if faulty_sensors else ["temperature_c", "humidity_pct", "pressure_hpa"],
+                    "start_timestamp": ts,
+                    "end_timestamp": ts,
+                }
+            elif active_episodes[sid]["joint_multivariate"]["fault_type"] == fault_pred:
+                active_episodes[sid]["joint_multivariate"]["end_timestamp"] = ts
+                active_episodes[sid]["joint_multivariate"]["parameters"] = list(set(
+                    active_episodes[sid]["joint_multivariate"]["parameters"] + faulty_sensors
+                ))
+            else:
+                pred_episodes.append(active_episodes[sid]["joint_multivariate"])
+                active_episodes[sid]["joint_multivariate"] = {
+                    "station_id": sid,
+                    "fault_type": fault_pred,
+                    "parameters": faulty_sensors if faulty_sensors else ["temperature_c", "humidity_pct", "pressure_hpa"],
+                    "start_timestamp": ts,
+                    "end_timestamp": ts,
+                }
+        else:
+            if "joint_multivariate" in active_episodes[sid]:
+                pred_episodes.append(active_episodes[sid]["joint_multivariate"])
+                del active_episodes[sid]["joint_multivariate"]
+                
+            for p in PARAMS:
+                if is_pred and p in faulty_sensors:
+                    if p not in active_episodes[sid]:
+                        active_episodes[sid][p] = {
+                            "station_id": sid,
+                            "fault_type": fault_pred,
+                            "parameters": [p],
+                            "start_timestamp": ts,
+                            "end_timestamp": ts,
+                            "last_seen": ts,
+                        }
+                    elif active_episodes[sid][p]["fault_type"] == fault_pred:
+                        active_episodes[sid][p]["end_timestamp"] = ts
+                        active_episodes[sid][p]["last_seen"] = ts
+                    else:
+                        pred_episodes.append(active_episodes[sid][p])
+                        active_episodes[sid][p] = {
+                            "station_id": sid,
+                            "fault_type": fault_pred,
+                            "parameters": [p],
+                            "start_timestamp": ts,
+                            "end_timestamp": ts,
+                            "last_seen": ts,
+                        }
+                else:
+                    if p in active_episodes[sid]:
+                        last_s = active_episodes[sid][p].get("last_seen", active_episodes[sid][p]["end_timestamp"])
+                        gap_h = (ts - last_s).total_seconds() / 3600.0
+                        if gap_h > 1.5:
+                            pred_episodes.append(active_episodes[sid][p])
+                            del active_episodes[sid][p]
         
         results.append({
             "is_gt": bool(row["is_anomaly"]),

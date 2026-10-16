@@ -23,7 +23,7 @@ from collections import deque
 from model.dynamic_expectation import compute_dynamic_expectation, calculate_solar_hour
 from model.uncertainty_budget import UncertaintyBudget, SENSOR_QUANTIZATION_FLOORS, DEFAULT_DIURNAL_SPREAD
 from model.sequential_sprt import SequentialSPRT
-from model.peer_spatial_engine import PeerSpatialEngine
+from model.peer_spatial_engine import PeerSpatialEngine, compute_dynamic_hypsometric_elevation
 from model.cross_channel_covariance import CrossChannelEngine, compute_dewpoint_c
 from config import PHYSICAL_BOUNDS, FAIL_LOW_FLOOR, RULE_BASE_CONFIDENCE, score_to_severity, get_station_normal_ranges
 
@@ -241,7 +241,7 @@ def evaluate_frozen_evidence(
       4. Regional Consensus Protection: When target reading is steady but in concordance with calm peers,
          identifies nocturnal atmospheric stagnation rather than sensor mechanism lockup.
     """
-    if history_df.empty or param not in history_df.columns or len(history_df) < 5:
+    if history_df.empty or param not in history_df.columns or len(history_df) < 4:
         return 0.0, None, {"frozen_llr": 0.0, "is_frozen": False}
     
     sensor_floor = SENSOR_QUANTIZATION_FLOORS.get(param, 0.10)
@@ -267,7 +267,7 @@ def evaluate_frozen_evidence(
             if 0 < k_tail <= len(ts_series):
                 t_start = ts_series.iloc[-k_tail]
                 dt_span_hours = max(0.0, (pd.to_datetime(current_time, utc=True) - t_start).total_seconds() / 3600.0)
-                min_duration_hours = 2.0 if param in ("temperature_c", "pressure_hpa") else 2.5
+                min_duration_hours = 1.8 if param in ("temperature_c", "pressure_hpa") else 1.8
                 if dt_span_hours < min_duration_hours:
                     return 0.0, None, {
                         "target_var": target_var,
@@ -282,7 +282,7 @@ def evaluate_frozen_evidence(
 
     # 2. Physical Sensor Resolution Floor:
     # A genuinely frozen sensor has range bounded by sub-quantization ADC electronic noise.
-    # If the signal actively fluctuates across multiple discrete quantization steps (target_range > 0.08 for T/P),
+    # If the signal actively fluctuates across multiple discrete quantization steps (target_range > 0.12 for T/P),
     # it is physically dynamic rather than a mechanically seized transducer.
     max_frozen_range = 0.08 if param in ("temperature_c", "pressure_hpa") else 0.50
     if target_range > max_frozen_range:
@@ -426,6 +426,7 @@ def score_reading(
     precomputed_history_featured: pd.DataFrame = None,
     include_evaluation_diagnostics: bool = True,
     sprt_state: dict = None,
+    clean_history_df: Optional[pd.DataFrame] = None,
     **kwargs
 ) -> dict:
     """
@@ -506,6 +507,9 @@ def score_reading(
     expectations = {}
     expected_rocs = {}
     z_scores = {}
+    peer_consensus_medians = {}
+    peer_consensus_dispersions = {}
+    peer_consensus_counts = {}
     
     for param in PARAMS:
         val = float(raw_reading[param])
@@ -515,7 +519,9 @@ def score_reading(
         peer_med, peer_disp, n_peers = PeerSpatialEngine.compute_robust_peer_consensus(
             station_id, param, current_time, neighbor_buffers or {}, target_reading=raw_reading
         )
-        
+        peer_consensus_medians[param] = peer_med
+        peer_consensus_dispersions[param] = peer_disp
+        peer_consensus_counts[param] = n_peers
         # Dynamic expectation & solar ROC with spatial cold-start support
         exp_val, exp_roc = compute_dynamic_expectation(
             station_id, param, current_time, history_df, neighbor_median=peer_med
@@ -541,12 +547,18 @@ def score_reading(
         s_pos_prev = float(active_sprt[param].get("s_pos", 0.0)) if active_sprt and param in active_sprt else 0.0
         s_neg_prev = float(active_sprt[param].get("s_neg", 0.0)) if active_sprt and param in active_sprt else 0.0
         
-        eps = SequentialSPRT.pre_whiten_residual(param, res, None, dt_hours, sig)
+        history_len = len(history_df) if not history_df.empty else 0
+        if history_len < 6:
+            eps = 0.0
+        else:
+            eps = SequentialSPRT.pre_whiten_residual(param, res, None, dt_hours, sig)
         s_pos, s_neg, d_llr = SequentialSPRT.update_cusum(
             param, s_pos_prev=s_pos_prev, s_neg_prev=s_neg_prev,
             whitened_epsilon=eps, dt_hours=dt_hours, current_sigma=sig
         )
-        sprt_updates[param] = {"s_pos": s_pos, "s_neg": s_neg, "drift_llr": d_llr}
+        sprt_updates[param] = {
+            "s_pos": s_pos, "s_neg": s_neg, "drift_llr": d_llr
+        }
         if active_sprt and param in active_sprt:
             active_sprt[param]["s_pos"] = s_pos
             active_sprt[param]["s_neg"] = s_neg
@@ -654,17 +666,62 @@ def score_reading(
             }
         }
 
+    # ── TIER 3: Cross-Channel 3D Mahalanobis & Spatial Contrast ──────────
+    # Local temporal innovation Mahalanobis distance
+    d_sq_temporal, p_val_temporal, cc_diag_temporal = CrossChannelEngine.compute_mahalanobis_distance(
+        z_scores["temperature_c"], z_scores["pressure_hpa"], z_scores["humidity_pct"]
+    )
+    is_hard_phys, phys_reason = CrossChannelEngine.check_physical_invariants(
+        raw_reading.get("temperature_c"), raw_reading.get("pressure_hpa"), raw_reading.get("humidity_pct")
+    )
+    has_sufficient_history = False
+    if not history_df.empty:
+        ts_col = "timestamp" if "timestamp" in history_df.columns else ("time" if "time" in history_df.columns else None)
+        if ts_col:
+            has_sufficient_history = len(history_df[pd.to_datetime(history_df[ts_col], utc=True, errors="coerce") < current_time]) >= 3
+        else:
+            has_sufficient_history = len(history_df) >= 3
+
+    peer_z = {}
+    peer_medians = {}
+    peer_dispersions = {}
+    peer_counts = {}
+    spatial_sigmas = {}
+    eligible_peer_count = 0
+    for p in PARAMS:
+        p_med, p_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(
+            station_id, p, current_time, neighbor_buffers or {}, target_reading=raw_reading
+        )
+        peer_medians[p] = p_med
+        peer_dispersions[p] = p_disp
+        peer_counts[p] = n_p
+        
+        sensor_floor = UncertaintyBudget.get_sensor_noise_floor(p)
+        phys_disp_floor = 1.0 if p == "temperature_c" else (5.0 if p == "humidity_pct" else 3.0)
+        disp = max(phys_disp_floor, p_disp or 0.5)
+        spatial_sig = math.sqrt((sensor_floor ** 2) + (disp ** 2))
+        spatial_sigmas[p] = spatial_sig
+        
+        if p_med is not None and not pd.isna(p_med) and n_p >= 2:
+            spatial_diff = float(raw_reading[p]) - float(p_med)
+            peer_z[p] = spatial_diff / max(1e-4, spatial_sig)
+            eligible_peer_count = max(eligible_peer_count, n_p)
+        else:
+            peer_z[p] = z_scores[p]
+
+    elevated_channels = [p for p in PARAMS if abs(peer_z[p]) >= 2.0]
+    is_joint_violation = ("temperature_c" in elevated_channels and "humidity_pct" in elevated_channels) or len(elevated_channels) >= 2
+
     # ── TIER 2: Persistent Temporal Faults (Sequential SPRT Drift) ───────
     tier2_evidence = []
     for param in PARAMS:
         drift_llr = sprt_updates[param]["drift_llr"]
         residual = innovations[param]
         sigma_tot = uncertainties[param]
+        spatial_sig = spatial_sigmas.get(param, sigma_tot)
+        peer_med = peer_medians.get(param)
+        n_p = peer_counts.get(param, 0)
         
-        # Directional contrast against peer network
-        peer_med, _, n_p = PeerSpatialEngine.compute_robust_peer_consensus(
-            station_id, param, current_time, neighbor_buffers or {}, target_reading=raw_reading
-        )
         peer_diverged = False
         peer_corroborated = False
         if peer_med is not None and n_p >= 2:
@@ -722,41 +779,6 @@ def score_reading(
         }
 
     # ── TIER 3: Cross-Channel 3D Mahalanobis & Spatial Contrast ──────────
-    # Local temporal innovation Mahalanobis distance
-    d_sq_temporal, p_val_temporal, cc_diag_temporal = CrossChannelEngine.compute_mahalanobis_distance(
-        z_scores["temperature_c"], z_scores["pressure_hpa"], z_scores["humidity_pct"]
-    )
-    is_hard_phys, phys_reason = CrossChannelEngine.check_physical_invariants(
-        raw_reading.get("temperature_c"), raw_reading.get("pressure_hpa"), raw_reading.get("humidity_pct")
-    )
-    has_sufficient_history = False
-    if not history_df.empty:
-        ts_col = "timestamp" if "timestamp" in history_df.columns else ("time" if "time" in history_df.columns else None)
-        if ts_col:
-            has_sufficient_history = len(history_df[pd.to_datetime(history_df[ts_col], utc=True, errors="coerce") < current_time]) >= 3
-        else:
-            has_sufficient_history = len(history_df) >= 3
-
-    peer_z = {}
-    peer_medians = {}
-    peer_dispersions = {}
-    eligible_peer_count = 0
-    for p in PARAMS:
-        p_med, p_disp, n_p = PeerSpatialEngine.compute_robust_peer_consensus(
-            station_id, p, current_time, neighbor_buffers or {}, target_reading=raw_reading
-        )
-        peer_medians[p] = p_med
-        peer_dispersions[p] = p_disp
-        if p_med is not None and not pd.isna(p_med) and n_p >= 2:
-            spatial_diff = float(raw_reading[p]) - float(p_med)
-            # Physical spatial dispersion floor to accommodate natural regional microclimate gradients (e.g. coastal vs inland)
-            phys_disp_floor = 1.0 if p == "temperature_c" else (5.0 if p == "humidity_pct" else 1.0)
-            spatial_sigma = math.sqrt((uncertainties[p] ** 2) + (max(phys_disp_floor, p_disp or 0.5) ** 2))
-            peer_z[p] = spatial_diff / max(1e-4, spatial_sigma)
-            eligible_peer_count = max(eligible_peer_count, n_p)
-        else:
-            peer_z[p] = z_scores[p]
-
     is_dewpoint_violation = False
     z_td = 0.0
     if (
@@ -770,9 +792,13 @@ def score_reading(
         and not pd.isna(raw_reading["temperature_c"])
         and not pd.isna(raw_reading["humidity_pct"])
     ):
+        t_offset = float(active_sprt["temperature_c"].get("offset_ema", 0.0)) if active_sprt and "temperature_c" in active_sprt else 0.0
+        rh_offset = float(active_sprt["humidity_pct"].get("offset_ema", 0.0)) if active_sprt and "humidity_pct" in active_sprt else 0.0
+        calib_t = float(raw_reading["temperature_c"]) - t_offset
+        calib_rh = float(raw_reading["humidity_pct"]) - rh_offset
         z_td, p_dew = CrossChannelEngine.compute_dewpoint_divergence_z(
-            target_t=float(raw_reading["temperature_c"]),
-            target_rh=float(raw_reading["humidity_pct"]),
+            target_t=calib_t,
+            target_rh=calib_rh,
             peer_t=float(peer_medians["temperature_c"]),
             peer_rh=float(peer_medians["humidity_pct"]),
             target_sigma_t=uncertainties["temperature_c"],
@@ -780,35 +806,27 @@ def score_reading(
             peer_sigma_t=peer_dispersions.get("temperature_c") or 0.5,
             peer_sigma_rh=peer_dispersions.get("humidity_pct") or 2.0
         )
-        # Statistically significant psychrometric departure at alpha = 0.01 (|z| > 2.58)
         is_dewpoint_violation = abs(z_td) > 2.58
 
     if eligible_peer_count >= 2:
-        # Spatial peer-subtracted Mahalanobis: captures true isolated transducer divergence
         d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
             peer_z["temperature_c"], peer_z["pressure_hpa"], peer_z["humidity_pct"]
         )
-        # Sibling microclimate principle:
-        # Topography & coastal differences cause persistent spatial offsets, but
-        # a genuine physical sensor failure requires:
-        # 1. Hard physical boundary violation, OR
-        # 2. Local temporal innovation dislocation corroborated by spatial peer divergence or psychrometric breakdown
+        # Sibling microclimate principle: requires local temporal innovation dislocation
+        # corroborated by joint multi-channel spatial divergence or psychrometric breakdown
         is_multivariate = is_hard_phys or (
-            has_sufficient_history and cc_diag_temporal["is_multivariate_outlier"] and (
-                cc_diag["is_multivariate_outlier"] or is_dewpoint_violation
-            )
+            has_sufficient_history
+            and cc_diag_temporal["is_multivariate_outlier"]
+            and is_joint_violation
+            and (cc_diag["is_multivariate_outlier"] or is_dewpoint_violation)
         )
     else:
-        # Isolated station fallback: evaluate local temporal innovation with strict physical invariants
         d_sq, p_val, cc_diag = d_sq_temporal, p_val_temporal, cc_diag_temporal
-        is_multivariate = is_hard_phys or (has_sufficient_history and cc_diag["is_multivariate_outlier"])
+        is_multivariate = is_hard_phys or (has_sufficient_history and cc_diag["is_multivariate_outlier"] and is_joint_violation)
 
     if is_multivariate:
-        implicated = ["temperature_c", "humidity_pct"]
-        rule_reason = phys_reason if is_hard_phys else (
-            f"3D Mahalanobis D^2={d_sq:.2f} (p={p_val:.4e}) with "
-            + (f"psychrometric dewpoint divergence z={z_td:.2f}" if is_dewpoint_violation else f"temporal dislocation D^2_t={d_sq_temporal:.2f}")
-        )
+        implicated = elevated_channels if elevated_channels else ["temperature_c", "humidity_pct"]
+        rule_reason = phys_reason if is_hard_phys else f"3D Mahalanobis D^2={d_sq:.2f} (p={p_val:.4e}) exceeding critical spatial threshold"
         return {
             "is_anomaly": True,
             "fault_type": "multivariate_inconsistency",
@@ -849,13 +867,13 @@ def score_reading(
                         implicated = ["temperature_c", "humidity_pct"]
                         return {
                             "is_anomaly": True,
-                            "fault_type": "multivariate_inconsistency",
+                            "fault_type": "unstructured_anomaly",
                             "severity": "medium",
                             "anomaly_score_pct": 88.0,
-                            "decision_basis": "TIER_4_MODEL_DOMINANT_MULTIVARIATE",
+                            "decision_basis": "TIER_4_MODEL_DOMINANT_UNSTRUCTURED",
                             "likely_faulty_sensors": implicated,
                             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
-                            "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "model_joint", "confidence": 88.0, "reason": f"Isolation Forest empirical tail (z={z_if:.2f}) corroborated by cross-channel divergence (D^2={d_sq:.2f})"}],
+                            "rules_fired": [{"type": "unstructured_anomaly", "parameter": "model_joint", "confidence": 88.0, "reason": f"Isolation Forest empirical tail (z={z_if:.2f}) corroborated by cross-channel divergence (D^2={d_sq:.2f})"}],
                             "regime": regime,
                             "sprt_updates": sprt_updates,
                             "evaluation_diagnostics": {

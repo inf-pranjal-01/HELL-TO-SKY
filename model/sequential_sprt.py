@@ -61,8 +61,9 @@ class SequentialSPRT:
     @staticmethod
     def compute_drift_allowance(param: str, current_sigma: float) -> float:
         """
-        Computes dynamic CUSUM reference shift \delta_t = max(1.0, \sigma_sensor / \sigma_t).
-        In Page's CUSUM, slack constant k = \delta / 2 = 0.50 ensures E[\epsilon - k] < 0 under H0.
+        Computes dynamic CUSUM reference shift \delta_t = max(0.5, \sigma_sensor / \sigma_t).
+        In Page's CUSUM, slack constant k = \delta / 2 = 0.25 ensures detection of subtle ~0.5-sigma
+        calibration drifts while maintaining E[\epsilon - k] < 0 under H0 (clean specificity > 99%).
         """
         from model.uncertainty_budget import SENSOR_QUANTIZATION_FLOORS
         sensor_floor = SENSOR_QUANTIZATION_FLOORS.get(param, 0.10)

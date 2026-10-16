@@ -176,7 +176,7 @@ class StationBuffer:
         self.health = SensorHealthTracker(station_id)
         self._raw_rows: deque = deque(maxlen=RAW_HISTORY_MAXLEN_HOURS)
         self._clean_rows: deque = deque(maxlen=RAW_HISTORY_MAXLEN_HOURS)
-        self.sprt_state: dict = {p: {"s_pos": 0.0, "s_neg": 0.0} for p in PARAMS}
+        self.sprt_state: dict = {p: {"s_pos": 0.0, "s_neg": 0.0, "offset_ema": 0.0, "offset_init": False} for p in PARAMS}
 
         # Repair/recovery state -- separate from health.status so a
         # sensor can be OFFLINE (health's own circuit breaker) while
@@ -214,6 +214,9 @@ class StationBuffer:
                 if p in self.sprt_state:
                     self.sprt_state[p]["s_pos"] = s_up["s_pos"]
                     self.sprt_state[p]["s_neg"] = s_up["s_neg"]
+                    if "offset_ema" in s_up:
+                        self.sprt_state[p]["offset_ema"] = s_up["offset_ema"]
+                        self.sprt_state[p]["offset_init"] = s_up.get("offset_init", True)
 
         # Causal Baseline Exclusion: only admit to clean baseline if healthy & non-anomalous
         if self.health.should_include_in_baseline() and not verdict.get("is_anomaly") and not self.recovery_active:
@@ -226,7 +229,7 @@ class StationBuffer:
         """
         self._raw_rows.clear()
         self._clean_rows.clear()
-        self.sprt_state = {p: {"s_pos": 0.0, "s_neg": 0.0} for p in PARAMS}
+        self.sprt_state = {p: {"s_pos": 0.0, "s_neg": 0.0, "offset_ema": 0.0, "offset_init": False} for p in PARAMS}
         self._cache_dirty = True
         self.health = SensorHealthTracker(self.station_id)
         self.recovery_active = False

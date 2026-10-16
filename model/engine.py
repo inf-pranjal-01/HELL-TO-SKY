@@ -18,7 +18,8 @@ class DecisionEngine:
                precomputed_features: pd.Series = None,
                precomputed_neighbors: dict = None,
                precomputed_history_featured: pd.DataFrame = None,
-               include_evaluation_diagnostics: bool = False) -> dict:
+               include_evaluation_diagnostics: bool = False,
+               **kwargs) -> dict:
         """
         Main canonical entry point.
         
@@ -38,5 +39,6 @@ class DecisionEngine:
                                 precomputed_features=precomputed_features, 
                                 precomputed_neighbors=precomputed_neighbors,
                                 precomputed_history_featured=precomputed_history_featured,
-                                include_evaluation_diagnostics=include_evaluation_diagnostics)
+                                include_evaluation_diagnostics=include_evaluation_diagnostics,
+                                **kwargs)
         return verdict

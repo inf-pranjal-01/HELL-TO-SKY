@@ -884,51 +884,138 @@ def download_station_history(station_id: str):
     )
 
 
+def _clean_anomaly_dict(a: dict) -> dict:
+    if not isinstance(a, dict):
+        return {}
+    try:
+        ts = a.get("timestamp")
+        ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts or "")
+        rc = str(a.get("root_cause") or a.get("type") or "sensor_anomaly")
+        sid = str(a.get("station_id") or "")
+
+        raw_sug = a.get("suggested_values") or {}
+        sug_clean = {}
+        if isinstance(raw_sug, dict):
+            for k, v in raw_sug.items():
+                val = _json_nullable(v)
+                if val is not None and not (isinstance(val, float) and math.isnan(val)):
+                    try:
+                        sug_clean[k] = float(val)
+                    except Exception:
+                        pass
+
+        raw_obs = a.get("observed_values") or {}
+        obs_clean = {}
+        if isinstance(raw_obs, dict):
+            for k, v in raw_obs.items():
+                val = _json_nullable(v)
+                if val is not None and not (isinstance(val, float) and math.isnan(val)):
+                    try:
+                        obs_clean[k] = float(val)
+                    except Exception:
+                        pass
+
+        score = a.get("anomaly_score_pct")
+        try:
+            score_val = float(score) if score is not None else 90.0
+            if math.isnan(score_val) or math.isinf(score_val):
+                score_val = 90.0
+        except Exception:
+            score_val = 90.0
+
+        try:
+            dec_basis = str(a.get("decision_basis") or _compute_decision_basis(
+                a.get("model_confidence_pct"),
+                a.get("rules_fired") or [],
+            ))
+        except Exception:
+            dec_basis = "RULE_EVALUATION"
+
+        try:
+            mod_status = _compute_model_status(
+                a.get("model_confidence_pct"),
+                None,
+            )
+        except Exception:
+            mod_status = "active"
+
+        return {
+            "anomaly_id": str(a.get("anomaly_id") or f"anom_{sid}"),
+            "timestamp": ts_str,
+            "station_id": sid,
+            "anomaly_score_pct": score_val,
+            "severity": str(a.get("severity") or "medium"),
+            "type": str(a.get("type") or "sensor_anomaly"),
+            "root_cause": rc,
+            "description": f"{rc} detected at {sid}.",
+            "suggested_values": sug_clean if sug_clean else None,
+            "observed_values": obs_clean if obs_clean else None,
+            "affected_parameters": [str(p) for p in (a.get("affected_parameters") or [])],
+            "regime": a.get("regime"),
+            "network_corroboration": a.get("network_corroboration"),
+            "decision_basis": dec_basis,
+            "model_status": mod_status,
+            "edge_inference": a.get("edge_inference"),
+            "source": a.get("source"),
+        }
+    except Exception as e:
+        print(f"[_clean_anomaly_dict] Error cleaning anomaly: {e!r}")
+        return {
+            "anomaly_id": str(a.get("anomaly_id") or "anom"),
+            "timestamp": str(a.get("timestamp") or ""),
+            "station_id": str(a.get("station_id") or ""),
+            "anomaly_score_pct": 90.0,
+            "severity": "medium",
+            "type": "sensor_anomaly",
+            "root_cause": "sensor_anomaly",
+            "description": "Sensor anomaly detected.",
+            "suggested_values": None,
+            "observed_values": None,
+            "affected_parameters": [],
+            "regime": None,
+            "network_corroboration": None,
+            "decision_basis": "RULE_EVALUATION",
+            "model_status": "active",
+            "edge_inference": None,
+            "source": str(a.get("source") or "live"),
+        }
+
+
 # ---------------- GET /api/anomalies/latest ----------------
 
 @app.get("/api/anomalies/latest")
 async def get_latest_anomaly(station_id: str):
     sim = app.state.sim
+    # 1. Search in-memory deque
     for a in reversed(sim.recent_anomalies):
-        if a["station_id"] == station_id:
+        if a.get("station_id") == station_id:
             try:
                 a_source = a.get("source", "live")
                 if a_source != "edge":
-                    a_year = pd.to_datetime(a["timestamp"]).year
+                    a_year = pd.to_datetime(a.get("timestamp")).year
                     if sim.mode == "replay" and a_year > 2025:
                         continue
                     if sim.mode == "live" and a_year <= 2025:
                         continue
             except Exception:
                 pass
-            return {
-                "anomaly_id": a["anomaly_id"],
-                "timestamp": a["timestamp"].isoformat() if hasattr(a["timestamp"], "isoformat") else str(a["timestamp"]),
-                "station_id": a["station_id"],
-                "anomaly_score_pct": a["anomaly_score_pct"],
-                "severity": a["severity"],
-                "type": a["type"],
-                "root_cause": a["root_cause"],
-                "description": f"{a['root_cause']} detected at {a['station_id']}.",
-                "suggested_values": a.get("suggested_values"),
-                "observed_values": a.get("observed_values"),
-                "affected_parameters": a.get("affected_parameters", []),
-                "regime": a.get("regime"),
-                "network_corroboration": a.get("network_corroboration"),
-                "decision_basis": _compute_decision_basis(
-                    a.get("model_confidence_pct"),
-                    a.get("rules_fired") or [],
-                ),
-                "model_status": _compute_model_status(
-                    a.get("model_confidence_pct"),
-                    None,
-                ),
-                "edge_inference": a.get("edge_inference"),
-                "source": a.get("source"),
-            }
+            return _clean_anomaly_dict(a)
+
+    # 2. Search persistent store if in-memory buffer has none
+    if hasattr(sim, "manager") and hasattr(sim.manager, "history"):
+        try:
+            target_source = sim.mode if sim.mode in ("live", "replay", "edge") else None
+            db_anoms = sim.manager.history.get_recent_anomalies(
+                station_id=station_id,
+                limit=1,
+                source=target_source
+            )
+            if db_anoms:
+                return _clean_anomaly_dict(db_anoms[0])
+        except Exception as e:
+            print(f"[/api/anomalies/latest] Error hydrating from HistoryStore: {e!r}")
+
     # No recent anomaly is a healthy, expected state—not a missing resource.
-    # Returning JSON null keeps the dashboard nominal and avoids a noisy 404
-    # in the browser console for stations without an incident.
     return None
 
 
@@ -936,82 +1023,73 @@ async def get_latest_anomaly(station_id: str):
 
 @app.get("/api/anomalies/recent")
 async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50):
-    sim = app.state.sim
-    valid_anoms = []
-    seen_keys = set()
-    for a in sim.recent_anomalies:
+    try:
+        sim = getattr(app.state, "sim", None)
+        if sim is None:
+            return []
+        valid_anoms = []
+        seen_keys = set()
+        recent_list = list(getattr(sim, "recent_anomalies", []))
+        for a in recent_list:
+            if not isinstance(a, dict):
+                continue
+            try:
+                a_source = a.get("source", "live")
+                if a_source != "edge":
+                    ts_val = a.get("timestamp")
+                    if ts_val:
+                        a_year = pd.to_datetime(ts_val).year
+                        if hasattr(sim, "mode") and sim.mode == "replay" and a_year > 2025:
+                            continue
+                        if hasattr(sim, "mode") and sim.mode == "live" and a_year <= 2025:
+                            continue
+            except Exception:
+                pass
+            key = (str(a.get("station_id")), str(a.get("timestamp")))
+            seen_keys.add(key)
+            valid_anoms.append(a)
+
+        if station_id and station_id.lower() != "all":
+            valid_anoms = [a for a in valid_anoms if a.get("station_id") == station_id]
+
+        # Hydrate from persistent storage (TimescaleDB / CSV mirror) if in-memory buffer has fewer items than requested
+        if len(valid_anoms) < limit and hasattr(sim, "manager") and hasattr(sim.manager, "history"):
+            try:
+                target_source = sim.mode if hasattr(sim, "mode") and sim.mode in ("live", "replay", "edge") else None
+                sid_query = station_id if station_id and station_id.lower() != "all" else None
+                db_anoms = sim.manager.history.get_recent_anomalies(
+                    station_id=sid_query,
+                    limit=limit,
+                    source=target_source
+                )
+                for a in (db_anoms or []):
+                    if not isinstance(a, dict):
+                        continue
+                    key = (str(a.get("station_id")), str(a.get("timestamp")))
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        valid_anoms.append(a)
+                        if len(valid_anoms) >= limit:
+                            break
+            except Exception as e:
+                print(f"[/api/anomalies/recent] Error hydrating from HistoryStore: {e!r}")
+
+        # Monotonic sort descending by timestamp
         try:
-            a_source = a.get("source", "live")
-            if a_source != "edge":
-                a_year = pd.to_datetime(a["timestamp"]).year
-                if sim.mode == "replay" and a_year > 2025:
-                    continue
-                if sim.mode == "live" and a_year <= 2025:
-                    continue
+            valid_anoms.sort(key=lambda x: pd.to_datetime(x.get("timestamp")), reverse=True)
         except Exception:
             pass
-        key = (str(a.get("station_id")), str(a.get("timestamp")))
-        seen_keys.add(key)
-        valid_anoms.append(a)
 
-    if station_id and station_id.lower() != "all":
-        valid_anoms = [a for a in valid_anoms if a.get("station_id") == station_id]
-
-    # Hydrate from persistent storage (TimescaleDB / CSV mirror) if in-memory buffer has fewer items than requested
-    if len(valid_anoms) < limit and hasattr(sim, "manager") and hasattr(sim.manager, "history"):
-        try:
-            target_source = sim.mode if sim.mode in ("live", "replay", "edge") else None
-            sid_query = station_id if station_id and station_id.lower() != "all" else None
-            db_anoms = sim.manager.history.get_recent_anomalies(
-                station_id=sid_query,
-                limit=limit,
-                source=target_source
-            )
-            for a in db_anoms:
-                key = (str(a.get("station_id")), str(a.get("timestamp")))
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    valid_anoms.append(a)
-                    if len(valid_anoms) >= limit:
-                        break
-        except Exception as e:
-            print(f"[/api/anomalies/recent] Error hydrating from HistoryStore: {e!r}")
-
-    # Monotonic sort descending by timestamp
-    try:
-        valid_anoms.sort(key=lambda x: pd.to_datetime(x.get("timestamp")), reverse=True)
-    except Exception:
-        pass
-
-    matches = valid_anoms[:limit]
-    return [
-        {
-            "anomaly_id": a["anomaly_id"],
-            "timestamp": a["timestamp"].isoformat() if hasattr(a["timestamp"], "isoformat") else str(a["timestamp"]),
-            "station_id": a["station_id"],
-            "anomaly_score_pct": a["anomaly_score_pct"],
-            "severity": a["severity"],
-            "type": a["type"],
-            "root_cause": a["root_cause"],
-            "description": f"{a['root_cause']} detected at {a['station_id']}.",
-            "suggested_values": a.get("suggested_values"),
-            "observed_values": a.get("observed_values"),
-            "affected_parameters": a.get("affected_parameters", []),
-            "regime": a.get("regime"),
-            "network_corroboration": a.get("network_corroboration"),
-            "decision_basis": a.get("decision_basis") or _compute_decision_basis(
-                a.get("model_confidence_pct"),
-                a.get("rules_fired") or [],
-            ),
-            "model_status": _compute_model_status(
-                a.get("model_confidence_pct"),
-                None,
-            ),
-            "edge_inference": a.get("edge_inference"),
-            "source": a.get("source"),
-        }
-        for a in matches
-    ]
+        matches = valid_anoms[:limit]
+        cleaned = []
+        for a in matches:
+            c = _clean_anomaly_dict(a)
+            if c:
+                cleaned.append(c)
+        return cleaned
+    except Exception as exc:
+        print(f"[/api/anomalies/recent] Critical unhandled error: {exc!r}")
+        return []
 
 
 def _compute_dynamic_spatial_threshold(
@@ -1650,9 +1728,23 @@ def get_explanation(anomaly_id: str):
     sim = app.state.sim
 
     match = next(
-        (a for a in sim.recent_anomalies if a["anomaly_id"] == anomaly_id),
+        (a for a in sim.recent_anomalies if a.get("anomaly_id") == anomaly_id),
         None
     )
+
+    if match is None and hasattr(sim, "manager") and hasattr(sim.manager, "history"):
+        try:
+            target_source = sim.mode if sim.mode in ("live", "replay", "edge") else None
+            db_anoms = sim.manager.history.get_recent_anomalies(limit=200, source=target_source)
+            match = next((a for a in db_anoms if a.get("anomaly_id") == anomaly_id), None)
+            if match is None and "_" in anomaly_id:
+                parts = anomaly_id.split("_")
+                if len(parts) >= 2:
+                    station_candidate = parts[1]
+                    station_anoms = sim.manager.history.get_recent_anomalies(station_id=station_candidate, limit=100, source=target_source)
+                    match = next((a for a in station_anoms if a.get("anomaly_id") == anomaly_id), None)
+        except Exception as e:
+            logger.warning(f"Failed to hydrate anomaly {anomaly_id} from HistoryStore: {e}")
 
     if match is None:
         raise HTTPException(
