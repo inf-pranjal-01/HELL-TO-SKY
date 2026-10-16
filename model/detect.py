@@ -817,8 +817,7 @@ def score_reading(
         is_multivariate = is_hard_phys or (
             has_sufficient_history
             and cc_diag_temporal["is_multivariate_outlier"]
-            and is_joint_violation
-            and (cc_diag["is_multivariate_outlier"] or is_dewpoint_violation)
+            and ((is_joint_violation and cc_diag["is_multivariate_outlier"]) or is_dewpoint_violation)
         )
     else:
         d_sq, p_val, cc_diag = d_sq_temporal, p_val_temporal, cc_diag_temporal

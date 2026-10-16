@@ -187,6 +187,6 @@ class CrossChannelEngine:
             "d_squared": d_squared,
             "tail_prob": tail_prob,
             "cross_channel_llr": cross_channel_llr,
-            "is_multivariate_outlier": tail_prob < 0.001
+            "is_multivariate_outlier": tail_prob < 0.01
         }
         return d_squared, tail_prob, diagnostics
