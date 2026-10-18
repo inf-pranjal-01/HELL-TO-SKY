@@ -298,6 +298,9 @@ class HistoryStore:
                 else:
                     to_sync = live_df
 
+                if not to_sync.empty:
+                    to_sync = to_sync.drop_duplicates(subset=["timestamp"], keep="last")
+
                 if to_sync.empty:
                     continue
 
