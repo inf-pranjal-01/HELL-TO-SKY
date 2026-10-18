@@ -205,8 +205,8 @@ def evaluate_spike_evidence(
 
     # Cold-start warmup safeguard (history_len < 6):
     is_warmup = history_len < 6
-    alert_z_threshold = 4.8 if is_warmup else 4.0
-    alert_llr_threshold = max(WALD_UPPER_ALERT, 9.0 if is_warmup else 6.0)
+    alert_z_threshold = 4.8 if is_warmup else 3.8
+    alert_llr_threshold = 9.0 if is_warmup else 5.5
 
     is_spike = jump_llr >= alert_llr_threshold and z_jump >= alert_z_threshold
     reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})" if is_spike else None
@@ -709,8 +709,9 @@ def score_reading(
         else:
             peer_z[p] = z_scores[p]
 
-    elevated_channels = [p for p in PARAMS if abs(peer_z[p]) >= 2.0]
-    is_joint_violation = ("temperature_c" in elevated_channels and "humidity_pct" in elevated_channels) or len(elevated_channels) >= 2
+    elevated_channels = [p for p in PARAMS if abs(peer_z[p]) >= 1.5]
+    has_primary = any(abs(peer_z[p]) >= 2.0 for p in PARAMS)
+    is_joint_violation = has_primary and len(elevated_channels) >= 2
 
     # ── TIER 2: Persistent Temporal Faults (Sequential SPRT Drift) ───────
     tier2_evidence = []
@@ -740,9 +741,9 @@ def score_reading(
         is_drift_anom = False
         if not peer_corroborated and drift_llr >= WALD_UPPER_ALERT:
             if n_p >= 2:
-                is_drift_anom = peer_diverged or abs(z_scores[param]) >= 1.8
+                is_drift_anom = peer_diverged or abs(z_scores[param]) >= 1.6
             else:
-                is_drift_anom = abs(z_scores[param]) >= 2.0
+                is_drift_anom = abs(z_scores[param]) >= 1.8
 
         if is_drift_anom:
             tier2_evidence.append({

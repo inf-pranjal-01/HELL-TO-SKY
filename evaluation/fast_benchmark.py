@@ -123,21 +123,22 @@ def _evaluate_cluster(cluster_id: str, cluster_station_ids: list[str], full_df_r
                         "parameters": [p],
                         "start_timestamp": ts,
                         "end_timestamp": ts,
-                        "last_seen": ts,
+                    }
+                elif active_episodes[sid][p]["fault_type"] != fault_pred:
+                    pred_episodes.append(active_episodes[sid][p])
+                    active_episodes[sid][p] = {
+                        "station_id": sid,
+                        "fault_type": fault_pred,
+                        "parameters": [p],
+                        "start_timestamp": ts,
+                        "end_timestamp": ts,
                     }
                 else:
                     active_episodes[sid][p]["end_timestamp"] = ts
-                    active_episodes[sid][p]["last_seen"] = ts
-                    curr_type = active_episodes[sid][p]["fault_type"]
-                    if TIER_PRIORITY.get(fault_pred, 5) < TIER_PRIORITY.get(curr_type, 5):
-                        active_episodes[sid][p]["fault_type"] = fault_pred
             else:
                 if p in active_episodes[sid]:
-                    last_s = active_episodes[sid][p].get("last_seen", active_episodes[sid][p]["end_timestamp"])
-                    gap_h = (ts - last_s).total_seconds() / 3600.0
-                    if gap_h > 1.5:
-                        pred_episodes.append(active_episodes[sid][p])
-                        del active_episodes[sid][p]
+                    pred_episodes.append(active_episodes[sid][p])
+                    del active_episodes[sid][p]
         
         cluster_results.append({
             "station_id": sid,
