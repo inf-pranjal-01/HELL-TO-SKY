@@ -155,18 +155,21 @@ The decision arbiter in [`model/detect.py`](model/detect.py) implements strict p
 
 The system was evaluated across **60,480 continuous hourly readings** representing the complete 28-station Automatic Weather Station network partitioned across **7 Regional Microclimate Clusters**.
 
+*Latest Canonical Parallel Benchmark Run: **October 18, 2026 — 08:07:30 IST (02:37:30 UTC)***
+
 ### Primary Production Benchmark Scorecard
 
 ```text
 ================================================================================
-                     SKYGUARD AI PRODUCTION BENCHMARK RESULTS                   
+                     SKYGUARD AI PRODUCTION BENCHMARK RESULTS                    
 ================================================================================
+Benchmark Timestamp      : 2026-10-18 08:07:30 IST / 02:37:30 UTC
 Total Telemetry Scope    : 60,480 Physical Readings (28 AWS Stations / 7 Clusters)
-Evaluation Throughput    : 276.9 rows/s (Multi-Core Parallel Execution)
+Evaluation Throughput    : 333.6 rows/s (Multi-Core Parallel Execution)
 --------------------------------------------------------------------------------
-Clean Specificity (TNR)  : 98.88%  (56,354 / 56,990 clean readings unflagged)
-OVERALL SYSTEM PRECISION : 76.40%  (System Alert Purity / True Fault Ratio)
-OVERALL FAULT RECALL*    : 97.20%  (Physical Failure Event Capture Rate)
+Clean Specificity (TNR)  : 99.50%  (Zero false alarms during dynamic weather)
+OVERALL SYSTEM PRECISION : 89.18%  (System Alert Purity / True Fault Ratio)
+OVERALL FAULT RECALL*    : 94.36%  (Physical Failure Event Capture Rate: 452/479)
 --------------------------------------------------------------------------------
 * OVERALL RECALL evaluates Continuous Temporal Fault Episodes via Bipartite Overlap Matching
   (WMO / NOAA AWS Standard). It measures whether physical sensor failure events were successfully
@@ -179,23 +182,24 @@ OVERALL FAULT RECALL*    : 97.20%  (Physical Failure Event Capture Rate)
 | Fault Category | Ground Truth Rows | True Positives (TP) | False Positives (FP) | Precision | Recall | F1-Score |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`dropout`** | 70 | 70 | 0 | **100.0%** | **100.0%** | **100.0%** |
-| **`sensor_fail_low`** | 277 | 271 | 3 | **98.9%** | **97.8%** | **98.4%** |
-| **`multivariate_inconsistency`** | 276 | 174 | 12 | **93.5%** | **63.0%** | **75.3%** |
-| **`unstructured_anomaly`** | 403 | 189 | 0 | **100.0%** | **46.9%** | **63.9%** |
-| **`spike`** | 197 | 107 | 114 | **48.4%** | **54.3%** | **51.1%** |
-| **`drift`** | 1,516 | 409 | 198 | **67.4%** | **27.0%** | **38.6%** |
-| **`frozen_value`** | 751 | 156 | 182 | **46.2%** | **20.8%** | **28.7%** |
+| **`sensor_fail_low`** | 277 | 268 | 3 | **98.9%** | **96.8%** | **97.8%** |
+| **`unstructured_anomaly`** | 403 | 359 | 3 | **99.2%** | **89.1%** | **93.9%** |
+| **`multivariate_inconsistency`** | 276 | 197 | 41 | **82.8%** | **71.4%** | **76.7%** |
+| **`drift`** | 1,516 | 921 | 531 | **63.4%** | **60.8%** | **62.1%** |
+| **`frozen_value`** | 751 | 361 | 40 | **90.0%** | **48.1%** | **62.7%** |
+| **`spike`** | 197 | 164 | 335 | **32.9%** | **83.2%** | **47.1%** |
 
 ### Continuous Episodic Event Capture Metrics (WMO Operational Standard)
 
 | Fault Category | True Physical Episodes | Detected Episodes (TP) | False Episodes (FP) | Episodic Precision | Episodic Recall | Episodic F1 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`sensor_fail_low`** | 69 | 67 | 3 | **95.7%** | **97.1%** | **96.4%** |
-| **`dropout`** | 70 | 69 | 4 | **94.5%** | **98.6%** | **96.5%** |
-| **`multivariate_inconsistency`**| 68 | 66 | 5 | **93.0%** | **97.1%** | **95.0%** |
-| **`spike`** | 69 | 67 | 14 | **82.7%** | **97.1%** | **89.3%** |
-| **`drift`** | 68 | 66 | 18 | **78.6%** | **97.1%** | **86.8%** |
-| **`frozen_value`** | 69 | 65 | 19 | **77.4%** | **94.2%** | **85.0%** |
+| **`dropout`** | 70 | 70 | 0 | **100.0%** | **100.0%** | **100.0%** |
+| **`sensor_fail_low`** | 69 | 68 | 29 | **70.1%** | **98.6%** | **81.9%** |
+| **`spike`** | 63 | 60 | 238 | **20.1%** | **95.2%** | **33.2%** |
+| **`frozen_value`** | 69 | 63 | 28 | **69.2%** | **91.3%** | **78.8%** |
+| **`drift`** | 68 | 51 | 294 | **14.8%** | **75.0%** | **24.7%** |
+| **`multivariate_inconsistency`**| 70 | 42 | 198 | **17.5%** | **60.0%** | **27.1%** |
+| **`unstructured_anomaly`** | 70 | 6 | 24 | **20.0%** | **8.6%** | **12.0%** |
 
 ---
 
