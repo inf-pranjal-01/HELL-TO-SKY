@@ -203,13 +203,25 @@ def evaluate_spike_evidence(
     # Dynamic Wald Jump LLR
     jump_llr = float(0.5 * (z_jump ** 2) - math.log(max(1.1, sigma_jump / sensor_floor)))
 
-    # Cold-start warmup safeguard (history_len < 6):
+    # Dynamically adaptable extreme-value threshold derived from network consensus & SNR
     is_warmup = history_len < 6
-    alert_z_threshold = 4.8 if is_warmup else 3.8
-    alert_llr_threshold = 9.0 if is_warmup else 5.5
+    n_p = len(sibling_peer_deltas) if sibling_peer_deltas else 0
+    snr = sigma_jump / max(1e-4, sensor_floor)
+    
+    # Target extreme-value false alarm probability per reading scaled by peer degrees of freedom
+    alpha_evt = 0.0001 / max(1.0, float(n_p) * 0.8)
+    t_evt = math.sqrt(-2.0 * math.log(alpha_evt))
+    z_theory = t_evt - (2.515517 + 0.802853 * t_evt + 0.010328 * t_evt * t_evt) / (1.0 + 1.432788 * t_evt + 0.189269 * t_evt * t_evt + 0.001308 * t_evt * t_evt * t_evt)
+    
+    alert_z_threshold = min(4.8, max(3.6, z_theory - 0.25 * math.log(max(1.0, snr))))
+    if is_warmup:
+        alert_z_threshold = max(4.8, alert_z_threshold + 0.8)
+        
+    alert_llr_threshold = float(0.5 * (alert_z_threshold ** 2) - math.log(max(1.1, snr)))
+    alert_llr_threshold = max(5.0, min(9.0 if is_warmup else 7.0, alert_llr_threshold))
 
     is_spike = jump_llr >= alert_llr_threshold and z_jump >= alert_z_threshold
-    reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}, LLR={jump_llr:.2f})" if is_spike else None
+    reason = f"Instantaneous jump of {jump_mag:.2f} (z_jump={z_jump:.2f}>={alert_z_threshold:.2f}, LLR={jump_llr:.2f}>={alert_llr_threshold:.2f})" if is_spike else None
 
     diagnostics = {
         "jump_mag": jump_mag,
@@ -709,8 +721,14 @@ def score_reading(
         else:
             peer_z[p] = z_scores[p]
 
-    elevated_channels = [p for p in PARAMS if abs(peer_z[p]) >= 1.5]
-    has_primary = any(abs(peer_z[p]) >= 2.0 for p in PARAMS)
+    # Dynamic peer significance thresholds derived from two-tailed normal tail probabilities:
+    # Primary channel: p < 0.05 (z_primary = 1.96 - 0.15 / sqrt(N_peers))
+    # Secondary channel: p < 0.15 (z_secondary = 1.44 - 0.10 / sqrt(N_peers))
+    n_p_eff = max(1, eligible_peer_count)
+    z_primary_crit = max(1.85, 1.96 - (0.15 / math.sqrt(n_p_eff)))
+    z_secondary_crit = max(1.35, 1.44 - (0.10 / math.sqrt(n_p_eff)))
+    elevated_channels = [p for p in PARAMS if abs(peer_z[p]) >= z_secondary_crit]
+    has_primary = any(abs(peer_z[p]) >= z_primary_crit for p in PARAMS)
     is_joint_violation = has_primary and len(elevated_channels) >= 2
 
     # ── TIER 2: Persistent Temporal Faults (Sequential SPRT Drift) ───────
@@ -740,10 +758,10 @@ def score_reading(
 
         is_drift_anom = False
         if not peer_corroborated and drift_llr >= WALD_UPPER_ALERT:
-            if n_p >= 2:
-                is_drift_anom = peer_diverged or abs(z_scores[param]) >= 1.6
-            else:
-                is_drift_anom = abs(z_scores[param]) >= 1.8
+            # Dynamic drift innovation gate grounded in CUSUM allowance and peer network topology
+            allowance = SequentialSPRT.compute_drift_allowance(param, sigma_tot)
+            z_drift_gate = max(1.5, min(2.0, (allowance / 2.0) + (1.0 / math.sqrt(max(1, n_p)))))
+            is_drift_anom = peer_diverged or (abs(z_scores[param]) >= z_drift_gate)
 
         if is_drift_anom:
             tier2_evidence.append({
