@@ -212,6 +212,86 @@
   margin-top: 0.2rem;
 }
 
+.sg-tooltip-score--low {
+  color: var(--text-muted);
+}
+
+.sg-tooltip-status-pill {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  margin-left: auto;
+}
+
+.sg-tooltip-status-pill--normal {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.sg-tooltip-status-pill--alert {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.sg-tooltip-affected {
+  font-size: 0.7rem;
+  color: var(--text-primary);
+  margin-top: 0.15rem;
+}
+
+.sg-tooltip-cross-notice {
+  margin-top: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  background-color: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.sg-tooltip-cross-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.2rem;
+}
+
+.sg-tooltip-cross-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.05rem 0.25rem;
+  border-radius: 3px;
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.sg-tooltip-cross-target {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #fbbf24;
+}
+
+.sg-tooltip-cross-fault {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+
+.sg-tooltip-cross-sub {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.sg-tooltip-metric-ok {
+  margin-top: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #34d399;
+}
+
 /* Accessible details fallback */
 .sg-chart-accessible-summary {
   margin-top: 0.5rem;

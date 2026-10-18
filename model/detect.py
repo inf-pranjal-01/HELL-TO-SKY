@@ -461,6 +461,7 @@ def score_reading(
             "anomaly_score_pct": 100.0,
             "decision_basis": "TIER_0_HARD_INVARIANT",
             "likely_faulty_sensors": implicated,
+            "affected_parameters": implicated,
             "suggested_values": _compute_suggested_values(implicated, {}, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": [{"type": fault_type, "parameter": rail_param, "confidence": 100.0, "reason": rail_reason}],
             "regime": "UNKNOWN_INSUFFICIENT_DATA",
@@ -475,9 +476,10 @@ def score_reading(
     pressure_hpa = raw_reading.get("pressure_hpa")
     humidity_pct = raw_reading.get("humidity_pct")
     
-    is_phys_impossible, phys_reason = CrossChannelEngine.check_physical_invariants(temp_c, pressure_hpa, humidity_pct)
+    is_phys_impossible, phys_reason, phys_params = CrossChannelEngine.identify_physical_violations(temp_c, pressure_hpa, humidity_pct)
     if is_phys_impossible:
-        implicated = PARAMS
+        implicated = phys_params if phys_params else PARAMS
+        rule_param = phys_params[0] if len(phys_params) == 1 else "joint"
         return {
             "is_anomaly": True,
             "fault_type": "physical_bounds",
@@ -485,8 +487,9 @@ def score_reading(
             "anomaly_score_pct": 100.0,
             "decision_basis": "TIER_0_THERMODYNAMIC_BOUND",
             "likely_faulty_sensors": implicated,
+            "affected_parameters": implicated,
             "suggested_values": _compute_suggested_values(implicated, {}, neighbor_buffers, station_id, current_time, history_df),
-            "rules_fired": [{"type": "physical_bounds", "parameter": "multivariate", "confidence": 100.0, "reason": phys_reason}],
+            "rules_fired": [{"type": "physical_bounds", "parameter": rule_param, "confidence": 100.0, "reason": phys_reason}],
             "regime": "UNKNOWN_INSUFFICIENT_DATA",
             "evaluation_diagnostics": {
                 "tier": 0,
@@ -667,6 +670,7 @@ def score_reading(
             "anomaly_score_pct": score_pct,
             "decision_basis": f"TIER_1_SPECIALIST_{strongest['type'].upper()}",
             "likely_faulty_sensors": implicated,
+            "affected_parameters": implicated,
             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": tier1_evidence,
             "regime": regime,
@@ -786,6 +790,7 @@ def score_reading(
             "anomaly_score_pct": score_pct,
             "decision_basis": "TIER_2_PERSISTENT_DRIFT",
             "likely_faulty_sensors": implicated,
+            "affected_parameters": implicated,
             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": tier2_evidence,
             "regime": regime,
@@ -852,6 +857,7 @@ def score_reading(
             "anomaly_score_pct": 90.0,
             "decision_basis": "TIER_3_MAHALANOBIS_CROSS_CHANNEL",
             "likely_faulty_sensors": implicated,
+            "affected_parameters": implicated,
             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
             "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "joint", "confidence": 90.0, "reason": rule_reason}],
             "regime": regime,
@@ -890,6 +896,7 @@ def score_reading(
                             "anomaly_score_pct": 88.0,
                             "decision_basis": "TIER_4_MODEL_DOMINANT_UNSTRUCTURED",
                             "likely_faulty_sensors": implicated,
+                            "affected_parameters": implicated,
                             "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
                             "rules_fired": [{"type": "unstructured_anomaly", "parameter": "model_joint", "confidence": 88.0, "reason": f"Isolation Forest empirical tail (z={z_if:.2f}) corroborated by cross-channel divergence (D^2={d_sq:.2f})"}],
                             "regime": regime,

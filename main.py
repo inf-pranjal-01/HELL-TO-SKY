@@ -739,6 +739,70 @@ async def get_current_reading(station_id: str):
 
 # ---------------- GET /api/trends ----------------
 
+def _resolve_affected_parameters(p: dict) -> list[str]:
+    raw = p.get("affected_parameters") or p.get("likely_faulty_sensors")
+    if isinstance(raw, list) and len(raw) > 0:
+        valid = [str(x) for x in raw if str(x) in ("temperature_c", "pressure_hpa", "humidity_pct", "temperature", "pressure", "humidity")]
+        if valid:
+            return valid
+    elif isinstance(raw, str) and raw:
+        clean = raw.replace("[", "").replace("]", "").replace("'", "").replace('"', "").strip()
+        if clean:
+            parts = [x.strip() for x in clean.split(",") if x.strip() in ("temperature_c", "pressure_hpa", "humidity_pct", "temperature", "pressure", "humidity")]
+            if parts:
+                return parts
+
+    if not bool(p.get("is_anomaly", False)):
+        return []
+
+    inferred = []
+    if p.get("suggested_temperature_c") is not None and not pd.isna(p.get("suggested_temperature_c")):
+        inferred.append("temperature_c")
+    if p.get("suggested_pressure_hpa") is not None and not pd.isna(p.get("suggested_pressure_hpa")):
+        inferred.append("pressure_hpa")
+    if p.get("suggested_humidity_pct") is not None and not pd.isna(p.get("suggested_humidity_pct")):
+        inferred.append("humidity_pct")
+    if inferred:
+        return inferred
+
+    h = p.get("humidity_pct")
+    t = p.get("temperature_c")
+    pr = p.get("pressure_hpa")
+    if h is not None and not pd.isna(h):
+        try:
+            h_val = float(h)
+            if h_val < 0.0 or h_val > 100.01 or abs(h_val) < 0.05:
+                inferred.append("humidity_pct")
+        except Exception:
+            pass
+    if t is not None and not pd.isna(t):
+        try:
+            t_val = float(t)
+            if t_val < -60.0 or t_val > 65.0 or abs(t_val - (-40.0)) < 0.05:
+                inferred.append("temperature_c")
+        except Exception:
+            pass
+    if pr is not None and not pd.isna(pr):
+        try:
+            pr_val = float(pr)
+            if pr_val < 750.0 or pr_val > 1100.0 or abs(pr_val) < 0.05:
+                inferred.append("pressure_hpa")
+        except Exception:
+            pass
+
+    if inferred:
+        return inferred
+
+    ft = str(p.get("fault_type", "")).lower()
+    if "temp" in ft:
+        return ["temperature_c"]
+    if "press" in ft:
+        return ["pressure_hpa"]
+    if "humid" in ft or "dew" in ft:
+        return ["humidity_pct"]
+
+    return []
+
 @app.get("/api/trends")
 async def get_trends(station_id: str, hours: int = 6):
     sim = app.state.sim
@@ -836,7 +900,7 @@ async def get_trends(station_id: str, hours: int = 6):
             "suggested_temperature_c": _json_nullable(p.get("suggested_temperature_c")),
             "suggested_pressure_hpa": _json_nullable(p.get("suggested_pressure_hpa")),
             "suggested_humidity_pct": _json_nullable(p.get("suggested_humidity_pct")),
-            "affected_parameters": p.get("affected_parameters", []),
+            "affected_parameters": _resolve_affected_parameters(p),
             "health_status": _json_nullable(p.get("health_status")),
             "source": p.get("source", sim.manager.mode),
         }

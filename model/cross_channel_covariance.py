@@ -48,7 +48,50 @@ class CrossChannelEngine:
     """
 
     @staticmethod
+    def identify_physical_violations(
+        temp_c: Optional[float],
+        pressure_hpa: Optional[float],
+        humidity_pct: Optional[float]
+    ) -> Tuple[bool, Optional[str], List[str]]:
+        """
+        Checks hard physical thermodynamic boundaries and identifies violated parameters.
+        Returns: (is_impossible, reason, violated_parameters)
+        """
+        violations = []
+        reasons = []
+
+        if humidity_pct is not None and not pd.isna(humidity_pct):
+            if humidity_pct < 0.0 or humidity_pct > 100.01:
+                violations.append("humidity_pct")
+                reasons.append(f"Physically impossible humidity ({humidity_pct:.1f}% outside [0, 100]%)")
+
+        if temp_c is not None and not pd.isna(temp_c):
+            if temp_c < -60.0 or temp_c > 65.0:
+                violations.append("temperature_c")
+                reasons.append(f"Physically impossible temperature ({temp_c:.1f}C outside terrestrial bounds)")
+
+        if pressure_hpa is not None and not pd.isna(pressure_hpa):
+            if pressure_hpa < 750.0 or pressure_hpa > 1100.0:
+                violations.append("pressure_hpa")
+                reasons.append(f"Physically impossible pressure ({pressure_hpa:.1f} hPa outside terrestrial bounds)")
+
+        # Dewpoint envelope check: Dewpoint cannot exceed dry-bulb temperature
+        if temp_c is not None and humidity_pct is not None and not pd.isna(temp_c) and not pd.isna(humidity_pct):
+            dew_c = compute_dewpoint_c(temp_c, humidity_pct)
+            if not pd.isna(dew_c) and dew_c > (temp_c + 1.5):  # 1.5C tolerance for sensor calibration
+                if "temperature_c" not in violations:
+                    violations.append("temperature_c")
+                if "humidity_pct" not in violations:
+                    violations.append("humidity_pct")
+                reasons.append(f"Thermodynamic violation: Dewpoint ({dew_c:.1f}C) exceeds Dry-Bulb ({temp_c:.1f}C)")
+
+        if violations:
+            return True, "; ".join(reasons), violations
+        return False, None, []
+
+    @classmethod
     def check_physical_invariants(
+        cls,
         temp_c: Optional[float],
         pressure_hpa: Optional[float],
         humidity_pct: Optional[float]
@@ -57,25 +100,8 @@ class CrossChannelEngine:
         Checks hard physical thermodynamic boundaries.
         Returns: (is_impossible, reason)
         """
-        if humidity_pct is not None and not pd.isna(humidity_pct):
-            if humidity_pct < 0.0 or humidity_pct > 100.01:
-                return True, f"Physically impossible humidity ({humidity_pct:.1f}% outside [0, 100]%)"
-        
-        if temp_c is not None and not pd.isna(temp_c):
-            if temp_c < -60.0 or temp_c > 65.0:
-                return True, f"Physically impossible temperature ({temp_c:.1f}C outside terrestrial bounds)"
-        
-        if pressure_hpa is not None and not pd.isna(pressure_hpa):
-            if pressure_hpa < 750.0 or pressure_hpa > 1100.0:
-                return True, f"Physically impossible pressure ({pressure_hpa:.1f} hPa outside terrestrial bounds)"
-        
-        # Dewpoint envelope check: Dewpoint cannot exceed dry-bulb temperature
-        if temp_c is not None and humidity_pct is not None and not pd.isna(temp_c) and not pd.isna(humidity_pct):
-            dew_c = compute_dewpoint_c(temp_c, humidity_pct)
-            if not pd.isna(dew_c) and dew_c > (temp_c + 1.5):  # 1.5C tolerance for sensor calibration
-                return True, f"Thermodynamic violation: Dewpoint ({dew_c:.1f}C) exceeds Dry-Bulb ({temp_c:.1f}C)"
-        
-        return False, None
+        is_viol, reason, _ = cls.identify_physical_violations(temp_c, pressure_hpa, humidity_pct)
+        return is_viol, reason
 
     @classmethod
     def compute_dewpoint_variance(

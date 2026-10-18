@@ -43,54 +43,58 @@ const METRIC_CONFIG = {
   },
 };
 
-const isMetricAnomalous = (pt: TrendPoint, metric: MetricType): boolean => {
+export const getAffectedMetricLabels = (pt: TrendPoint): string[] => {
+  const affected: Set<string> = new Set();
+
+  if (pt.affected_parameters && pt.affected_parameters.length > 0) {
+    for (const p of pt.affected_parameters) {
+      const lower = p.toLowerCase();
+      if (lower.includes('temp')) affected.add('Temperature');
+      else if (lower.includes('press')) affected.add('Pressure');
+      else if (lower.includes('humid') || lower.includes('dew') || lower.includes('rh')) affected.add('Humidity');
+    }
+  }
+
+  if (pt.suggested_temperature_c != null) affected.add('Temperature');
+  if (pt.suggested_pressure_hpa != null) affected.add('Pressure');
+  if (pt.suggested_humidity_pct != null) affected.add('Humidity');
+
+  const ft = (pt.fault_type || '').toLowerCase();
+  if (ft.includes('temp')) affected.add('Temperature');
+  if (ft.includes('press')) affected.add('Pressure');
+  if (ft.includes('humid') || ft.includes('dew')) affected.add('Humidity');
+
+  // If still empty but is_anomaly is true, check physical bounds on raw values
+  if (affected.size === 0 && pt.is_anomaly) {
+    if (typeof pt.humidity_pct === 'number' && (pt.humidity_pct < 0 || pt.humidity_pct > 100 || Math.abs(pt.humidity_pct) < 0.05)) {
+      affected.add('Humidity');
+    }
+    if (typeof pt.temperature_c === 'number' && (pt.temperature_c < -60 || pt.temperature_c > 65 || Math.abs(pt.temperature_c - (-40)) < 0.05)) {
+      affected.add('Temperature');
+    }
+    if (typeof pt.pressure_hpa === 'number' && (pt.pressure_hpa < 750 || pt.pressure_hpa > 1100 || Math.abs(pt.pressure_hpa) < 0.05)) {
+      affected.add('Pressure');
+    }
+  }
+
+  return Array.from(affected);
+};
+
+export const isMetricAnomalous = (pt: TrendPoint, metric: MetricType): boolean => {
   if (!pt.is_anomaly) return false;
 
-  const metricKeyMap: Record<MetricType, string> = {
-    temperature: 'temperature_c',
-    pressure: 'pressure_hpa',
-    humidity: 'humidity_pct',
-  };
-  const targetKey = metricKeyMap[metric];
+  const labels = getAffectedMetricLabels(pt);
+  const metricLabel = METRIC_CONFIG[metric].label;
 
-  // 1. If explicit affected_parameters list exists, check exact channel
-  if (pt.affected_parameters && pt.affected_parameters.length > 0) {
-    const isExplicitlyInList = pt.affected_parameters.some(
-      (p) => p.toLowerCase().includes(metric) || p.toLowerCase() === targetKey
-    );
-    if (isExplicitlyInList) return true;
-
-    const isAnotherExplicitParam = pt.affected_parameters.some(
-      (p) => p.toLowerCase().includes('temp') || p.toLowerCase().includes('press') || p.toLowerCase().includes('humid')
-    );
-    if (isAnotherExplicitParam) return false;
+  if (labels.length > 0) {
+    return labels.includes(metricLabel);
   }
 
-  // 2. If suggested values exist, mark the channel that has a reconstruction
-  const hasAnySuggested = (
-    pt.suggested_temperature_c != null ||
-    pt.suggested_pressure_hpa != null ||
-    pt.suggested_humidity_pct != null
-  );
-
-  if (hasAnySuggested) {
-    if (metric === 'temperature') return pt.suggested_temperature_c != null;
-    if (metric === 'pressure') return pt.suggested_pressure_hpa != null;
-    if (metric === 'humidity') return pt.suggested_humidity_pct != null;
-  }
-
-  // 3. If fault_type names a parameter explicitly
   const ft = (pt.fault_type || '').toLowerCase();
-  if (ft.includes('temp')) return metric === 'temperature';
-  if (ft.includes('press')) return metric === 'pressure';
-  if (ft.includes('humid') || ft.includes('dew')) return metric === 'humidity';
-
-  // 4. Multivariate or coupled network faults affect all channels
   if (ft.includes('multivariate') || ft.includes('network') || ft.includes('spatial')) {
     return true;
   }
 
-  // 5. Default fallback: point is verified anomalous and not restricted to another channel
   return true;
 };
 
@@ -397,9 +401,13 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                   onMouseLeave={() => setHoveredPoint(null)}
                   tabIndex={0}
                   role="button"
-                  aria-label={`${activeCfg.label}: ${pt[activeCfg.key]} ${activeCfg.unit} at ${new Date(
-                    pt.timestamp
-                  ).toLocaleTimeString()}`}
+                  aria-label={
+                    isAnomaly
+                      ? `${activeCfg.label} anomaly (${pt.fault_type || 'fault'}): ${pt[activeCfg.key]} ${activeCfg.unit} at ${new Date(pt.timestamp).toLocaleTimeString()}`
+                      : pt.is_anomaly
+                      ? `${activeCfg.label}: ${pt[activeCfg.key]} ${activeCfg.unit} (Nominal, alert on other sensor) at ${new Date(pt.timestamp).toLocaleTimeString()}`
+                      : `${activeCfg.label}: ${pt[activeCfg.key]} ${activeCfg.unit} at ${new Date(pt.timestamp).toLocaleTimeString()}`
+                  }
                 />
               </g>
             );
@@ -408,54 +416,101 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
         {/* Floating tooltip anchored to hovered point */}
         {hoveredPoint && svgRef.current && createPortal(
-          <div
-            className="sg-chart-tooltip"
-            style={{
-              position: 'fixed',
-              left: Math.min(
-                window.innerWidth - 260,
-                svgRef.current.getBoundingClientRect().left + (hoveredPoint.x / width) * svgRef.current.getBoundingClientRect().width + 10
-              ),
-              top: Math.max(
-                10,
-                svgRef.current.getBoundingClientRect().top + (hoveredPoint.y / height) * svgRef.current.getBoundingClientRect().height - 70
-              ),
-              zIndex: 9999,
-              pointerEvents: 'none',
-            }}
-          >
-            <div className="sg-tooltip-time">
-              {formatChartTime(hoveredPoint.point.timestamp, true)}
-            </div>
-            <div className="sg-tooltip-value">
-              <span className="sg-tooltip-label">{activeCfg.label}:</span>
-              <strong>
-                {hoveredPoint.point[activeCfg.key]} {activeCfg.unit}
-              </strong>
-            </div>
-            {typeof hoveredPoint.point.anomaly_score_pct === 'number' && (
-              <div className="sg-tooltip-score">
-                Risk Score: {hoveredPoint.point.anomaly_score_pct}%
-              </div>
-            )}
-            {hoveredPoint.point.is_anomaly && (
-              <>
-                <div className="sg-tooltip-score">
-                  Fault: {hoveredPoint.point.fault_type ? hoveredPoint.point.fault_type.replace(/_/g, ' ') : 'Detected Anomaly'}
+          (() => {
+            const pt = hoveredPoint.point;
+            const isMetricAnomaly = isMetricAnomalous(pt, selectedMetric);
+            const isStationAnomaly = Boolean(pt.is_anomaly);
+            const affectedLabels = getAffectedMetricLabels(pt);
+            const otherLabels = affectedLabels.filter((l) => l.toLowerCase() !== activeCfg.label.toLowerCase());
+            const otherLabelsText = otherLabels.join(' & ');
+
+            return (
+              <div
+                className="sg-chart-tooltip"
+                style={{
+                  position: 'fixed',
+                  left: Math.min(
+                    window.innerWidth - 270,
+                    svgRef.current.getBoundingClientRect().left + (hoveredPoint.x / width) * svgRef.current.getBoundingClientRect().width + 10
+                  ),
+                  top: Math.max(
+                    10,
+                    svgRef.current.getBoundingClientRect().top + (hoveredPoint.y / height) * svgRef.current.getBoundingClientRect().height - 70
+                  ),
+                  zIndex: 9999,
+                  pointerEvents: 'none',
+                }}
+              >
+                <div className="sg-tooltip-time">
+                  {formatChartTime(pt.timestamp, true)}
                 </div>
-                {hoveredPoint.point.severity && (
-                  <div className="sg-tooltip-score">Severity: {hoveredPoint.point.severity}</div>
+                <div className="sg-tooltip-value">
+                  <span className="sg-tooltip-label">{activeCfg.label}:</span>
+                  <strong>
+                    {pt[activeCfg.key]} {activeCfg.unit}
+                  </strong>
+                  <span className={`sg-tooltip-status-pill ${isMetricAnomaly ? 'sg-tooltip-status-pill--alert' : 'sg-tooltip-status-pill--normal'}`}>
+                    {isMetricAnomaly ? 'FAULT' : 'NOMINAL'}
+                  </span>
+                </div>
+
+                {isMetricAnomaly ? (
+                  <div className="sg-tooltip-metric-fault">
+                    <div className="sg-tooltip-score">
+                      Fault: <strong>{pt.fault_type ? pt.fault_type.replace(/_/g, ' ') : 'Detected Anomaly'}</strong>
+                    </div>
+                    <div className="sg-tooltip-affected">
+                      Affected: <strong>{activeCfg.label}</strong>
+                    </div>
+                    {pt.severity && (
+                      <div className="sg-tooltip-score">Severity: {pt.severity}</div>
+                    )}
+                    {typeof pt.anomaly_score_pct === 'number' && (
+                      <div className="sg-tooltip-score">
+                        Risk Score: {pt.anomaly_score_pct}%
+                      </div>
+                    )}
+                    <SuggestedValues
+                      items={suggestedFromTrendPoint(pt, selectedMetric)}
+                      compact
+                      showHeading
+                      emptyLabel="Suggested replacement unavailable during baseline warm-up"
+                    />
+                    {pt.health_status && <div className="sg-tooltip-time">Sensor: {pt.health_status}</div>}
+                  </div>
+                ) : isStationAnomaly ? (
+                  <div className="sg-tooltip-cross-notice">
+                    <div className="sg-tooltip-cross-header">
+                      <span className="sg-tooltip-cross-badge">Station Alert</span>
+                      <span className="sg-tooltip-cross-target">
+                        on {otherLabelsText || 'Other Sensor'}
+                      </span>
+                    </div>
+                    <div className="sg-tooltip-cross-fault">
+                      Fault: <strong>{pt.fault_type ? pt.fault_type.replace(/_/g, ' ') : 'Detected Anomaly'}</strong>
+                    </div>
+                    {pt.severity && (
+                      <div className="sg-tooltip-cross-sub">Severity: {pt.severity}</div>
+                    )}
+                    {typeof pt.anomaly_score_pct === 'number' && (
+                      <div className="sg-tooltip-cross-sub">
+                        Station Risk: {pt.anomaly_score_pct}%
+                      </div>
+                    )}
+                    <div className="sg-tooltip-metric-ok">
+                      ✓ {activeCfg.label} is operating normally.
+                    </div>
+                  </div>
+                ) : (
+                  typeof pt.anomaly_score_pct === 'number' && (
+                    <div className="sg-tooltip-score sg-tooltip-score--low">
+                      Risk Score: {pt.anomaly_score_pct}% (Nominal)
+                    </div>
+                  )
                 )}
-                <SuggestedValues
-                  items={suggestedFromTrendPoint(hoveredPoint.point, selectedMetric)}
-                  compact
-                  showHeading
-                  emptyLabel="Suggested replacement unavailable during baseline warm-up"
-                />
-                {hoveredPoint.point.health_status && <div className="sg-tooltip-time">Sensor: {hoveredPoint.point.health_status}</div>}
-              </>
-            )}
-          </div>,
+              </div>
+            );
+          })(),
           document.body
         )}
       </div>
