@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import os
@@ -889,74 +890,133 @@ def _clean_anomaly_dict(a: dict) -> dict:
         return {}
     try:
         ts = a.get("timestamp")
-        ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts or "")
-        rc = str(a.get("root_cause") or a.get("type") or "sensor_anomaly")
+        try:
+            ts_dt = pd.to_datetime(ts, utc=True)
+            ts_str = ts_dt.isoformat()
+        except Exception:
+            ts_str = str(ts or "")
+
         sid = str(a.get("station_id") or "")
+        
+        ft_raw = a.get("type") or a.get("fault_type") or "sensor_anomaly"
+        ft = str(ft_raw) if ft_raw is not None and not pd.isna(ft_raw) and str(ft_raw).lower() != "nan" else "sensor_anomaly"
+        
+        rc_raw = a.get("root_cause") or ft
+        rc = str(rc_raw) if rc_raw is not None and not pd.isna(rc_raw) and str(rc_raw).lower() != "nan" else ft
 
         raw_sug = a.get("suggested_values") or {}
         sug_clean = {}
         if isinstance(raw_sug, dict):
             for k, v in raw_sug.items():
-                val = _json_nullable(v)
-                if val is not None and not (isinstance(val, float) and math.isnan(val)):
+                if v is not None and not pd.isna(v):
                     try:
-                        sug_clean[k] = float(val)
-                    except Exception:
+                        fv = float(v)
+                        if not math.isnan(fv) and not math.isinf(fv):
+                            sug_clean[str(k)] = round(fv, 2)
+                    except (ValueError, TypeError):
                         pass
 
         raw_obs = a.get("observed_values") or {}
         obs_clean = {}
         if isinstance(raw_obs, dict):
             for k, v in raw_obs.items():
-                val = _json_nullable(v)
-                if val is not None and not (isinstance(val, float) and math.isnan(val)):
+                if v is not None and not pd.isna(v):
                     try:
-                        obs_clean[k] = float(val)
-                    except Exception:
+                        fv = float(v)
+                        if not math.isnan(fv) and not math.isinf(fv):
+                            obs_clean[str(k)] = round(fv, 2)
+                    except (ValueError, TypeError):
                         pass
 
         score = a.get("anomaly_score_pct")
-        try:
-            score_val = float(score) if score is not None else 90.0
-            if math.isnan(score_val) or math.isinf(score_val):
+        score_val = 90.0
+        if score is not None and not pd.isna(score):
+            try:
+                fv = float(score)
+                if not math.isnan(fv) and not math.isinf(fv):
+                    score_val = max(0.0, min(100.0, fv))
+            except (ValueError, TypeError):
                 score_val = 90.0
-        except Exception:
-            score_val = 90.0
 
-        try:
-            dec_basis = str(a.get("decision_basis") or _compute_decision_basis(
-                a.get("model_confidence_pct"),
-                a.get("rules_fired") or [],
-            ))
-        except Exception:
-            dec_basis = "RULE_EVALUATION"
+        sev_raw = a.get("severity")
+        sev_str = str(sev_raw).lower() if sev_raw is not None and not pd.isna(sev_raw) else ""
+        if sev_str not in ("critical", "high", "medium", "low"):
+            sev_str = "critical" if score_val >= 90.0 else ("high" if score_val >= 80.0 else "medium")
 
-        try:
-            mod_status = _compute_model_status(
-                a.get("model_confidence_pct"),
-                None,
-            )
-        except Exception:
-            mod_status = "active"
+        dec_basis_raw = a.get("decision_basis")
+        if dec_basis_raw is not None and not pd.isna(dec_basis_raw) and str(dec_basis_raw).lower() != "nan":
+            dec_basis = str(dec_basis_raw)
+        else:
+            try:
+                dec_basis = str(_compute_decision_basis(
+                    a.get("model_confidence_pct"),
+                    a.get("rules_fired") or [],
+                ))
+            except Exception:
+                dec_basis = "RULE_EVALUATION"
+
+        mod_status_raw = a.get("model_status")
+        if mod_status_raw is not None and not pd.isna(mod_status_raw) and str(mod_status_raw).lower() != "nan":
+            mod_status = str(mod_status_raw)
+        else:
+            try:
+                mod_status = _compute_model_status(a.get("model_confidence_pct"), None)
+            except Exception:
+                mod_status = "active"
+
+        # Safe optional string fields (must be string or None, NEVER float('nan'))
+        regime_raw = a.get("regime")
+        regime = str(regime_raw) if regime_raw is not None and not pd.isna(regime_raw) and str(regime_raw).lower() != "nan" else None
+
+        net_corr_raw = a.get("network_corroboration")
+        net_corr = str(net_corr_raw) if net_corr_raw is not None and not pd.isna(net_corr_raw) and str(net_corr_raw).lower() != "nan" else None
+
+        edge_inf_raw = a.get("edge_inference")
+        edge_inf = edge_inf_raw if isinstance(edge_inf_raw, dict) else None
+
+        src_raw = a.get("source")
+        src = str(src_raw) if src_raw is not None and not pd.isna(src_raw) and str(src_raw).lower() != "nan" else "live"
+
+        raw_affected = a.get("affected_parameters")
+        affected = []
+        if isinstance(raw_affected, (list, tuple, set)):
+            for p in raw_affected:
+                if p is not None and not pd.isna(p) and str(p).lower() != "nan":
+                    affected.append(str(p))
+        elif isinstance(raw_affected, str) and raw_affected.lower() != "nan":
+            import ast
+            try:
+                parsed = ast.literal_eval(raw_affected)
+                if isinstance(parsed, (list, tuple)):
+                    affected = [str(x) for x in parsed if str(x).lower() != "nan"]
+                else:
+                    affected = [raw_affected]
+            except Exception:
+                affected = [raw_affected]
+        if not affected and sug_clean:
+            affected = list(sug_clean.keys())
+
+        anom_id_raw = a.get("anomaly_id")
+        anom_id = str(anom_id_raw) if anom_id_raw is not None and not pd.isna(anom_id_raw) and str(anom_id_raw).lower() != "nan" else f"anom_{sid}"
 
         return {
-            "anomaly_id": str(a.get("anomaly_id") or f"anom_{sid}"),
+            "anomaly_id": anom_id,
             "timestamp": ts_str,
             "station_id": sid,
             "anomaly_score_pct": score_val,
-            "severity": str(a.get("severity") or "medium"),
-            "type": str(a.get("type") or "sensor_anomaly"),
+            "severity": sev_str,
+            "type": ft,
             "root_cause": rc,
             "description": f"{rc} detected at {sid}.",
             "suggested_values": sug_clean if sug_clean else None,
             "observed_values": obs_clean if obs_clean else None,
-            "affected_parameters": [str(p) for p in (a.get("affected_parameters") or [])],
-            "regime": a.get("regime"),
-            "network_corroboration": a.get("network_corroboration"),
+            "affected_parameters": affected,
+            "regime": regime,
+            "network_corroboration": net_corr,
             "decision_basis": dec_basis,
             "model_status": mod_status,
-            "edge_inference": a.get("edge_inference"),
-            "source": a.get("source"),
+            "edge_inference": edge_inf,
+            "source": src,
         }
     except Exception as e:
         print(f"[_clean_anomaly_dict] Error cleaning anomaly: {e!r}")
@@ -977,7 +1037,7 @@ def _clean_anomaly_dict(a: dict) -> dict:
             "decision_basis": "RULE_EVALUATION",
             "model_status": "active",
             "edge_inference": None,
-            "source": str(a.get("source") or "live"),
+            "source": "live",
         }
 
 
@@ -985,38 +1045,45 @@ def _clean_anomaly_dict(a: dict) -> dict:
 
 @app.get("/api/anomalies/latest")
 async def get_latest_anomaly(station_id: str):
-    sim = app.state.sim
-    # 1. Search in-memory deque
-    for a in reversed(sim.recent_anomalies):
-        if a.get("station_id") == station_id:
+    try:
+        sim = getattr(app.state, "sim", None)
+        if sim is None:
+            return JSONResponse(content=None)
+        # 1. Search in-memory deque
+        recent_list = list(getattr(sim, "recent_anomalies", []))
+        for a in reversed(recent_list):
+            if a.get("station_id") == station_id:
+                try:
+                    a_source = a.get("source", "live")
+                    if a_source != "edge":
+                        a_year = pd.to_datetime(a.get("timestamp")).year
+                        if sim.mode == "replay" and a_year > 2025:
+                            continue
+                        if sim.mode == "live" and a_year <= 2025:
+                            continue
+                except Exception:
+                    pass
+                return JSONResponse(content=_clean_anomaly_dict(a))
+
+        # 2. Search persistent store if in-memory buffer has none
+        if hasattr(sim, "manager") and hasattr(sim.manager, "history"):
             try:
-                a_source = a.get("source", "live")
-                if a_source != "edge":
-                    a_year = pd.to_datetime(a.get("timestamp")).year
-                    if sim.mode == "replay" and a_year > 2025:
-                        continue
-                    if sim.mode == "live" and a_year <= 2025:
-                        continue
-            except Exception:
-                pass
-            return _clean_anomaly_dict(a)
+                target_source = sim.mode if sim.mode in ("live", "replay", "edge") else None
+                db_anoms = sim.manager.history.get_recent_anomalies(
+                    station_id=station_id,
+                    limit=1,
+                    source=target_source
+                )
+                if db_anoms:
+                    return JSONResponse(content=_clean_anomaly_dict(db_anoms[0]))
+            except Exception as e:
+                print(f"[/api/anomalies/latest] Error hydrating from HistoryStore: {e!r}")
 
-    # 2. Search persistent store if in-memory buffer has none
-    if hasattr(sim, "manager") and hasattr(sim.manager, "history"):
-        try:
-            target_source = sim.mode if sim.mode in ("live", "replay", "edge") else None
-            db_anoms = sim.manager.history.get_recent_anomalies(
-                station_id=station_id,
-                limit=1,
-                source=target_source
-            )
-            if db_anoms:
-                return _clean_anomaly_dict(db_anoms[0])
-        except Exception as e:
-            print(f"[/api/anomalies/latest] Error hydrating from HistoryStore: {e!r}")
-
-    # No recent anomaly is a healthy, expected state—not a missing resource.
-    return None
+        # No recent anomaly is a healthy, expected state—not a missing resource.
+        return JSONResponse(content=None)
+    except Exception as exc:
+        print(f"[/api/anomalies/latest] Error: {exc!r}\n{traceback.format_exc()}")
+        return JSONResponse(content=None)
 
 
 # ---------------- GET /api/anomalies/recent ----------------
@@ -1026,7 +1093,7 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
     try:
         sim = getattr(app.state, "sim", None)
         if sim is None:
-            return []
+            return JSONResponse(content=[])
         valid_anoms = []
         seen_keys = set()
         recent_list = list(getattr(sim, "recent_anomalies", []))
@@ -1086,10 +1153,10 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
             c = _clean_anomaly_dict(a)
             if c:
                 cleaned.append(c)
-        return cleaned
+        return JSONResponse(content=cleaned)
     except Exception as exc:
-        print(f"[/api/anomalies/recent] Critical unhandled error: {exc!r}")
-        return []
+        print(f"[/api/anomalies/recent] Critical unhandled error: {exc!r}\n{traceback.format_exc()}")
+        return JSONResponse(content=[])
 
 
 def _compute_dynamic_spatial_threshold(
@@ -1801,33 +1868,77 @@ def get_explanation(anomaly_id: str):
     features = _compute_explanation_features(match, spatial_ctx)
     structured_conclusion = _generate_operator_conclusion(match, spatial_ctx, features)
 
+    def _safe_float_val(val, default=None):
+        if val is None or pd.isna(val):
+            return default
+        try:
+            f = float(val)
+            return default if (math.isnan(f) or math.isinf(f)) else round(f, 2)
+        except (ValueError, TypeError):
+            return default
+
+    def _safe_str_val(val, default=None):
+        if val is None or pd.isna(val) or str(val).lower() == "nan":
+            return default
+        return str(val)
+
+    raw_sug = match.get("suggested_values") or {}
+    sug_clean = {}
+    if isinstance(raw_sug, dict):
+        for k, v in raw_sug.items():
+            if v is not None and not pd.isna(v):
+                try:
+                    fv = float(v)
+                    if not math.isnan(fv) and not math.isinf(fv):
+                        sug_clean[str(k)] = round(fv, 2)
+                except (ValueError, TypeError):
+                    pass
+
+    raw_obs = match.get("observed_values") or {}
+    obs_clean = {}
+    if isinstance(raw_obs, dict):
+        for k, v in raw_obs.items():
+            if v is not None and not pd.isna(v):
+                try:
+                    fv = float(v)
+                    if not math.isnan(fv) and not math.isinf(fv):
+                        obs_clean[str(k)] = round(fv, 2)
+                except (ValueError, TypeError):
+                    pass
+
+    raw_ts = match.get("timestamp")
+    try:
+        ts_clean = pd.to_datetime(raw_ts, utc=True).isoformat()
+    except Exception:
+        ts_clean = str(raw_ts or "")
+
     return {
-        "anomaly_id": anomaly_id,
-        "station_id": match.get("station_id"),
-        "timestamp": match["timestamp"].isoformat() if hasattr(match.get("timestamp"), "isoformat") else str(match.get("timestamp", "")),
+        "anomaly_id": str(anomaly_id),
+        "station_id": _safe_str_val(match.get("station_id"), "AWS-UNKNOWN"),
+        "timestamp": ts_clean,
         "features": features,
-        "likely_faulty_sensors": match.get("likely_faulty_sensors", []),
-        "affected_parameters": match.get("affected_parameters", []),
-        "observed_values": match.get("observed_values", {}),
-        "suggested_values": match.get("suggested_values", {}),
-        "model_confidence_pct": match.get("model_confidence_pct"),
-        "rule_confidence_pct": match.get("rule_confidence_pct"),
-        "anomaly_score_pct": match.get("anomaly_score_pct"),
-        "fault_type": match.get("type"),
-        "regime": match.get("regime"),
-        "network_corroboration": match.get("network_corroboration"),
-        "decision_basis": _compute_decision_basis(
+        "likely_faulty_sensors": [str(p) for p in (match.get("likely_faulty_sensors") or []) if str(p).lower() != "nan"],
+        "affected_parameters": [str(p) for p in (match.get("affected_parameters") or []) if str(p).lower() != "nan"],
+        "observed_values": obs_clean,
+        "suggested_values": sug_clean,
+        "model_confidence_pct": _safe_float_val(match.get("model_confidence_pct")),
+        "rule_confidence_pct": _safe_float_val(rule_conf),
+        "anomaly_score_pct": _safe_float_val(match.get("anomaly_score_pct"), 90.0),
+        "fault_type": _safe_str_val(match.get("type"), "sensor_anomaly"),
+        "regime": _safe_str_val(match.get("regime")),
+        "network_corroboration": _safe_str_val(match.get("network_corroboration")),
+        "decision_basis": _safe_str_val(_compute_decision_basis(
             match.get("model_confidence_pct"),
             match.get("rules_fired") or [],
-        ),
-        "model_status": _compute_model_status(
+        ), "RULE_EVALUATION"),
+        "model_status": _safe_str_val(_compute_model_status(
             match.get("model_confidence_pct"),
             None,
-        ),
+        ), "active"),
         "spatial_context": spatial_ctx,
-        "edge_inference": match.get("edge_inference"),
+        "edge_inference": match.get("edge_inference") if isinstance(match.get("edge_inference"), dict) else None,
         "structured_conclusion": structured_conclusion,
-        "source": match.get("source", "central"),
+        "source": _safe_str_val(match.get("source"), "central"),
     }
 
 

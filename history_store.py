@@ -10,6 +10,7 @@ Supports dual-store architecture:
 """
 
 import csv
+import math
 import os
 import threading
 import time
@@ -1045,31 +1046,74 @@ class HistoryStore:
                                 colnames = [desc[0] for desc in cur.description]
                                 for idx, row in enumerate(rows):
                                     rd = dict(zip(colnames, row))
-                                    ts = rd["timestamp"].isoformat() if hasattr(rd["timestamp"], "isoformat") else str(rd["timestamp"])
-                                    ft = rd.get("fault_type") or "sensor_anomaly"
-                                    sid = rd["station_id"]
+                                    raw_ts = rd.get("timestamp") or rd.get("time")
+                                    try:
+                                        ts_dt = pd.to_datetime(raw_ts, utc=True)
+                                        ts = ts_dt.isoformat()
+                                        ts_sec = int(ts_dt.timestamp())
+                                    except Exception:
+                                        ts = str(raw_ts or "")
+                                        ts_sec = int(time.time())
+
+                                    sid = str(rd.get("station_id") or "")
+                                    ft_raw = rd.get("fault_type")
+                                    ft = str(ft_raw) if ft_raw is not None and not pd.isna(ft_raw) and str(ft_raw).lower() != "nan" else "sensor_anomaly"
+                                    
+                                    score_raw = rd.get("anomaly_score_pct")
+                                    score_val = 90.0
+                                    if score_raw is not None and not pd.isna(score_raw):
+                                        try:
+                                            fv = float(score_raw)
+                                            if not math.isnan(fv) and not math.isinf(fv):
+                                                score_val = max(0.0, min(100.0, fv))
+                                        except (ValueError, TypeError):
+                                            pass
+
+                                    sev_raw = str(rd.get("severity") or "medium").lower()
+                                    if sev_raw not in ("critical", "high", "medium", "low"):
+                                        sev_raw = "critical" if score_val >= 90.0 else ("high" if score_val >= 80.0 else "medium")
+
+                                    sug = {}
+                                    for p in RAW_PARAMS:
+                                        v = rd.get(f"suggested_{p}")
+                                        if v is not None and not pd.isna(v):
+                                            try:
+                                                fv = float(v)
+                                                if not math.isnan(fv) and not math.isinf(fv):
+                                                    sug[p] = round(fv, 2)
+                                            except (ValueError, TypeError):
+                                                pass
+
+                                    obs = {}
+                                    for p in RAW_PARAMS:
+                                        v = rd.get(p)
+                                        if v is not None and not pd.isna(v):
+                                            try:
+                                                fv = float(v)
+                                                if not math.isnan(fv) and not math.isinf(fv):
+                                                    obs[p] = round(fv, 2)
+                                            except (ValueError, TypeError):
+                                                pass
+
+                                    db_raw = rd.get("decision_basis")
+                                    dec_basis = str(db_raw) if db_raw is not None and not pd.isna(db_raw) and str(db_raw).lower() != "nan" else "PERSISTENT_STORE"
+                                    src_raw = rd.get("source")
+                                    src_val = str(src_raw) if src_raw is not None and not pd.isna(src_raw) and str(src_raw).lower() != "nan" else "live"
+
                                     results.append({
-                                        "anomaly_id": f"db_{sid}_{int(pd.to_datetime(ts).timestamp())}",
+                                        "anomaly_id": f"db_{sid}_{ts_sec}_{idx}",
                                         "timestamp": ts,
                                         "station_id": sid,
-                                        "anomaly_score_pct": float(rd.get("anomaly_score_pct") or 90.0),
-                                        "severity": rd.get("severity") or "medium",
+                                        "anomaly_score_pct": score_val,
+                                        "severity": sev_raw,
                                         "type": ft,
                                         "root_cause": ft,
                                         "description": f"{ft} detected at {sid}.",
-                                        "suggested_values": {
-                                            "temperature_c": rd.get("suggested_temperature_c"),
-                                            "pressure_hpa": rd.get("suggested_pressure_hpa"),
-                                            "humidity_pct": rd.get("suggested_humidity_pct"),
-                                        },
-                                        "observed_values": {
-                                            "temperature_c": rd.get("temperature_c"),
-                                            "pressure_hpa": rd.get("pressure_hpa"),
-                                            "humidity_pct": rd.get("humidity_pct"),
-                                        },
-                                        "affected_parameters": [p for p in RAW_PARAMS if rd.get(f"suggested_{p}") is not None or ft in p],
-                                        "source": rd.get("source", "live"),
-                                        "decision_basis": rd.get("decision_basis", "PERSISTENT_STORE"),
+                                        "suggested_values": sug if sug else None,
+                                        "observed_values": obs if obs else None,
+                                        "affected_parameters": [p for p in RAW_PARAMS if (p in sug or ft in p)],
+                                        "source": src_val,
+                                        "decision_basis": dec_basis,
                                     })
                                 return results
             except Exception as e:
@@ -1096,32 +1140,75 @@ class HistoryStore:
                 pass
 
         if all_csv_anoms:
-            all_csv_anoms.sort(key=lambda x: pd.to_datetime(x["timestamp"]), reverse=True)
+            all_csv_anoms.sort(key=lambda x: pd.to_datetime(x.get("timestamp", "")), reverse=True)
             for idx, rd in enumerate(all_csv_anoms[:limit]):
-                ts = rd["timestamp"].isoformat() if hasattr(rd["timestamp"], "isoformat") else str(rd["timestamp"])
-                ft = rd.get("fault_type") or "sensor_anomaly"
-                sid = rd["station_id"]
+                raw_ts = rd.get("timestamp")
+                try:
+                    ts_dt = pd.to_datetime(raw_ts, utc=True)
+                    ts = ts_dt.isoformat()
+                    ts_sec = int(ts_dt.timestamp())
+                except Exception:
+                    ts = str(raw_ts or "")
+                    ts_sec = int(time.time())
+
+                sid = str(rd.get("station_id") or "")
+                ft_raw = rd.get("fault_type")
+                ft = str(ft_raw) if ft_raw is not None and not pd.isna(ft_raw) and str(ft_raw).lower() != "nan" else "sensor_anomaly"
+
+                score_raw = rd.get("anomaly_score_pct")
+                score_val = 90.0
+                if score_raw is not None and not pd.isna(score_raw):
+                    try:
+                        fv = float(score_raw)
+                        if not math.isnan(fv) and not math.isinf(fv):
+                            score_val = max(0.0, min(100.0, fv))
+                    except (ValueError, TypeError):
+                        pass
+
+                sev_raw = str(rd.get("severity") or "medium").lower()
+                if sev_raw not in ("critical", "high", "medium", "low"):
+                    sev_raw = "critical" if score_val >= 90.0 else ("high" if score_val >= 80.0 else "medium")
+
+                sug = {}
+                for p in RAW_PARAMS:
+                    v = rd.get(f"suggested_{p}")
+                    if v is not None and not pd.isna(v):
+                        try:
+                            fv = float(v)
+                            if not math.isnan(fv) and not math.isinf(fv):
+                                sug[p] = round(fv, 2)
+                        except (ValueError, TypeError):
+                            pass
+
+                obs = {}
+                for p in RAW_PARAMS:
+                    v = rd.get(p)
+                    if v is not None and not pd.isna(v):
+                        try:
+                            fv = float(v)
+                            if not math.isnan(fv) and not math.isinf(fv):
+                                obs[p] = round(fv, 2)
+                        except (ValueError, TypeError):
+                            pass
+
+                db_raw = rd.get("decision_basis")
+                dec_basis = str(db_raw) if db_raw is not None and not pd.isna(db_raw) and str(db_raw).lower() != "nan" else "CSV_MIRROR"
+                src_raw = rd.get("source")
+                src_val = str(src_raw) if src_raw is not None and not pd.isna(src_raw) and str(src_raw).lower() != "nan" else "live"
+
                 results.append({
-                    "anomaly_id": f"csv_{sid}_{int(pd.to_datetime(ts).timestamp())}",
+                    "anomaly_id": f"csv_{sid}_{ts_sec}_{idx}",
                     "timestamp": ts,
                     "station_id": sid,
-                    "anomaly_score_pct": float(rd.get("anomaly_score_pct") or 90.0),
-                    "severity": rd.get("severity") or "medium",
+                    "anomaly_score_pct": score_val,
+                    "severity": sev_raw,
                     "type": ft,
                     "root_cause": ft,
                     "description": f"{ft} detected at {sid}.",
-                    "suggested_values": {
-                        "temperature_c": rd.get("suggested_temperature_c"),
-                        "pressure_hpa": rd.get("suggested_pressure_hpa"),
-                        "humidity_pct": rd.get("suggested_humidity_pct"),
-                    },
-                    "observed_values": {
-                        "temperature_c": rd.get("temperature_c"),
-                        "pressure_hpa": rd.get("pressure_hpa"),
-                        "humidity_pct": rd.get("humidity_pct"),
-                    },
-                    "affected_parameters": [p for p in RAW_PARAMS if rd.get(f"suggested_{p}") is not None or ft in p],
-                    "source": rd.get("source", "live"),
-                    "decision_basis": rd.get("decision_basis", "CSV_MIRROR"),
+                    "suggested_values": sug if sug else None,
+                    "observed_values": obs if obs else None,
+                    "affected_parameters": [p for p in RAW_PARAMS if (p in sug or ft in p)],
+                    "source": src_val,
+                    "decision_basis": dec_basis,
                 })
         return results
