@@ -440,6 +440,8 @@ class StateManager:
             precomputed_features=featured_history.iloc[-1],
             precomputed_history_featured=featured_history,
             include_evaluation_diagnostics=include_evaluation_diagnostics,
+            sprt_state=buf.sprt_state,
+            clean_history_df=buf.clean_history_df(),
         )
         # If reading is flagged an anomaly by any rule tier, evaluate Isolation Forest
         # so frontend Decision X-Ray has authentic model confidence & feature evidence

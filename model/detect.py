@@ -832,20 +832,35 @@ def score_reading(
         )
         is_dewpoint_violation = abs(z_td) > 2.58
 
+    is_thermo_consistent_gradient = (
+        set(elevated_channels) == {"temperature_c", "humidity_pct"}
+        and (peer_z.get("temperature_c", 0.0) * peer_z.get("humidity_pct", 0.0)) < 0
+        and abs(peer_z.get("pressure_hpa", 0.0)) < z_secondary_crit
+    )
+
     if eligible_peer_count >= 2:
         d_sq, p_val, cc_diag = CrossChannelEngine.compute_mahalanobis_distance(
             peer_z["temperature_c"], peer_z["pressure_hpa"], peer_z["humidity_pct"]
         )
         # Sibling microclimate principle: requires local temporal innovation dislocation
-        # corroborated by joint multi-channel spatial divergence or psychrometric breakdown
+        # corroborated by joint multi-channel spatial divergence.
+        # Natural counter-directional T/RH gradients with normal barometric pressure represent
+        # thermodynamically consistent local microclimates (coastal/elevation), not multivariate faults.
         is_multivariate = is_hard_phys or (
             has_sufficient_history
             and cc_diag_temporal["is_multivariate_outlier"]
-            and ((is_joint_violation and cc_diag["is_multivariate_outlier"]) or is_dewpoint_violation)
+            and is_joint_violation
+            and not is_thermo_consistent_gradient
+            and cc_diag["is_multivariate_outlier"]
         )
     else:
         d_sq, p_val, cc_diag = d_sq_temporal, p_val_temporal, cc_diag_temporal
-        is_multivariate = is_hard_phys or (has_sufficient_history and cc_diag["is_multivariate_outlier"] and is_joint_violation)
+        is_multivariate = is_hard_phys or (
+            has_sufficient_history
+            and cc_diag["is_multivariate_outlier"]
+            and is_joint_violation
+            and not is_thermo_consistent_gradient
+        )
 
     if is_multivariate:
         implicated = elevated_channels if elevated_channels else ["temperature_c", "humidity_pct"]
