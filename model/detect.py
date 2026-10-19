@@ -753,19 +753,25 @@ def score_reading(
             if (residual * peer_res) < 0 and abs(residual) > 1.5 * sigma_tot:
                 drift_llr *= 1.4  # Boost evidence on directional divergence
                 peer_diverged = True
-            elif spatial_diff > 1.8 * sigma_tot:
-                peer_diverged = True
-            elif spatial_diff < 1.0 * sigma_tot and (residual * peer_res) > 0:
+            elif (residual * peer_res) > 0 and spatial_diff <= 2.5 * spatial_sig:
                 # Sibling peers are moving in exact synchronization (regional front / diurnal shift)
                 peer_corroborated = True
                 drift_llr = min(drift_llr, 3.0)  # Suppress drift evidence on synchronized regional weather
+                sprt_updates[param]["s_pos"] = min(sprt_updates[param]["s_pos"], 3.0)
+                sprt_updates[param]["s_neg"] = min(sprt_updates[param]["s_neg"], 3.0)
+                sprt_updates[param]["drift_llr"] = min(sprt_updates[param]["drift_llr"], 3.0)
+                if active_sprt and param in active_sprt:
+                    active_sprt[param]["s_pos"] = min(active_sprt[param]["s_pos"], 3.0)
+                    active_sprt[param]["s_neg"] = min(active_sprt[param]["s_neg"], 3.0)
+            elif spatial_diff > 2.5 * spatial_sig:
+                peer_diverged = True
 
         is_drift_anom = False
         if not peer_corroborated and drift_llr >= WALD_UPPER_ALERT:
             # Dynamic drift innovation gate grounded in CUSUM allowance and peer network topology
             allowance = SequentialSPRT.compute_drift_allowance(param, sigma_tot)
             z_drift_gate = max(1.5, min(2.0, (allowance / 2.0) + (1.0 / math.sqrt(max(1, n_p)))))
-            is_drift_anom = peer_diverged or (abs(z_scores[param]) >= z_drift_gate)
+            is_drift_anom = peer_diverged if n_p >= 2 else (abs(z_scores[param]) >= z_drift_gate)
 
         if is_drift_anom:
             tier2_evidence.append({
