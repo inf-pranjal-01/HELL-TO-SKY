@@ -557,26 +557,49 @@ def score_reading(
     sprt_updates = {}
     active_sprt = sprt_state if sprt_state is not None else getattr(state, "sprt_state", None)
     for param in PARAMS:
-        res = innovations[param]
+        val = float(raw_reading[param])
         sig = uncertainties[param]
         s_pos_prev = float(active_sprt[param].get("s_pos", 0.0)) if active_sprt and param in active_sprt else 0.0
         s_neg_prev = float(active_sprt[param].get("s_neg", 0.0)) if active_sprt and param in active_sprt else 0.0
+        offset_ema = float(active_sprt[param].get("offset_ema", 0.0)) if active_sprt and param in active_sprt else 0.0
+        offset_init = bool(active_sprt[param].get("offset_init", False)) if active_sprt and param in active_sprt else False
+        
+        peer_med = peer_consensus_medians.get(param)
+        n_p = peer_consensus_counts.get(param, 0)
+        
+        if peer_med is not None and not pd.isna(peer_med) and n_p >= 2:
+            spatial_delta = val - float(peer_med)
+            if not offset_init:
+                offset_ema = spatial_delta
+                offset_init = True
+            drift_res = spatial_delta - offset_ema
+        else:
+            drift_res = innovations[param]
         
         history_len = len(history_df) if not history_df.empty else 0
         if history_len < 6:
             eps = 0.0
         else:
-            eps = SequentialSPRT.pre_whiten_residual(param, res, None, dt_hours, sig)
+            eps = SequentialSPRT.pre_whiten_residual(param, drift_res, None, dt_hours, sig)
         s_pos, s_neg, d_llr = SequentialSPRT.update_cusum(
             param, s_pos_prev=s_pos_prev, s_neg_prev=s_neg_prev,
             whitened_epsilon=eps, dt_hours=dt_hours, current_sigma=sig
         )
+        
+        # When evidence is low (clean operation), adapt baseline offset EMA slowly (tau ~ 25 steps / 6-12h)
+        if peer_med is not None and not pd.isna(peer_med) and n_p >= 2 and d_llr < 2.5:
+            alpha = 0.02
+            offset_ema = (1.0 - alpha) * offset_ema + alpha * spatial_delta
+            
         sprt_updates[param] = {
-            "s_pos": s_pos, "s_neg": s_neg, "drift_llr": d_llr
+            "s_pos": s_pos, "s_neg": s_neg, "drift_llr": d_llr,
+            "offset_ema": offset_ema, "offset_init": offset_init
         }
         if active_sprt and param in active_sprt:
             active_sprt[param]["s_pos"] = s_pos
             active_sprt[param]["s_neg"] = s_neg
+            active_sprt[param]["offset_ema"] = offset_ema
+            active_sprt[param]["offset_init"] = offset_init
 
     # ── TIER 1: High-Specificity Specialist Faults (Spike & Frozen) ─────
     tier1_evidence = []
@@ -748,13 +771,14 @@ def score_reading(
         peer_diverged = False
         peer_corroborated = False
         if peer_med is not None and n_p >= 2:
-            peer_res = peer_med - expectations[param]
             spatial_diff = abs(float(raw_reading[param]) - float(peer_med))
-            if (residual * peer_res) < 0 and abs(residual) > 1.5 * sigma_tot:
-                drift_llr *= 1.4  # Boost evidence on directional divergence
+            offset_ema = sprt_updates[param]["offset_ema"]
+            excess_deviation = abs((float(raw_reading[param]) - float(peer_med)) - offset_ema)
+            if excess_deviation > 2.0 * spatial_sig or spatial_diff > 3.0 * spatial_sig:
+                drift_llr *= 1.4  # Boost evidence on spatial divergence
                 peer_diverged = True
-            elif (residual * peer_res) > 0 and spatial_diff <= 2.5 * spatial_sig:
-                # Sibling peers are moving in exact synchronization (regional front / diurnal shift)
+            elif excess_deviation <= 1.5 * spatial_sig:
+                # Sibling peers corroborate reading within baseline-calibrated spatial envelope
                 peer_corroborated = True
                 drift_llr = min(drift_llr, 3.0)  # Suppress drift evidence on synchronized regional weather
                 sprt_updates[param]["s_pos"] = min(sprt_updates[param]["s_pos"], 3.0)
@@ -763,15 +787,13 @@ def score_reading(
                 if active_sprt and param in active_sprt:
                     active_sprt[param]["s_pos"] = min(active_sprt[param]["s_pos"], 3.0)
                     active_sprt[param]["s_neg"] = min(active_sprt[param]["s_neg"], 3.0)
-            elif spatial_diff > 2.5 * spatial_sig:
-                peer_diverged = True
 
         is_drift_anom = False
         if not peer_corroborated and drift_llr >= WALD_UPPER_ALERT:
             # Dynamic drift innovation gate grounded in CUSUM allowance and peer network topology
             allowance = SequentialSPRT.compute_drift_allowance(param, sigma_tot)
             z_drift_gate = max(1.5, min(2.0, (allowance / 2.0) + (1.0 / math.sqrt(max(1, n_p)))))
-            is_drift_anom = peer_diverged if n_p >= 2 else (abs(z_scores[param]) >= z_drift_gate)
+            is_drift_anom = (peer_diverged if n_p >= 2 else True) and (abs(z_scores[param]) >= z_drift_gate)
 
         if is_drift_anom:
             tier2_evidence.append({
