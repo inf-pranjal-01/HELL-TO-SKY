@@ -155,7 +155,7 @@ The decision arbiter in [`model/detect.py`](model/detect.py) implements strict p
 
 The system was evaluated across **60,480 continuous hourly readings** representing the complete 28-station Automatic Weather Station network partitioned across **7 Regional Microclimate Clusters**.
 
-*Latest Canonical Parallel Benchmark Run: **October 18, 2026 — 08:07:30 IST (02:37:30 UTC)***
+*Latest Canonical Parallel Benchmark Run: **October 20, 2026 — 19:17:00 IST (13:47:00 UTC)***
 
 ### Primary Production Benchmark Scorecard
 
@@ -163,13 +163,13 @@ The system was evaluated across **60,480 continuous hourly readings** representi
 ================================================================================
                      SKYGUARD AI PRODUCTION BENCHMARK RESULTS                    
 ================================================================================
-Benchmark Timestamp      : 2026-10-18 08:07:30 IST / 02:37:30 UTC
+Benchmark Timestamp      : 2026-10-20 19:17:00 IST / 13:47:00 UTC
 Total Telemetry Scope    : 60,480 Physical Readings (28 AWS Stations / 7 Clusters)
-Evaluation Throughput    : 333.6 rows/s (Multi-Core Parallel Execution)
+Evaluation Throughput    : 239.0 rows/s (Multi-Core Parallel Execution)
 --------------------------------------------------------------------------------
-Clean Specificity (TNR)  : 99.50%  (Zero false alarms during dynamic weather)
-OVERALL SYSTEM PRECISION : 89.18%  (System Alert Purity / True Fault Ratio)
-OVERALL FAULT RECALL*    : 94.36%  (Physical Failure Event Capture Rate: 452/479)
+Clean Specificity (TNR)  : 99.63%  (Zero false alarms during dynamic weather)
+OVERALL SYSTEM PRECISION : 91.63%  (System Alert Purity / True Fault Ratio)
+OVERALL FAULT RECALL*    : 94.15%  (Physical Failure Event Capture Rate: 451/479)
 --------------------------------------------------------------------------------
 * OVERALL RECALL evaluates Continuous Temporal Fault Episodes via Bipartite Overlap Matching
   (WMO / NOAA AWS Standard). It measures whether physical sensor failure events were successfully
@@ -183,11 +183,11 @@ OVERALL FAULT RECALL*    : 94.36%  (Physical Failure Event Capture Rate: 452/479
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`dropout`** | 70 | 70 | 0 | **100.0%** | **100.0%** | **100.0%** |
 | **`sensor_fail_low`** | 277 | 268 | 3 | **98.9%** | **96.8%** | **97.8%** |
-| **`unstructured_anomaly`** | 403 | 359 | 3 | **99.2%** | **89.1%** | **93.9%** |
-| **`multivariate_inconsistency`** | 276 | 197 | 41 | **82.8%** | **71.4%** | **76.7%** |
-| **`drift`** | 1,516 | 921 | 531 | **63.4%** | **60.8%** | **62.1%** |
-| **`frozen_value`** | 751 | 361 | 40 | **90.0%** | **48.1%** | **62.7%** |
-| **`spike`** | 197 | 164 | 335 | **32.9%** | **83.2%** | **47.1%** |
+| **`unstructured_anomaly`** | 403 | 344 | 3 | **99.1%** | **85.4%** | **91.7%** |
+| **`multivariate_inconsistency`** | 276 | 195 | 48 | **80.2%** | **70.7%** | **75.1%** |
+| **`drift`** | 1,516 | 910 | 425 | **68.2%** | **60.0%** | **63.8%** |
+| **`frozen_value`** | 751 | 360 | 40 | **90.0%** | **47.9%** | **62.6%** |
+| **`spike`** | 197 | 162 | 335 | **32.6%** | **82.2%** | **46.7%** |
 
 ### Continuous Episodic Event Capture Metrics (WMO Operational Standard)
 
@@ -197,9 +197,9 @@ OVERALL FAULT RECALL*    : 94.36%  (Physical Failure Event Capture Rate: 452/479
 | **`sensor_fail_low`** | 69 | 68 | 29 | **70.1%** | **98.6%** | **81.9%** |
 | **`spike`** | 63 | 60 | 238 | **20.1%** | **95.2%** | **33.2%** |
 | **`frozen_value`** | 69 | 63 | 28 | **69.2%** | **91.3%** | **78.8%** |
-| **`drift`** | 68 | 51 | 294 | **14.8%** | **75.0%** | **24.7%** |
-| **`multivariate_inconsistency`**| 70 | 42 | 198 | **17.5%** | **60.0%** | **27.1%** |
-| **`unstructured_anomaly`** | 70 | 6 | 24 | **20.0%** | **8.6%** | **12.0%** |
+| **`drift`** | 68 | 50 | 249 | **16.7%** | **73.5%** | **27.2%** |
+| **`multivariate_inconsistency`**| 70 | 50 | 238 | **17.4%** | **71.4%** | **27.9%** |
+| **`unstructured_anomaly`** | 70 | 8 | 25 | **24.2%** | **11.4%** | **15.5%** |
 
 ---
 

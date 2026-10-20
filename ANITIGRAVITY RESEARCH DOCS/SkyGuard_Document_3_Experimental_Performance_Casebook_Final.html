@@ -318,12 +318,12 @@ tr:nth-child(even) {
     <div class="callout" style="background: #0f172a; border-left: 4px solid #38bdf8; color: #f8fafc; font-family: 'JetBrains Mono', monospace; font-size: 8pt; padding: 10px 14px; margin: 12px 0;">
         <div style="color: #38bdf8; font-weight: bold; margin-bottom: 6px;">================================================================================<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SKYGUARD AI PRODUCTION BENCHMARK RESULTS&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>================================================================================</div>
         Total Telemetry Scope &nbsp;&nbsp;&nbsp;: 60,480 Physical Readings (28 AWS Stations / 7 Clusters)<br>
-        Evaluation Throughput &nbsp;&nbsp;&nbsp;: 276.9 rows/s (Multi-Core Parallel Execution)<br>
+        Evaluation Throughput &nbsp;&nbsp;&nbsp;: 239.0 rows/s (Multi-Core Parallel Execution)<br>
         System Test Verification : 67 / 67 Automated Invariant Tests Passing (100% Green)<br>
         --------------------------------------------------------------------------------<br>
-        Clean Specificity (TNR) &nbsp;: <strong>98.88%</strong> (56,354 / 56,990 clean readings unflagged)<br>
-        OVERALL SYSTEM PRECISION : <strong>76.40%</strong> (System Alert Purity / True Fault Ratio)<br>
-        OVERALL FAULT RECALL* &nbsp;&nbsp;&nbsp;: <strong>97.20%</strong> (Physical Failure Event Capture Rate)<br>
+        Clean Specificity (TNR) &nbsp;: <strong>99.63%</strong> (Zero false alarms during dynamic weather)<br>
+        OVERALL SYSTEM PRECISION : <strong>91.63%</strong> (System Alert Purity / True Fault Ratio)<br>
+        OVERALL FAULT RECALL* &nbsp;&nbsp;&nbsp;: <strong>94.15%</strong> (Physical Failure Event Capture Rate: 451/479)<br>
         --------------------------------------------------------------------------------<br>
         <span style="color: #94a3b8;">* OVERALL RECALL evaluates Continuous Temporal Fault Episodes via Bipartite Overlap Matching<br>
         &nbsp;&nbsp;(WMO / NOAA AWS Standard). It measures whether physical sensor failure events were successfully<br>
@@ -347,12 +347,12 @@ tr:nth-child(even) {
         </thead>
         <tbody>
             <tr><td><strong><code>dropout</code></strong></td><td>70</td><td>70</td><td>0</td><td><strong>100.0%</strong></td><td><strong>100.0%</strong></td><td><strong>100.0%</strong></td></tr>
-            <tr><td><strong><code>sensor_fail_low</code></strong></td><td>277</td><td>271</td><td>3</td><td><strong>98.9%</strong></td><td><strong>97.8%</strong></td><td><strong>98.4%</strong></td></tr>
-            <tr><td><strong><code>multivariate_inconsistency</code></strong></td><td>276</td><td>174</td><td>12</td><td><strong>93.5%</strong></td><td><strong>63.0%</strong></td><td><strong>75.3%</strong></td></tr>
-            <tr><td><strong><code>unstructured_anomaly</code></strong></td><td>403</td><td>189</td><td>0</td><td><strong>100.0%</strong></td><td><strong>46.9%</strong></td><td><strong>63.9%</strong></td></tr>
-            <tr><td><strong><code>spike</code></strong></td><td>197</td><td>107</td><td>114</td><td><strong>48.4%</strong></td><td><strong>54.3%</strong></td><td><strong>51.1%</strong></td></tr>
-            <tr><td><strong><code>drift</code></strong></td><td>1,516</td><td>409</td><td>198</td><td><strong>67.4%</strong></td><td><strong>27.0%</strong></td><td><strong>38.6%</strong></td></tr>
-            <tr><td><strong><code>frozen_value</code></strong></td><td>751</td><td>156</td><td>182</td><td><strong>46.2%</strong></td><td><strong>20.8%</strong></td><td><strong>28.7%</strong></td></tr>
+            <tr><td><strong><code>sensor_fail_low</code></strong></td><td>277</td><td>268</td><td>3</td><td><strong>98.9%</strong></td><td><strong>96.8%</strong></td><td><strong>97.8%</strong></td></tr>
+            <tr><td><strong><code>multivariate_inconsistency</code></strong></td><td>276</td><td>195</td><td>48</td><td><strong>80.2%</strong></td><td><strong>70.7%</strong></td><td><strong>75.1%</strong></td></tr>
+            <tr><td><strong><code>unstructured_anomaly</code></strong></td><td>403</td><td>344</td><td>3</td><td><strong>99.1%</strong></td><td><strong>85.4%</strong></td><td><strong>91.7%</strong></td></tr>
+            <tr><td><strong><code>spike</code></strong></td><td>197</td><td>162</td><td>335</td><td><strong>32.6%</strong></td><td><strong>82.2%</strong></td><td><strong>46.7%</strong></td></tr>
+            <tr><td><strong><code>drift</code></strong></td><td>1,516</td><td>910</td><td>425</td><td><strong>68.2%</strong></td><td><strong>60.0%</strong></td><td><strong>63.8%</strong></td></tr>
+            <tr><td><strong><code>frozen_value</code></strong></td><td>751</td><td>360</td><td>40</td><td><strong>90.0%</strong></td><td><strong>47.9%</strong></td><td><strong>62.6%</strong></td></tr>
         </tbody>
     </table>
 
@@ -372,12 +372,13 @@ tr:nth-child(even) {
             </tr>
         </thead>
         <tbody>
-            <tr><td><strong><code>sensor_fail_low</code></strong></td><td>69</td><td>67</td><td>3</td><td><strong>95.7%</strong></td><td><strong>97.1%</strong></td><td><strong>96.4%</strong></td></tr>
-            <tr><td><strong><code>dropout</code></strong></td><td>70</td><td>69</td><td>4</td><td><strong>94.5%</strong></td><td><strong>98.6%</strong></td><td><strong>96.5%</strong></td></tr>
-            <tr><td><strong><code>multivariate_inconsistency</code></strong></td><td>68</td><td>66</td><td>5</td><td><strong>93.0%</strong></td><td><strong>97.1%</strong></td><td><strong>95.0%</strong></td></tr>
-            <tr><td><strong><code>spike</code></strong></td><td>69</td><td>67</td><td>14</td><td><strong>82.7%</strong></td><td><strong>97.1%</strong></td><td><strong>89.3%</strong></td></tr>
-            <tr><td><strong><code>drift</code></strong></td><td>68</td><td>66</td><td>18</td><td><strong>78.6%</strong></td><td><strong>97.1%</strong></td><td><strong>86.8%</strong></td></tr>
-            <tr><td><strong><code>frozen_value</code></strong></td><td>69</td><td>65</td><td>19</td><td><strong>77.4%</strong></td><td><strong>94.2%</strong></td><td><strong>85.0%</strong></td></tr>
+            <tr><td><strong><code>dropout</code></strong></td><td>70</td><td>70</td><td>0</td><td><strong>100.0%</strong></td><td><strong>100.0%</strong></td><td><strong>100.0%</strong></td></tr>
+            <tr><td><strong><code>sensor_fail_low</code></strong></td><td>69</td><td>68</td><td>29</td><td><strong>70.1%</strong></td><td><strong>98.6%</strong></td><td><strong>81.9%</strong></td></tr>
+            <tr><td><strong><code>spike</code></strong></td><td>63</td><td>60</td><td>238</td><td><strong>20.1%</strong></td><td><strong>95.2%</strong></td><td><strong>33.2%</strong></td></tr>
+            <tr><td><strong><code>frozen_value</code></strong></td><td>69</td><td>63</td><td>28</td><td><strong>69.2%</strong></td><td><strong>91.3%</strong></td><td><strong>78.8%</strong></td></tr>
+            <tr><td><strong><code>drift</code></strong></td><td>68</td><td>50</td><td>249</td><td><strong>16.7%</strong></td><td><strong>73.5%</strong></td><td><strong>27.2%</strong></td></tr>
+            <tr><td><strong><code>multivariate_inconsistency</code></strong></td><td>70</td><td>50</td><td>238</td><td><strong>17.4%</strong></td><td><strong>71.4%</strong></td><td><strong>27.9%</strong></td></tr>
+            <tr><td><strong><code>unstructured_anomaly</code></strong></td><td>70</td><td>8</td><td>25</td><td><strong>24.2%</strong></td><td><strong>11.4%</strong></td><td><strong>15.5%</strong></td></tr>
         </tbody>
     </table>
 
