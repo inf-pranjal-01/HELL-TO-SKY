@@ -603,6 +603,7 @@ def score_reading(
 
     # ── TIER 1: High-Specificity Specialist Faults (Spike & Frozen) ─────
     tier1_evidence = []
+    sibling_deltas_by_param = {}
     
     for param in PARAMS:
         val = float(raw_reading[param])
@@ -642,6 +643,7 @@ def score_reading(
                     if len(p_vals) >= 2:
                         sibling_peer_deltas.append(float(p_vals.iloc[-1]) - float(p_vals.iloc[-2]))
 
+        sibling_deltas_by_param[param] = (sibling_peer_deltas, prior_val)
         s_llr, s_reason, s_diag = evaluate_spike_evidence(
             param, val, exp_val, prior_val, sigma_tot, dt_hours,
             expected_roc=expected_rocs.get(param, 0.0),
@@ -774,10 +776,16 @@ def score_reading(
             spatial_diff = abs(float(raw_reading[param]) - float(peer_med))
             offset_ema = sprt_updates[param]["offset_ema"]
             excess_deviation = abs((float(raw_reading[param]) - float(peer_med)) - offset_ema)
-            if excess_deviation > 2.0 * spatial_sig or spatial_diff > 3.0 * spatial_sig:
-                drift_llr *= 1.4  # Boost evidence on spatial divergence
-                peer_diverged = True
-            elif excess_deviation <= 1.5 * spatial_sig:
+            
+            p_deltas, prior_v = sibling_deltas_by_param.get(param, ([], None))
+            has_roc_lockstep = False
+            if p_deltas and prior_v is not None:
+                st_delta = float(raw_reading[param]) - prior_v
+                med_p_delta = float(np.median(p_deltas))
+                if (st_delta * med_p_delta) > 0 and abs(st_delta - med_p_delta) <= 1.5 * spatial_sig:
+                    has_roc_lockstep = True
+
+            if (has_roc_lockstep and excess_deviation <= 3.0 * spatial_sig) or excess_deviation <= 1.8 * spatial_sig:
                 # Sibling peers corroborate reading within baseline-calibrated spatial envelope
                 peer_corroborated = True
                 drift_llr = min(drift_llr, 3.0)  # Suppress drift evidence on synchronized regional weather
@@ -787,6 +795,9 @@ def score_reading(
                 if active_sprt and param in active_sprt:
                     active_sprt[param]["s_pos"] = min(active_sprt[param]["s_pos"], 3.0)
                     active_sprt[param]["s_neg"] = min(active_sprt[param]["s_neg"], 3.0)
+            elif excess_deviation > 2.0 * spatial_sig:
+                drift_llr *= 1.4  # Boost evidence on spatial divergence away from baseline offset
+                peer_diverged = True
 
         is_drift_anom = False
         if not peer_corroborated and drift_llr >= WALD_UPPER_ALERT:
