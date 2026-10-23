@@ -217,7 +217,6 @@ class StationBuffer:
                     if "offset_ema" in s_up:
                         self.sprt_state[p]["offset_ema"] = s_up["offset_ema"]
                         self.sprt_state[p]["offset_init"] = s_up.get("offset_init", True)
-                        self.sprt_state[p]["offset_count"] = s_up.get("offset_count", 0)
 
         # Causal Baseline Exclusion: only admit to clean baseline if healthy & non-anomalous
         if self.health.should_include_in_baseline() and not verdict.get("is_anomaly") and not self.recovery_active:
@@ -230,7 +229,7 @@ class StationBuffer:
         """
         self._raw_rows.clear()
         self._clean_rows.clear()
-        self.sprt_state = {p: {"s_pos": 0.0, "s_neg": 0.0, "offset_ema": 0.0, "offset_init": False, "offset_count": 0} for p in PARAMS}
+        self.sprt_state = {p: {"s_pos": 0.0, "s_neg": 0.0, "offset_ema": 0.0, "offset_init": False} for p in PARAMS}
         self._cache_dirty = True
         self.health = SensorHealthTracker(self.station_id)
         self.recovery_active = False
