@@ -563,6 +563,7 @@ def score_reading(
         s_neg_prev = float(active_sprt[param].get("s_neg", 0.0)) if active_sprt and param in active_sprt else 0.0
         offset_ema = float(active_sprt[param].get("offset_ema", 0.0)) if active_sprt and param in active_sprt else 0.0
         offset_init = bool(active_sprt[param].get("offset_init", False)) if active_sprt and param in active_sprt else False
+        offset_count = int(active_sprt[param].get("offset_count", 0)) if active_sprt and param in active_sprt else 0
         
         peer_med = peer_consensus_medians.get(param)
         n_p = peer_consensus_counts.get(param, 0)
@@ -572,6 +573,9 @@ def score_reading(
             if not offset_init:
                 offset_ema = spatial_delta
                 offset_init = True
+                offset_count = 1
+            else:
+                offset_count += 1
             drift_res = spatial_delta - offset_ema
         else:
             drift_res = innovations[param]
@@ -586,20 +590,25 @@ def score_reading(
             whitened_epsilon=eps, dt_hours=dt_hours, current_sigma=sig
         )
         
-        # When evidence is low (clean operation), adapt baseline offset EMA slowly (tau ~ 25 steps / 6-12h)
-        if peer_med is not None and not pd.isna(peer_med) and n_p >= 2 and d_llr < 2.5:
-            alpha = 0.02
-            offset_ema = (1.0 - alpha) * offset_ema + alpha * spatial_delta
+        # When evidence is low, adapt baseline offset EMA (fast during cold-start, then tau ~ 25 steps)
+        if peer_med is not None and not pd.isna(peer_med) and n_p >= 2:
+            if offset_count < 24:
+                alpha = 0.10
+                offset_ema = (1.0 - alpha) * offset_ema + alpha * spatial_delta
+            elif d_llr < 3.0:
+                alpha = 0.03
+                offset_ema = (1.0 - alpha) * offset_ema + alpha * spatial_delta
             
         sprt_updates[param] = {
             "s_pos": s_pos, "s_neg": s_neg, "drift_llr": d_llr,
-            "offset_ema": offset_ema, "offset_init": offset_init
+            "offset_ema": offset_ema, "offset_init": offset_init, "offset_count": offset_count
         }
         if active_sprt and param in active_sprt:
             active_sprt[param]["s_pos"] = s_pos
             active_sprt[param]["s_neg"] = s_neg
             active_sprt[param]["offset_ema"] = offset_ema
             active_sprt[param]["offset_init"] = offset_init
+            active_sprt[param]["offset_count"] = offset_count
 
     # ── TIER 1: High-Specificity Specialist Faults (Spike & Frozen) ─────
     tier1_evidence = []
@@ -788,13 +797,17 @@ def score_reading(
             if (has_roc_lockstep and excess_deviation <= 3.0 * spatial_sig) or excess_deviation <= 1.8 * spatial_sig:
                 # Sibling peers corroborate reading within baseline-calibrated spatial envelope
                 peer_corroborated = True
-                drift_llr = min(drift_llr, 3.0)  # Suppress drift evidence on synchronized regional weather
-                sprt_updates[param]["s_pos"] = min(sprt_updates[param]["s_pos"], 3.0)
-                sprt_updates[param]["s_neg"] = min(sprt_updates[param]["s_neg"], 3.0)
-                sprt_updates[param]["drift_llr"] = min(sprt_updates[param]["drift_llr"], 3.0)
+                drift_llr = min(drift_llr, 1.5)  # Suppress drift evidence on synchronized regional weather
+                sprt_updates[param]["s_pos"] = min(sprt_updates[param]["s_pos"], 1.5)
+                sprt_updates[param]["s_neg"] = min(sprt_updates[param]["s_neg"], 1.5)
+                sprt_updates[param]["drift_llr"] = min(sprt_updates[param]["drift_llr"], 1.5)
+                # Adapt baseline offset when corroborated by sibling peers
+                alpha = 0.03
+                sprt_updates[param]["offset_ema"] = (1.0 - alpha) * offset_ema + alpha * (float(raw_reading[param]) - float(peer_med))
                 if active_sprt and param in active_sprt:
-                    active_sprt[param]["s_pos"] = min(active_sprt[param]["s_pos"], 3.0)
-                    active_sprt[param]["s_neg"] = min(active_sprt[param]["s_neg"], 3.0)
+                    active_sprt[param]["s_pos"] = min(active_sprt[param]["s_pos"], 1.5)
+                    active_sprt[param]["s_neg"] = min(active_sprt[param]["s_neg"], 1.5)
+                    active_sprt[param]["offset_ema"] = sprt_updates[param]["offset_ema"]
             elif excess_deviation > 2.0 * spatial_sig:
                 drift_llr *= 1.4  # Boost evidence on spatial divergence away from baseline offset
                 peer_diverged = True
