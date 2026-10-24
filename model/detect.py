@@ -780,6 +780,18 @@ def score_reading(
         
         peer_diverged = False
         peer_corroborated = False
+        # Nearest sibling peer corroboration (O(1) in-memory lookup)
+        nearest_peer_diff = None
+        if neighbor_buffers:
+            p_vals = []
+            for nid, nbuf in neighbor_buffers.items():
+                if hasattr(nbuf, "_raw_rows") and nbuf._raw_rows:
+                    pv = nbuf._raw_rows[-1].get(param)
+                    if pv is not None and not pd.isna(pv):
+                        p_vals.append(float(pv))
+            if p_vals:
+                nearest_peer_diff = min(abs(float(raw_reading[param]) - pv) for pv in p_vals)
+
         if peer_med is not None and n_p >= 2:
             spatial_diff = abs(float(raw_reading[param]) - float(peer_med))
             offset_ema = sprt_updates[param]["offset_ema"]
@@ -794,10 +806,15 @@ def score_reading(
                     has_roc_lockstep = True
 
             z_spatial_dev = excess_deviation / max(1e-4, spatial_sig)
+            z_nearest_dev = (nearest_peer_diff / max(1e-4, spatial_sig)) if nearest_peer_diff is not None else 999.0
             dynamic_sigma_gate = 2.8 if has_roc_lockstep else 1.8
 
-            if z_spatial_dev <= dynamic_sigma_gate:
-                # Sibling peers corroborate reading within dynamically-gated spatial envelope
+            # Dynamically adaptable spatial corroboration:
+            # Sibling peers corroborate reading if:
+            # 1. Excess deviation from baseline offset is within normal tolerance, OR
+            # 2. Nearest sibling peer in cluster agrees within 2.0 sigma (spatial coupling), OR
+            # 3. Rate-of-change is synchronized with regional peers (differential coupling)
+            if (z_spatial_dev <= dynamic_sigma_gate) or (z_nearest_dev <= 2.0) or has_roc_lockstep:
                 peer_corroborated = True
                 drift_llr = min(drift_llr, 3.0)
                 sprt_updates[param]["s_pos"] = min(sprt_updates[param]["s_pos"], 3.0)
