@@ -782,15 +782,28 @@ def score_reading(
         peer_corroborated = False
         # Nearest sibling peer corroboration (O(1) in-memory lookup)
         nearest_peer_diff = None
+        min_td_diff = None
         if neighbor_buffers:
             p_vals = []
+            p_tds = []
             for nid, nbuf in neighbor_buffers.items():
                 if hasattr(nbuf, "_raw_rows") and nbuf._raw_rows:
                     pv = nbuf._raw_rows[-1].get(param)
                     if pv is not None and not pd.isna(pv):
                         p_vals.append(float(pv))
+                    if param == "humidity_pct":
+                        pt = nbuf._raw_rows[-1].get("temperature_c")
+                        prh = nbuf._raw_rows[-1].get("humidity_pct")
+                        if pt is not None and prh is not None and not pd.isna(pt) and not pd.isna(prh):
+                            p_tds.append(compute_dewpoint_c(float(pt), float(prh)))
             if p_vals:
                 nearest_peer_diff = min(abs(float(raw_reading[param]) - pv) for pv in p_vals)
+            if param == "humidity_pct" and p_tds:
+                my_t = raw_reading.get("temperature_c")
+                my_rh = raw_reading.get("humidity_pct")
+                if my_t is not None and my_rh is not None and not pd.isna(my_t) and not pd.isna(my_rh):
+                    my_td = compute_dewpoint_c(float(my_t), float(my_rh))
+                    min_td_diff = min(abs(my_td - ptd) for ptd in p_tds)
 
         if peer_med is not None and n_p >= 2:
             spatial_diff = abs(float(raw_reading[param]) - float(peer_med))
@@ -808,13 +821,16 @@ def score_reading(
             z_spatial_dev = excess_deviation / max(1e-4, spatial_sig)
             z_nearest_dev = (nearest_peer_diff / max(1e-4, spatial_sig)) if nearest_peer_diff is not None else 999.0
             dynamic_sigma_gate = 2.8 if has_roc_lockstep else 1.8
+            is_td_coherent = (param == "humidity_pct" and min_td_diff is not None and min_td_diff <= 2.2)
 
             # Dynamically adaptable spatial corroboration:
             # Sibling peers corroborate reading if:
             # 1. Excess deviation from baseline offset is within normal tolerance, OR
             # 2. Nearest sibling peer in cluster agrees within 2.0 sigma (spatial coupling), OR
-            # 3. Rate-of-change is synchronized with regional peers (differential coupling)
-            if (z_spatial_dev <= dynamic_sigma_gate) or (z_nearest_dev <= 2.0) or has_roc_lockstep:
+            # 3. Rate-of-change is synchronized with regional peers (differential coupling), OR
+            # 4. Psychrometric Dew Point Invariant: For humidity, if moisture content (dew point)
+            #    is thermodynamically coherent with sibling peers (|Td - Td_peer| <= 2.2 deg C)
+            if (z_spatial_dev <= dynamic_sigma_gate) or (z_nearest_dev <= 2.0) or has_roc_lockstep or is_td_coherent:
                 peer_corroborated = True
                 drift_llr = min(drift_llr, 3.0)
                 sprt_updates[param]["s_pos"] = min(sprt_updates[param]["s_pos"], 3.0)
