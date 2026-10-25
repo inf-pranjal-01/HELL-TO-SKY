@@ -9,8 +9,10 @@ Zero mathematical divergence from canonical score_reading.
 
 from __future__ import annotations
 import sys
+import os
 import time
 import shutil
+import tempfile
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 import joblib
@@ -60,7 +62,7 @@ def load_dataset():
     return full.sort_values(["timestamp", "station_id"]).reset_index(drop=True), metadata
 
 
-def _evaluate_cluster(cluster_id: str, cluster_station_ids: list[str], full_df_records: list[dict], feat_dict: dict, artifact: dict):
+def _evaluate_cluster(cluster_id: str, cluster_station_ids: list[str], full_df_records: list[dict], feat_dict: dict, artifact: dict, prog_dir: str = None):
     """Evaluates one 4-station cluster chronologically in parallel."""
     buffers = {sid: StationBuffer(sid) for sid in cluster_station_ids}
     sibling_map = {sid: PeerSpatialEngine.get_sibling_peers(sid) for sid in cluster_station_ids}
@@ -71,7 +73,9 @@ def _evaluate_cluster(cluster_id: str, cluster_station_ids: list[str], full_df_r
     active_episodes = {sid: {} for sid in cluster_station_ids}
     pred_episodes = []
     
-    for row in cluster_records:
+    prog_path = Path(prog_dir) / f"{cluster_id}.prog" if prog_dir else None
+    
+    for i, row in enumerate(cluster_records, 1):
         sid = str(row["station_id"])
         ts = row["timestamp"]
         buf = buffers[sid]
@@ -150,6 +154,12 @@ def _evaluate_cluster(cluster_id: str, cluster_station_ids: list[str], full_df_r
             "decision_basis": verdict.get("decision_basis")
         })
         
+        if prog_path and i % 100 == 0:
+            prog_path.write_text(str(i))
+            
+    if prog_path:
+        prog_path.write_text(str(len(cluster_records)))
+        
     for sid in cluster_station_ids:
         for p, ev in active_episodes[sid].items():
             pred_episodes.append(ev)
@@ -217,28 +227,42 @@ def _extract_ground_truth_episodes(df: pd.DataFrame) -> list[dict]:
 
 
 def calibrate_hardware_runtime(sample_records: list[dict], feat_dict: dict, artifact: dict, is_parallel: bool = True) -> tuple[float, float]:
-    """Runs a 100-sample micro-calibration to accurately measure host CPU speed and compute total ETA."""
-    sample = sample_records[:100]
-    st_id = str(sample[0]["station_id"])
-    buf = StationBuffer(st_id)
+    """Runs a 120-sample micro-calibration across an active cluster with real peer spatial buffers."""
+    first_cluster_id = list(STATION_CLUSTERS.keys())[0]
+    c_stations = STATION_CLUSTERS[first_cluster_id]
+    cluster_sample = [r for r in sample_records if r["station_id"] in c_stations][:120]
+    if not cluster_sample:
+        cluster_sample = sample_records[:120]
+        c_stations = [str(cluster_sample[0]["station_id"])]
+        
+    buffers = {sid: StationBuffer(sid) for sid in c_stations}
+    sibling_map = {sid: PeerSpatialEngine.get_sibling_peers(sid) for sid in c_stations}
+    
     t0 = time.perf_counter()
-    for row in sample:
+    for row in cluster_sample:
+        sid = str(row["station_id"])
         ts = row["timestamp"]
-        feat_row = feat_dict.get((st_id, ts))
+        buf = buffers[sid]
+        s_ids = sibling_map.get(sid, [])
+        neighbor_bufs = {nid: buffers[nid] for nid in s_ids if nid in buffers}
+        hist_df = buf.raw_history_df()
+        feat_row = feat_dict.get((sid, ts))
         raw = {
-            "station_id": st_id,
+            "station_id": sid,
             "timestamp": ts,
             "temperature_c": float(row["temperature_c"]) if pd.notna(row["temperature_c"]) else 25.0,
             "pressure_hpa": float(row["pressure_hpa"]) if pd.notna(row["pressure_hpa"]) else 1012.0,
             "humidity_pct": float(row["humidity_pct"]) if pd.notna(row["humidity_pct"]) else 50.0
         }
-        v = score_reading(raw, buf.raw_history_df(), artifact=artifact, precomputed_features=feat_row, include_evaluation_diagnostics=False)
+        v = score_reading(raw, hist_df, artifact=artifact, neighbor_buffers=neighbor_bufs, precomputed_features=feat_row, include_evaluation_diagnostics=False)
         buf.record_raw_reading(raw, timestamp=ts, verdict=v)
     dt = max(0.001, time.perf_counter() - t0)
-    single_speed = len(sample) / dt
-    effective_speed = single_speed * (4.8 if is_parallel else 1.0)
+    cluster_speed = len(cluster_sample) / dt
+    
+    # In multi-process execution with 7 concurrent workers, empirical throughput is ~1.75x single-process speed
+    effective_speed = cluster_speed * (1.75 if is_parallel else 1.0)
     total_eta = 60480.0 / effective_speed
-    return single_speed, total_eta
+    return effective_speed, total_eta
 
 
 def run_fast_benchmark():
@@ -274,50 +298,71 @@ def run_fast_benchmark():
     # Hardware speed calibration
     core_speed, est_total_sec = calibrate_hardware_runtime(records, feature_dict, artifact, is_parallel=True)
     est_m, est_s = divmod(int(est_total_sec), 60)
-    print(f"Hardware ETA  : ~{est_m}m {est_s:02d}s (Dynamically calibrated on this CPU: {core_speed:.1f} r/s per core)")
+    print(f"Hardware ETA  : ~{est_m}m {est_s:02d}s (Dynamically calibrated: {core_speed:.1f} r/s aggregate)")
     print("-" * term_width, flush=True)
     
     # ── 2. Parallel Evaluation Across 7 Regional Clusters ────────────────────
     print("[2/3] Evaluating 6-Tier Decision Engine across 7 Clusters in Parallel...", flush=True)
     score_start = time.perf_counter()
     
-    records = full_df.to_dict("records")
-    
-    futures = []
-    with ProcessPoolExecutor(max_workers=7) as executor:
-        for cluster_id, c_stations in STATION_CLUSTERS.items():
-            f = executor.submit(
-                _evaluate_cluster,
-                cluster_id,
-                c_stations,
-                records,
-                feature_dict,
-                artifact
-            )
-            futures.append(f)
-            
-    all_results = []
-    all_pred_episodes = []
-    completed_clusters = 0
-    total_clusters = len(futures)
-    
-    for f in futures:
-        res, ep_res = f.result()
-        all_results.extend(res)
-        all_pred_episodes.extend(ep_res)
-        completed_clusters += 1
-        elapsed = max(0.001, time.perf_counter() - score_start)
-        speed = len(all_results) / elapsed
-        eta = (total_rows - len(all_results)) / speed if speed > 0 else 0.0
-        m, s = divmod(int(eta), 60)
-        
-        # Single-line in-place update guaranteed < 65 chars
-        bar = "=" * int(12 * completed_clusters / total_clusters) + "-" * (12 - int(12 * completed_clusters / total_clusters))
-        sys.stdout.write(f"\r\033[K  [{bar}] {completed_clusters}/{total_clusters} Clusters ({len(all_results):,}/{total_rows:,}) | {speed:>5.1f} r/s | ETA: {m:02d}:{s:02d}")
-        sys.stdout.flush()
-        
-    sys.stdout.write("\n  [Evaluation Complete — Compiling Metrics]\n")
-    sys.stdout.flush()
+    prog_dir = Path(tempfile.mkdtemp(prefix="skyguard_bench_"))
+    try:
+        with ProcessPoolExecutor(max_workers=7) as executor:
+            futures = []
+            for cluster_id, c_stations in STATION_CLUSTERS.items():
+                f = executor.submit(
+                    _evaluate_cluster,
+                    cluster_id,
+                    c_stations,
+                    records,
+                    feature_dict,
+                    artifact,
+                    str(prog_dir)
+                )
+                futures.append(f)
+                
+            # Real-time continuous progress & ETA update with smooth ramp-up blend
+            last_print = 0.0
+            while not all(f.done() for f in futures):
+                time.sleep(0.3)
+                done_rows = 0
+                for pf in prog_dir.glob("*.prog"):
+                    try:
+                        txt = pf.read_text().strip()
+                        if txt.isdigit():
+                            done_rows += int(txt)
+                    except Exception:
+                        pass
+                elapsed = max(0.1, time.perf_counter() - score_start)
+                now = time.perf_counter()
+                if (now - last_print >= 0.4) and (elapsed > 0.8):
+                    last_print = now
+                    measured_speed = done_rows / elapsed if done_rows > 0 else core_speed
+                    # Smooth blend during initial process spawn ramp-up to eliminate 30-minute spikes
+                    alpha = min(1.0, max(0.0, (done_rows - 200) / 3000.0))
+                    speed = (1.0 - alpha) * core_speed + alpha * measured_speed
+                    rem = max(0, total_rows - done_rows)
+                    eta_sec = rem / speed if speed > 10 else 0.0
+                    m, s = divmod(int(eta_sec), 60)
+                    pct = min(100.0, done_rows / total_rows * 100.0)
+                    bar = "=" * int(12 * done_rows / total_rows) + "-" * (12 - int(12 * done_rows / total_rows))
+                    sys.stdout.write(f"\r\033[K  [{bar}] {pct:4.1f}% ({done_rows:,}/{total_rows:,}) | {speed:>5.1f} r/s | ETA: {m:02d}:{s:02d}")
+                    sys.stdout.flush()
+                    
+            all_results = []
+            all_pred_episodes = []
+            for f in futures:
+                res, ep_res = f.result()
+                all_results.extend(res)
+                all_pred_episodes.extend(ep_res)
+                
+            final_elapsed = max(0.1, time.perf_counter() - score_start)
+            final_speed = total_rows / final_elapsed
+            sys.stdout.write(f"\r\033[K  [============] 100.0% ({total_rows:,}/{total_rows:,}) | {final_speed:>5.1f} r/s | ETA: 00:00\n")
+            sys.stdout.write("  [Evaluation Complete — Compiling Metrics]\n")
+            sys.stdout.flush()
+    finally:
+        shutil.rmtree(prog_dir, ignore_errors=True)
     
     # ── 3. Confusion Matrix & Multi-Class Breakdown ─────────────────────────
     print("-" * term_width)
