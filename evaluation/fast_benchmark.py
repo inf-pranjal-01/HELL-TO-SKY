@@ -321,8 +321,14 @@ def run_fast_benchmark():
                 )
                 futures.append(f)
                 
-            # Real-time continuous progress & ETA update with smooth ramp-up blend
+            # Enable ANSI Virtual Terminal Processing on Windows console
+            if os.name == 'nt':
+                os.system('')
+                
+            is_tty = sys.stdout.isatty()
             last_print = 0.0
+            last_milestone = -1
+            
             while not all(f.done() for f in futures):
                 time.sleep(0.3)
                 done_rows = 0
@@ -335,19 +341,32 @@ def run_fast_benchmark():
                         pass
                 elapsed = max(0.1, time.perf_counter() - score_start)
                 now = time.perf_counter()
-                if (now - last_print >= 0.4) and (elapsed > 0.8):
-                    last_print = now
-                    measured_speed = done_rows / elapsed if done_rows > 0 else core_speed
-                    # Smooth blend during initial process spawn ramp-up to eliminate 30-minute spikes
-                    alpha = min(1.0, max(0.0, (done_rows - 200) / 3000.0))
-                    speed = (1.0 - alpha) * core_speed + alpha * measured_speed
-                    rem = max(0, total_rows - done_rows)
-                    eta_sec = rem / speed if speed > 10 else 0.0
-                    m, s = divmod(int(eta_sec), 60)
-                    pct = min(100.0, done_rows / total_rows * 100.0)
-                    bar = "=" * int(12 * done_rows / total_rows) + "-" * (12 - int(12 * done_rows / total_rows))
-                    sys.stdout.write(f"\r\033[K  [{bar}] {pct:4.1f}% ({done_rows:,}/{total_rows:,}) | {speed:>5.1f} r/s | ETA: {m:02d}:{s:02d}")
-                    sys.stdout.flush()
+                
+                measured_speed = done_rows / elapsed if done_rows > 0 else core_speed
+                # Smooth blend during initial process spawn ramp-up
+                alpha = min(1.0, max(0.0, (done_rows - 200) / 3000.0))
+                speed = (1.0 - alpha) * core_speed + alpha * measured_speed
+                rem = max(0, total_rows - done_rows)
+                eta_sec = rem / speed if speed > 10 else 0.0
+                m, s = divmod(int(eta_sec), 60)
+                pct = min(100.0, done_rows / total_rows * 100.0)
+                bar = "=" * int(12 * done_rows / total_rows) + "-" * (12 - int(12 * done_rows / total_rows))
+                
+                if is_tty:
+                    # In interactive terminal: overwrite the single line in-place at 1 Hz with clean space padding
+                    if (now - last_print >= 1.0) and (elapsed > 0.8):
+                        last_print = now
+                        line = f"  [{bar}] {pct:4.1f}% ({done_rows:,}/{total_rows:,}) | {speed:>5.1f} r/s | ETA: {m:02d}:{s:02d}"
+                        sys.stdout.write(f"\r{line:<79}")
+                        sys.stdout.flush()
+                else:
+                    # In non-interactive log stream: print clean new line only every 10% milestone
+                    milestone = int(pct // 10) * 10
+                    if milestone > last_milestone and milestone > 0:
+                        last_milestone = milestone
+                        line = f"  [{bar}] {pct:4.1f}% ({done_rows:,}/{total_rows:,}) | {speed:>5.1f} r/s | ETA: {m:02d}:{s:02d}"
+                        sys.stdout.write(f"{line}\n")
+                        sys.stdout.flush()
                     
             all_results = []
             all_pred_episodes = []
