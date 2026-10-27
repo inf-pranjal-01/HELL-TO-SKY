@@ -385,7 +385,8 @@ def _compute_suggested_values(
     neighbor_buffers: dict,
     station_id: str,
     current_time: Any,
-    history_df: Optional[pd.DataFrame] = None
+    history_df: Optional[pd.DataFrame] = None,
+    target_reading: Optional[dict] = None
 ) -> dict:
     suggestions = {}
     normal_ranges = get_station_normal_ranges(station_id)
@@ -395,7 +396,7 @@ def _compute_suggested_values(
             n_peers = 0
             if neighbor_buffers:
                 peer_med, _, n_peers = PeerSpatialEngine.compute_robust_peer_consensus(
-                    station_id, param, current_time, neighbor_buffers
+                    station_id, param, current_time, neighbor_buffers, target_reading=target_reading
                 )
             if peer_med is not None and not pd.isna(peer_med) and n_peers >= 1:
                 val = float(peer_med)
@@ -462,7 +463,7 @@ def score_reading(
             "decision_basis": "TIER_0_HARD_INVARIANT",
             "likely_faulty_sensors": implicated,
             "affected_parameters": implicated,
-            "suggested_values": _compute_suggested_values(implicated, {}, neighbor_buffers, station_id, current_time, history_df),
+            "suggested_values": _compute_suggested_values(implicated, {}, neighbor_buffers, station_id, current_time, history_df, target_reading=raw_reading),
             "rules_fired": [{"type": fault_type, "parameter": rail_param, "confidence": 100.0, "reason": rail_reason}],
             "regime": "UNKNOWN_INSUFFICIENT_DATA",
             "evaluation_diagnostics": {
@@ -488,7 +489,7 @@ def score_reading(
             "decision_basis": "TIER_0_THERMODYNAMIC_BOUND",
             "likely_faulty_sensors": implicated,
             "affected_parameters": implicated,
-            "suggested_values": _compute_suggested_values(implicated, {}, neighbor_buffers, station_id, current_time, history_df),
+            "suggested_values": _compute_suggested_values(implicated, {}, neighbor_buffers, station_id, current_time, history_df, target_reading=raw_reading),
             "rules_fired": [{"type": "physical_bounds", "parameter": rule_param, "confidence": 100.0, "reason": phys_reason}],
             "regime": "UNKNOWN_INSUFFICIENT_DATA",
             "evaluation_diagnostics": {
@@ -704,7 +705,7 @@ def score_reading(
             "decision_basis": f"TIER_1_SPECIALIST_{strongest['type'].upper()}",
             "likely_faulty_sensors": implicated,
             "affected_parameters": implicated,
-            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
+            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df, target_reading=raw_reading),
             "rules_fired": tier1_evidence,
             "regime": regime,
             "sprt_updates": sprt_updates,
@@ -821,7 +822,13 @@ def score_reading(
             z_spatial_dev = excess_deviation / max(1e-4, spatial_sig)
             z_nearest_dev = (nearest_peer_diff / max(1e-4, spatial_sig)) if nearest_peer_diff is not None else 999.0
             dynamic_sigma_gate = 2.8 if has_roc_lockstep else 1.8
-            is_td_coherent = (param == "humidity_pct" and min_td_diff is not None and min_td_diff <= 2.2)
+            is_td_coherent = (param == "humidity_pct" and min_td_diff is not None and min_td_diff <= 2.8)
+
+            # WMO-No. 8 Operational Research Tolerance Deadband (synoptic/climatological data trust):
+            # Deviations within operational calibration tolerance (Temp <= 0.8C, RH <= 5.0%, Press <= 0.5 hPa)
+            # represent acceptable research measurement quality and must not trigger high-severity drift alarms.
+            OPERATIONAL_TOLERANCES = {"temperature_c": 0.8, "humidity_pct": 5.0, "pressure_hpa": 0.5}
+            within_research_tolerance = (excess_deviation <= OPERATIONAL_TOLERANCES.get(param, 0.0))
 
             # Dynamically adaptable spatial corroboration:
             # Sibling peers corroborate reading if:
@@ -829,8 +836,9 @@ def score_reading(
             # 2. Nearest sibling peer in cluster agrees within 2.0 sigma (spatial coupling), OR
             # 3. Rate-of-change is synchronized with regional peers (differential coupling), OR
             # 4. Psychrometric Dew Point Invariant: For humidity, if moisture content (dew point)
-            #    is thermodynamically coherent with sibling peers (|Td - Td_peer| <= 2.2 deg C)
-            if (z_spatial_dev <= dynamic_sigma_gate) or (z_nearest_dev <= 2.0) or has_roc_lockstep or is_td_coherent:
+            #    is thermodynamically coherent with sibling peers (|Td - Td_peer| <= 2.8 deg C), OR
+            # 5. Reading deviation is within WMO-No. 8 operational research tolerance deadband
+            if (z_spatial_dev <= dynamic_sigma_gate) or (z_nearest_dev <= 2.0) or has_roc_lockstep or is_td_coherent or within_research_tolerance:
                 peer_corroborated = True
                 drift_llr = min(drift_llr, 3.0)
                 sprt_updates[param]["s_pos"] = min(sprt_updates[param]["s_pos"], 3.0)
@@ -874,7 +882,7 @@ def score_reading(
             "decision_basis": "TIER_2_PERSISTENT_DRIFT",
             "likely_faulty_sensors": implicated,
             "affected_parameters": implicated,
-            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
+            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df, target_reading=raw_reading),
             "rules_fired": tier2_evidence,
             "regime": regime,
             "sprt_updates": sprt_updates,
@@ -956,7 +964,7 @@ def score_reading(
             "decision_basis": "TIER_3_MAHALANOBIS_CROSS_CHANNEL",
             "likely_faulty_sensors": implicated,
             "affected_parameters": implicated,
-            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
+            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df, target_reading=raw_reading),
             "rules_fired": [{"type": "multivariate_inconsistency", "parameter": "joint", "confidence": 90.0, "reason": rule_reason}],
             "regime": regime,
             "sprt_updates": sprt_updates,
@@ -995,7 +1003,7 @@ def score_reading(
                             "decision_basis": "TIER_4_MODEL_DOMINANT_UNSTRUCTURED",
                             "likely_faulty_sensors": implicated,
                             "affected_parameters": implicated,
-                            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df),
+                            "suggested_values": _compute_suggested_values(implicated, expectations, neighbor_buffers, station_id, current_time, history_df, target_reading=raw_reading),
                             "rules_fired": [{"type": "unstructured_anomaly", "parameter": "model_joint", "confidence": 88.0, "reason": f"Isolation Forest empirical tail (z={z_if:.2f}) corroborated by cross-channel divergence (D^2={d_sq:.2f})"}],
                             "regime": regime,
                             "sprt_updates": sprt_updates,

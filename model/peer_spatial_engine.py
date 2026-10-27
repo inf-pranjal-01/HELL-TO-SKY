@@ -339,6 +339,23 @@ class PeerSpatialEngine:
             target_alt_dyn=target_alt,
             peer_alts_dyn=peer_alts
         )
+
+        target_td = None
+        if target_reading:
+            t_temp = target_reading.get("temperature_c")
+            t_rh = target_reading.get("humidity_pct")
+            if t_temp is not None and t_rh is not None and not (pd.isna(t_temp) or pd.isna(t_rh)):
+                from model.cross_channel_covariance import compute_dewpoint_c
+                target_td = compute_dewpoint_c(float(t_temp), float(t_rh))
+        elif target_station_id in neighbor_buffers:
+            t_buf = neighbor_buffers[target_station_id]
+            t_rows = getattr(t_buf, "_raw_rows", None)
+            if t_rows:
+                t_temp = t_rows[-1].get("temperature_c")
+                t_rh = t_rows[-1].get("humidity_pct")
+                if t_temp is not None and t_rh is not None and not (pd.isna(t_temp) or pd.isna(t_rh)):
+                    from model.cross_channel_covariance import compute_dewpoint_c
+                    target_td = compute_dewpoint_c(float(t_temp), float(t_rh))
         
         valid_peer_vals = []
         valid_peer_weights = []
@@ -359,8 +376,24 @@ class PeerSpatialEngine:
                     delta_exp = max(-0.5, min(0.5, (peer_alts[pid] - target_alt) / max(100.0, scale_h)))
                     fval = fval * math.exp(delta_exp)
                     
+                w_base = weights.get(pid, 1.0)
+                # Dynamic airmass affinity coupling:
+                # When evaluating humidity across meso-gamma microclimate boundaries (e.g. marine layer vs continental interior),
+                # downweight peers whose dew point diverges strongly across an airmass front, preventing topological outvoting.
+                if param == "humidity_pct" and target_td is not None and not math.isnan(target_td):
+                    p_temp = r.get("temperature_c")
+                    p_rh = r.get("humidity_pct")
+                    if p_temp is not None and p_rh is not None and not (pd.isna(p_temp) or pd.isna(p_rh)):
+                        from model.cross_channel_covariance import compute_dewpoint_c
+                        p_td = compute_dewpoint_c(float(p_temp), float(p_rh))
+                        if not math.isnan(p_td):
+                            td_diff = abs(target_td - p_td)
+                            # Frontal transition scale sigma_front = 2.8 deg C
+                            affinity = 1.0 / (1.0 + (td_diff / 2.8) ** 2)
+                            w_base *= affinity
+
                 valid_peer_vals.append(fval)
-                valid_peer_weights.append(weights.get(pid, 1.0))
+                valid_peer_weights.append(max(1e-4, w_base))
             except (ValueError, TypeError):
                 pass
         
