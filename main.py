@@ -293,6 +293,7 @@ async def clear_history(target: Optional[str] = "all", station_id: Optional[str]
         for sid in sim.trend_history:
             sim.trend_history[sid].clear()
         sim.recent_anomalies.clear()
+        sim._anomaly_counter = 0
         sim._last_ingested_timestamp.clear()
         sim._last_ingested.clear()
         sim._live_last_fetch = None
@@ -1176,7 +1177,11 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
                             continue
             except Exception:
                 pass
-            key = (str(a.get("station_id")), str(a.get("timestamp")))
+            try:
+                t_sec = int(pd.to_datetime(a.get("timestamp"), utc=True).timestamp())
+                key = (str(a.get("station_id")), t_sec)
+            except Exception:
+                key = (str(a.get("station_id")), str(a.get("timestamp")))
             seen_keys.add(key)
             valid_anoms.append(a)
 
@@ -1196,7 +1201,11 @@ async def get_recent_anomalies(station_id: Optional[str] = None, limit: int = 50
                 for a in (db_anoms or []):
                     if not isinstance(a, dict):
                         continue
-                    key = (str(a.get("station_id")), str(a.get("timestamp")))
+                    try:
+                        t_sec = int(pd.to_datetime(a.get("timestamp") or a.get("time"), utc=True).timestamp())
+                        key = (str(a.get("station_id")), t_sec)
+                    except Exception:
+                        key = (str(a.get("station_id")), str(a.get("timestamp")))
                     if key not in seen_keys:
                         seen_keys.add(key)
                         valid_anoms.append(a)
