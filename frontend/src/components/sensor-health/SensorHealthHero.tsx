@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, AlertTriangle, AlertOctagon, Radio, Wrench, Activity, Zap } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, AlertOctagon, Radio, Wrench, Activity, Zap, Compass } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { StatusBadge } from '../common/StatusBadge';
@@ -167,6 +167,66 @@ export const SensorHealthHero: React.FC<SensorHealthHeroProps> = ({
               />
             </div>
             <p className="sg-health-hero__description">{statusCopy}</p>
+
+            {/* WMO-No. 8 Diurnal Secular Drift Watchdog Panel */}
+            {health?.secular_calibration && (
+              <div
+                className={`sg-health-hero__watchdog sg-health-hero__watchdog--${
+                  health.secular_calibration.status === 'CRITICAL_RECALIBRATION_REQUIRED'
+                    ? 'critical'
+                    : health.secular_calibration.status === 'RECALIBRATION_ADVISORY'
+                    ? 'advisory'
+                    : 'nominal'
+                }`}
+                role="region"
+                aria-label="WMO-No. 8 Secular Drift Watchdog"
+              >
+                <div className="sg-health-hero__watchdog-header">
+                  <Compass size={16} className="sg-health-hero__watchdog-icon" aria-hidden="true" />
+                  <span className="sg-health-hero__watchdog-title">WMO-No. 8 Diurnal Drift Watchdog:</span>
+                  <StatusBadge
+                    status={
+                      health.secular_calibration.status === 'CRITICAL_RECALIBRATION_REQUIRED'
+                        ? 'critical'
+                        : health.secular_calibration.status === 'RECALIBRATION_ADVISORY'
+                        ? 'moderate'
+                        : 'optimal'
+                    }
+                    label={
+                      health.secular_calibration.status === 'CRITICAL_RECALIBRATION_REQUIRED'
+                        ? 'CRITICAL RECALIBRATION'
+                        : health.secular_calibration.status === 'RECALIBRATION_ADVISORY'
+                        ? 'RECALIBRATION ADVISORY'
+                        : 'CALIBRATED NOMINAL'
+                    }
+                    size="sm"
+                  />
+                  {health.secular_calibration.wmo_compliance && (
+                    <span className="sg-health-hero__watchdog-wmo">
+                      {health.secular_calibration.wmo_compliance}
+                    </span>
+                  )}
+                </div>
+                <div className="sg-health-hero__watchdog-body">
+                  <p className="sg-health-hero__watchdog-msg">
+                    {health.secular_calibration.advisory_message}
+                  </p>
+                  <div className="sg-health-hero__watchdog-metrics">
+                    <span className="sg-health-hero__watchdog-chip">
+                      Secular Divergence: <strong>{health.secular_calibration.secular_divergence_c > 0 ? `+${health.secular_calibration.secular_divergence_c}` : health.secular_calibration.secular_divergence_c}°C</strong>
+                    </span>
+                    <span className="sg-health-hero__watchdog-chip">
+                      Peer Internal Spread: <strong>±{health.secular_calibration.peer_coherence_c}°C</strong>
+                    </span>
+                    {health.secular_calibration.cluster_id && (
+                      <span className="sg-health-hero__watchdog-chip">
+                        Cluster: <strong>{health.secular_calibration.cluster_id}</strong>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Repair / Recovery Action & Status */}
             {(onRepair || onForceRecover) && (

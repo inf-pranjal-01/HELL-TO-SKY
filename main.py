@@ -2030,11 +2030,12 @@ def get_sensor_health(station_id: Optional[str] = None):
             "station_id": station_id,
             "health_pct": round(buf.health.health_index),
             "status": mapped,
-            "needs_maintenance": buf.health.needs_maintenance,
+            "needs_maintenance": status["needs_maintenance"],
             "parameters": buf.health.param_status,
             "param_health": {p: round(v, 1) for p, v in buf.health.param_health.items()},
             "offline_reason": status["offline_reason"],
             "recovery_active": status["recovery_active"],
+            "secular_calibration": status.get("secular_calibration"),
         }
     
     # Return all stations
@@ -2047,13 +2048,43 @@ def get_sensor_health(station_id: Optional[str] = None):
             "station_id": sid,
             "health_pct": round(buf.health.health_index),
             "status": mp,
-            "needs_maintenance": buf.health.needs_maintenance,
+            "needs_maintenance": st["needs_maintenance"],
             "parameters": buf.health.param_status,
             "param_health": {p: round(v, 1) for p, v in buf.health.param_health.items()},
             "offline_reason": st["offline_reason"],
             "recovery_active": st["recovery_active"],
+            "secular_calibration": st.get("secular_calibration"),
         })
     return results
+
+# ---------------- GET /api/audit/secular-calibration ----------------
+
+@app.get("/api/audit/secular-calibration")
+def get_secular_calibration_audit(station_id: Optional[str] = None, cluster_id: Optional[str] = None):
+    """
+    WMO-No. 8 Diurnal Secular Invariant Drift Watchdog Endpoint.
+    Returns asynchronous daily calibration status and peer coherence metrics.
+    """
+    sim = app.state.sim
+    auditor = getattr(sim.manager, "drift_auditor", None)
+    if auditor is None:
+        raise HTTPException(status_code=503, detail="Secular drift auditor not initialized")
+    
+    if station_id:
+        if station_id not in sim.manager.buffers:
+            raise HTTPException(status_code=404, detail=f"Unknown station {station_id}")
+        return auditor.audit_station(station_id)
+    if cluster_id:
+        if cluster_id not in auditor.station_clusters:
+            raise HTTPException(status_code=404, detail=f"Unknown cluster {cluster_id}")
+        return {
+            "cluster_id": cluster_id,
+            "stations": {s: auditor.audit_station(s) for s in auditor.station_clusters[cluster_id]},
+        }
+    return {
+        "clusters": auditor.get_cluster_summary(),
+        "stations": auditor.audit_all_stations(),
+    }
 
 # ---------------- POST /api/repair-sensor ----------------
 

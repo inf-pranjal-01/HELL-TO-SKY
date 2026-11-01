@@ -117,4 +117,25 @@ export const sensorHealthService = {
   async repairSensor(stationId: string, options?: RequestOptions): Promise<RepairSensorResponse> {
     return this.markRepaired(stationId, options);
   },
+
+  /**
+   * Fetch WMO-No. 8 Diurnal Secular Invariant Drift Audit.
+   * Request contract: GET /api/audit/secular-calibration
+   */
+  async getSecularCalibrationAudit(stationId?: string, clusterId?: string, options?: RequestOptions): Promise<any> {
+    if (isMockMode()) {
+      return {
+        status: 'CALIBRATED_NOMINAL',
+        secular_divergence_c: 0.12,
+        peer_coherence_c: 0.18,
+        cluster_id: clusterId || 'MUM',
+        advisory_message: 'Secular calibration nominal (+0.12°C). Diurnal invariant tracking confirms zero sensor bias drift against cluster peers.',
+        wmo_compliance: 'WMO-No. 8 Class A (Nominal)',
+      };
+    }
+    const params: Record<string, string> = {};
+    if (stationId) params.station_id = stationId;
+    if (clusterId) params.cluster_id = clusterId;
+    return apiClient.get<any>(API_CONFIG.endpoints.secularCalibrationAudit, Object.keys(params).length ? params : undefined, options);
+  },
 };

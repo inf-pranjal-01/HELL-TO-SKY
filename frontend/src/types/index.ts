@@ -72,6 +72,28 @@ export interface CurrentSensorReading {
 }
 
 /**
+ * WMO-No. 8 Diurnal Secular Invariant Drift Audit
+ * [API: GET /api/audit/secular-calibration & GET /api/sensor-health — INTEGRATED]
+ */
+export interface SecularCalibrationAudit {
+  status: 'CALIBRATED_NOMINAL' | 'RECALIBRATION_ADVISORY' | 'CRITICAL_RECALIBRATION_REQUIRED';
+  secular_divergence_c: number;
+  peer_coherence_c: number;
+  cluster_id?: string;
+  advisory_message: string;
+  wmo_compliance?: string;
+}
+
+export interface ClusterCalibrationSummary {
+  cluster_id: string;
+  stations: string[];
+  advisories_active: number;
+  max_secular_divergence_c: number;
+  cluster_peer_coherence_c: number;
+  cluster_status: 'NOMINAL' | 'NEEDS_ATTENTION';
+}
+
+/**
  * Sensor Health Schema
  * [API: GET /api/sensor-health?station_id={station_id} — INTEGRATED]
  */
@@ -79,6 +101,12 @@ export interface SensorHealth {
   station_id: string;
   sensor_health_pct: number;
   sensor_health_status: 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
+  needs_maintenance?: boolean;
+  offline_reason?: string | null;
+  recovery_active?: boolean;
+  parameters?: Record<string, string>;
+  param_health?: Record<string, number>;
+  secular_calibration?: SecularCalibrationAudit | null;
 }
 
 /**

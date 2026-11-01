@@ -662,10 +662,29 @@ export function validateSensorHealth(data: unknown, expectedStationId?: string):
     );
   }
 
+  let secularCalibration: SensorHealth['secular_calibration'] = null;
+  if (isObject(data.secular_calibration)) {
+    const sc = data.secular_calibration as Record<string, unknown>;
+    secularCalibration = {
+      status: (typeof sc.status === 'string' ? sc.status : 'CALIBRATED_NOMINAL') as any,
+      secular_divergence_c: typeof sc.secular_divergence_c === 'number' ? sc.secular_divergence_c : 0,
+      peer_coherence_c: typeof sc.peer_coherence_c === 'number' ? sc.peer_coherence_c : 0,
+      cluster_id: typeof sc.cluster_id === 'string' ? sc.cluster_id : undefined,
+      advisory_message: typeof sc.advisory_message === 'string' ? sc.advisory_message : '',
+      wmo_compliance: typeof sc.wmo_compliance === 'string' ? sc.wmo_compliance : undefined,
+    };
+  }
+
   return {
     station_id: data.station_id,
     sensor_health_pct: rawHealth,
     sensor_health_status: rawStatus as HealthStatusValue,
+    needs_maintenance: typeof data.needs_maintenance === 'boolean' ? data.needs_maintenance : undefined,
+    offline_reason: typeof data.offline_reason === 'string' ? data.offline_reason : null,
+    recovery_active: typeof data.recovery_active === 'boolean' ? data.recovery_active : undefined,
+    parameters: isObject(data.parameters) ? (data.parameters as Record<string, string>) : undefined,
+    param_health: isObject(data.param_health) ? (data.param_health as Record<string, number>) : undefined,
+    secular_calibration: secularCalibration,
   };
 }
 

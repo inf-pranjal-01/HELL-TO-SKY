@@ -36,6 +36,7 @@ export interface ApiEndpoints {
   refreshLive: string;
   networkStatus: string;
   clearHistory: string;
+  secularCalibrationAudit: string;
 }
 
 export interface ApiConfig {
@@ -122,6 +123,7 @@ export const API_CONFIG: ApiConfig = {
     refreshLive: '/api/refresh-live',
     networkStatus: '/api/network-status',
     clearHistory: '/api/admin/clear-history',
+    secularCalibrationAudit: '/api/audit/secular-calibration',
   },
 };
 

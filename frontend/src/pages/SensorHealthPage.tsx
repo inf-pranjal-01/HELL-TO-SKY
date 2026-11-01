@@ -192,7 +192,7 @@ export const SensorHealthPage: React.FC = () => {
         />
 
         {/* 6. Future Hardware Diagnostics Capability Seam */}
-        <FutureDiagnosticsNotice />
+        <FutureDiagnosticsNotice audit={sensorHealth?.secular_calibration} />
 
         <ConfirmationDialog
           isOpen={showForceConfirm}

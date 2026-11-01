@@ -62,6 +62,8 @@ class TestAPIContracts(unittest.TestCase):
             f"/api/anomalies/latest?station_id={station_id}",
             f"/api/anomalies/recent?station_id={station_id}&limit=5",
             f"/api/sensor-health?station_id={station_id}",
+            f"/api/audit/secular-calibration?station_id={station_id}",
+            "/api/audit/secular-calibration",
             "/api/network-status",
         ):
             with self.subTest(path=path):

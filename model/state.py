@@ -147,6 +147,7 @@ from model.features import (
     ROLLING_WINDOW_HOURS, DRIFT_LOOKBACK_HOURS, build_features_for_history,
 )
 from model.explain import ExplainerCache
+from model.daily_drift_auditor import DailyDriftAuditor
 from config import RECOVERY_CLEAN_STREAK_REQUIRED
 from history_store import HistoryStore
 
@@ -346,6 +347,8 @@ class StateManager:
         # kicking off any historical replay run -- see "MAIN.PY
         # INTEGRATION" in the module docstring.
         self.mode: str = MODE_LIVE
+        self.drift_auditor = DailyDriftAuditor(metadata=self.metadata)
+        self.drift_auditor.seed_initial_baselines()
 
     def switch_to_live(self):
         """
@@ -369,6 +372,8 @@ class StateManager:
         self.mode = MODE_LIVE
         for buf in self.buffers.values():
             buf.reset_detection_state()
+        self.drift_auditor = DailyDriftAuditor(metadata=self.metadata)
+        self.drift_auditor.seed_initial_baselines()
 
     def start_replay(self):
         """
@@ -381,6 +386,7 @@ class StateManager:
         self.mode = MODE_REPLAY
         for buf in self.buffers.values():
             buf.reset_detection_state()
+        self.drift_auditor = DailyDriftAuditor(metadata=self.metadata)
 
     def switch_to_edge(self):
         """
@@ -513,6 +519,8 @@ class StateManager:
             )
             buf._cache_dirty = True
 
+        if hasattr(self, "drift_auditor"):
+            self.drift_auditor.record_observation(station_id, timestamp, raw_reading.get("temperature_c"))
         buf.record_raw_reading(raw_reading, timestamp, verdict)
 
         # Persisted long-horizon log -- mode-independent, tagged with
@@ -529,16 +537,19 @@ class StateManager:
 
     def get_station_status(self, station_id: str) -> dict:
         buf = self.buffers[station_id]
+        secular_audit = self.drift_auditor.audit_station(station_id) if hasattr(self, "drift_auditor") else None
+        advisory_active = secular_audit is not None and secular_audit.get("status") in ("RECALIBRATION_ADVISORY", "CRITICAL_RECALIBRATION_REQUIRED")
         return {
             "station_id": station_id,
             "status": buf.health.status,
             "health_pct": round(buf.health.health_index),
-            "needs_maintenance": buf.health.needs_maintenance,
+            "needs_maintenance": buf.health.needs_maintenance or advisory_active,
             "offline_reason": buf.health.offline_reason,
             "recovery_active": buf.recovery_active,
             "parameters": buf.health.param_status,
             "param_health": {p: round(v, 1) for p, v in buf.health.param_health.items()},
             "mode": self.mode,
+            "secular_calibration": secular_audit,
         }
 
     def get_station_history(self, station_id: str, hours: float = 24, include_replay: bool = False) -> list[dict]:
