@@ -2,7 +2,8 @@ import os
 import subprocess
 import markdown
 
-DOCS_DIR = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANITIGRAVITY RESEARCH DOCS"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOCS_DIR = os.path.join(REPO_ROOT, "research_docs")
 EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 
 os.makedirs(DOCS_DIR, exist_ok=True)

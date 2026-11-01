@@ -4,7 +4,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-ASSETS_DIR = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANITIGRAVITY RESEARCH DOCS\assets"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSETS_DIR = os.path.join(REPO_ROOT, "research_docs", "assets")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
 # Set clean styling for matplotlib plots

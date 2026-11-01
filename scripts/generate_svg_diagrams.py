@@ -1,6 +1,7 @@
 import os
 
-ASSETS_DIR = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANITIGRAVITY RESEARCH DOCS\assets"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSETS_DIR = os.path.join(REPO_ROOT, "research_docs", "assets")
 
 # -------------------------------------------------------------
 # DOC 1 FIG 4: Impact & False Alarm Suppression Flow

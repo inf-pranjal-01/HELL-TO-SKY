@@ -6,13 +6,12 @@ import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 
 # Output directories
-DOCS_DIR = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANITIGRAVITY RESEARCH DOCS"
-ALT_DOCS_DIR = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANTIGRAVITY RESEARCH DOCUMENT"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOCS_DIR = os.path.join(REPO_ROOT, "research_docs")
 ASSETS_DIR = os.path.join(DOCS_DIR, "assets")
 EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 
 os.makedirs(ASSETS_DIR, exist_ok=True)
-os.makedirs(ALT_DOCS_DIR, exist_ok=True)
 
 # Set matplotlib style for professional publication graphics
 plt.rcParams['font.sans-serif'] = 'DejaVu Sans'
@@ -367,7 +366,6 @@ def compile_storyboard_pdf():
     base_filename = "SkyGuard_Document_5_Demo_Script_and_Spatial_Consensus_Storyboard"
     html_file = os.path.join(DOCS_DIR, f"{base_filename}.html")
     pdf_file = os.path.join(DOCS_DIR, f"{base_filename}.pdf")
-    alt_pdf_file = os.path.join(ALT_DOCS_DIR, f"{base_filename}.pdf")
     
     with open(html_file, "w", encoding="utf-8") as f:
         f.write(html_content)
@@ -384,9 +382,6 @@ def compile_storyboard_pdf():
     
     res = subprocess.run(cmd, capture_output=True, text=True)
     
-    if os.path.exists(pdf_file):
-        with open(pdf_file, "rb") as f_src, open(alt_pdf_file, "wb") as f_dst:
-            f_dst.write(f_src.read())
             
     size = os.path.getsize(pdf_file) if os.path.exists(pdf_file) else 0
     print(f"Successfully compiled Storyboard PDF: {pdf_file} | Size: {size} bytes")

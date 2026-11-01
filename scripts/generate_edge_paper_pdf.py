@@ -11,12 +11,11 @@ import os
 import subprocess
 import markdown
 
-DIR1 = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANITIGRAVITY RESEARCH DOCS"
-DIR2 = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANTIGRAVITY RESEARCH DOCUMENT"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DIR1 = os.path.join(REPO_ROOT, "research_docs")
 EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 
 os.makedirs(DIR1, exist_ok=True)
-os.makedirs(DIR2, exist_ok=True)
 
 CSS_STYLE = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -502,7 +501,6 @@ def build_pdf_and_md():
     with open(md_path1, "w", encoding="utf-8") as f:
         f.write(doc_content)
         
-    md_path2 = os.path.join(DIR2, "SkyGuard_Document_4_Edge_AI_ESP32_Architecture_and_Empirical_Benchmarking.md")
     with open(md_path2, "w", encoding="utf-8") as f:
         f.write(doc_content)
 
@@ -528,16 +526,11 @@ def build_pdf_and_md():
     with open(html_path1, "w", encoding="utf-8") as f:
         f.write(full_html)
 
-    html_path2 = os.path.join(DIR2, "SkyGuard_Document_4_Edge_AI_ESP32_Architecture_and_Empirical_Benchmarking.html")
-    with open(html_path2, "w", encoding="utf-8") as f:
-        f.write(full_html)
 
     print("Rendering PDF via Microsoft Edge Headless...")
     pdf_targets = [
         os.path.join(DIR1, "SkyGuard_Document_4_Edge_AI_ESP32_Architecture_and_Empirical_Benchmarking.pdf"),
         os.path.join(DIR1, "Document_4_IEEE_Edge_AI_Firmware_v1.pdf"),
-        os.path.join(DIR2, "SkyGuard_Document_4_Edge_AI_ESP32_Architecture_and_Empirical_Benchmarking.pdf"),
-        os.path.join(DIR2, "Document_4_IEEE_Edge_AI_Firmware_v1.pdf"),
     ]
 
     for pdf_path in pdf_targets:
@@ -552,7 +545,7 @@ def build_pdf_and_md():
         subprocess.run(cmd, check=True)
         print(f"Generated PDF: {pdf_path}")
 
-    print("\nSUCCESS: Document 4 MD, HTML, and PDF generated in both research doc directories!")
+    print("\nSUCCESS: Document 4 MD, HTML, and PDF generated in research_docs directory!")
 
 if __name__ == "__main__":
     build_pdf_and_md()

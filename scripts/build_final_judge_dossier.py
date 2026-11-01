@@ -1,13 +1,12 @@
 import os
 import subprocess
 
-DOCS_DIR = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANITIGRAVITY RESEARCH DOCS"
-ALT_DOCS_DIR = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANTIGRAVITY RESEARCH DOCUMENT"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOCS_DIR = os.path.join(REPO_ROOT, "research_docs")
 EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 ASSETS_DIR = os.path.join(DOCS_DIR, "assets")
 
 os.makedirs(DOCS_DIR, exist_ok=True)
-os.makedirs(ALT_DOCS_DIR, exist_ok=True)
 
 CSS_STYLES = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -1076,7 +1075,6 @@ def build_doc3():
 def compile_pdf(html_content, base_filename):
     html_file = os.path.join(DOCS_DIR, f"{base_filename}.html")
     pdf_file = os.path.join(DOCS_DIR, f"{base_filename}.pdf")
-    alt_pdf_file = os.path.join(ALT_DOCS_DIR, f"{base_filename}.pdf")
     
     with open(html_file, "w", encoding="utf-8") as f:
         f.write(html_content)
@@ -1091,12 +1089,6 @@ def compile_pdf(html_content, base_filename):
     ]
     
     res = subprocess.run(cmd, capture_output=True, text=True)
-    
-    # Mirror into alternate directory
-    if os.path.exists(pdf_file):
-        with open(pdf_file, "rb") as f_src, open(alt_pdf_file, "wb") as f_dst:
-            f_dst.write(f_src.read())
-            
     print(f"Compiled: {pdf_file} | Size: {os.path.getsize(pdf_file) if os.path.exists(pdf_file) else 0} bytes")
     return os.path.exists(pdf_file)
 

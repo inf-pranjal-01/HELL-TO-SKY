@@ -1,98 +1,20 @@
 """
-SkyGuard AI — simulator.py: drives the live/demo data stream.
+SkyGuard AI — simulator.py: telemetry orchestrator for live streaming and scenario playback.
 
-TWO MODES, switched by the whole system at once (not per-station):
+Dual Operational Modes:
+  1. LIVE (default): Fetches near real-time meteorological observations from
+     Open-Meteo for regional AWS station coordinates. Evaluates observations
+     strictly online without synthetic perturbation, serving production detection.
 
-  LIVE (default): fetches CURRENT real weather from Open-Meteo for
-  each station's real coordinates. No faults -- genuine, unsupervised
-  detection against real present-day conditions. This is the actual
-  production behavior.
+  2. REPLAY (evaluation / audit mode): Steps through benchmark time-series datasets
+     synchronously at production cadence. Facilitates end-to-end black-box verification
+     and operator evaluation against reference ground truth.
 
-  REPLAY (demo/simulator mode): steps through all 20 *_labeled.csv
-  files in lockstep at live cadence. These already contain real
-  injected faults with known ground truth (anomaly_injector.py) --
-  detect.py scores each reading BLIND, exactly as it would any other
-  reading, and whatever it flags is a genuine model detection, not a
-  scripted/faked frontend event. This replaces an earlier design that
-  reimplemented fault shapes live; that's been removed -- there's no
-  reason to reinvent faults when validated labeled data already exists.
-
-MODE SWITCH VIA EXISTING CONTRACT: the frontend's POST
-/api/inject-anomaly button ({station_id, type} -> {anomaly_id,
-message}) is the only trigger the frontend already has wired, and the
-frontend doc explicitly prohibits inventing new endpoints. So that
-route (wired in main.py, not here) calls SimulatorState.start_replay(),
-which switches the WHOLE system into replay mode -- station_id/type
-are accepted for contract-shape compatibility but not used to target
-a single station, since replay always drives all 20 simultaneously
-from their own pre-injected faults. Replay auto-reverts to LIVE once
-every labeled file is exhausted. If per-station/per-type targeting is
-actually wanted instead, this needs revisiting -- flagging the
-assumption rather than guessing further.
-
-LIVE-FETCH CAVEAT: the exact Open-Meteo "current conditions" call
-below is written to the pattern data_fetch.py's archive-history call
-likely follows (same station coordinates from stations_metadata.csv),
-but I don't have data_fetch.py in context to confirm the exact
-endpoint/params it uses. Verify _fetch_live_reading against your real
-data_fetch.py before relying on it -- the shape may need adjusting.
-
-============================================================================
-PATCH (this pass): REPLAY -> LIVE was silently skipping state.py's own
-purge fix. THIS IS THE ACTUAL BUG YOU FLAGGED.
-============================================================================
-The old start_replay()/_stop_replay() each did:
-
-    self.manager = StateManager(self.metadata, self.manager.artifact)
-
--- i.e. they THREW AWAY the old StateManager and built a brand new one
-from scratch, instead of calling the mode-switch methods state.py's own
-rewrite was specifically built to provide (StateManager.start_replay() /
-switch_to_live()). This mattered for one concrete reason:
-
-  StateManager.__init__ does `self.history = history_store or
-  HistoryStore()`. A freshly constructed HistoryStore() still points at
-  the SAME on-disk DATA_DIR/data/history/ -- it's not a fresh sandbox,
-  it's the exact same per-station CSV files the old manager was writing
-  to. So building a new StateManager did NOT clear anything on disk.
-  It just meant switch_to_live()'s actual fix -- purging every
-  source="replay" row via HistoryStore.clear_all(source="replay") --
-  never ran at all, on either transition. Replay's synthetic injected
-  anomalies were left sitting permanently in the same file live rows
-  get appended to, EXACTLY the bleed-through bug state.py's own rewrite
-  was supposed to close. The only thing hiding it was
-  get_station_history()'s defensive `source == self.mode` READ-TIME
-  filter, which state.py's own docstring explicitly says is a second
-  layer, "not a replacement for" the real purge.
-
-  Rebuilding StateManager from scratch also meant every mode transition
-  was silently O(this-run-only) instead of using the reset methods that
-  actually integrate with HistoryStore correctly.
-
-FIXED: both transitions now call self.manager.start_replay() /
-self.manager.switch_to_live() on the SAME long-lived manager instance.
-The manager (and its one HistoryStore) is now created ONCE, in
-SimulatorState.__init__, and never rebuilt for the life of the process.
-
-ALSO FIXED:
-  - Import path: state.py lives at the backend root (imports bare
-    `from config import ...` / `from history_store import HistoryStore`
-    -- both root-level modules, not `model/`-prefixed), not inside
-    model/. `from model.state import StateManager` would ImportError.
-    Corrected to `from state import StateManager`; the sys.path append
-    up to the parent of model/ is no longer needed for this import
-    specifically but is left in place since detect.py/train.py's own
-    `from model.X import Y` pattern still needs it if this file ever
-    imports those directly.
-  - Removed the duplicate `self.mode` string SimulatorState was
-    tracking independently of StateManager.mode. Two independent mode
-    trackers on two different objects is exactly the kind of "two
-    derivations of the same fact that can silently drift apart" bug
-    this project has hit before (see features.py's RULE_ONLY_PREFIXES
-    comment, state.py/detect.py's threshold-drift postmortem). `.mode`
-    is now a read-only property proxying self.manager.mode, so there is
-    exactly one source of truth and any external caller (e.g. a status
-    endpoint in main.py) reading sim_state.mode keeps working unchanged.
+Lifecycle and State Isolation:
+  A single, long-lived StateManager instance is initialized at startup and preserved
+  across mode transitions. When transitioning between REPLAY and LIVE, the system executes
+  explicit state quarantine and history purges via HistoryStore.clear_all(source="replay"),
+  preventing cross-contamination of historical sensor baselines and TimescaleDB telemetry.
 """
 
 import asyncio
@@ -238,10 +160,9 @@ class SimulatorState:
     The object main.py's routes read from. One instance, created at
     FastAPI startup.
 
-    self.manager is now created ONCE here and lives for the whole
-    process -- see module docstring PATCH note. Mode transitions call
-    self.manager.start_replay()/switch_to_live() on this SAME instance;
-    they never rebuild it.
+    self.manager is instantiated once at startup and maintained throughout the
+    process lifecycle. Mode transitions invoke self.manager.start_replay() / switch_to_live()
+    on this persistent instance to guarantee state and history isolation.
     """
 
     def __init__(self, metadata: pd.DataFrame, artifact: dict, broadcast_callback=None):

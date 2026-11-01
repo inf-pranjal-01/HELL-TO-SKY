@@ -1,59 +1,14 @@
 """
 SkyGuard AI — Phase 2b: Model training.
 
-Trains the Isolation Forest ONCE, offline, on RAW real historical data
-only -- NEVER on a *_labeled.csv. Feeding injected/corrupted data into
-training would teach the model a wrong definition of "normal" (see
-BACKEND_BLUEPRINT.md section 4, and the leakage warnings throughout
-anomaly_injector.py / features.py). This script actively checks for
-and refuses that mistake below, rather than just warning about it.
+Trains the Isolation Forest offline on raw, real historical observations
+only -- never on injected/labeled data. Feeding corrupted data into training
+would contaminate the baseline representation of nominal atmospheric states.
 
-Unlocked by: Day 80 (trees: entropy/gini/information gain), 84
-(ensemble learning), 88 (bagging), 91-93 (random forest, bias-variance,
-bagging vs RF). Isolation Forest reuses all of this directly: it's a
-forest of randomized trees, each isolating points via random
-feature/threshold splits -- but instead of voting on a prediction
-(what Random Forest's trees do), a point's anomaly score comes from
-HOW FEW splits it took to isolate it. Genuinely anomalous points sit
-far from the bulk of the data, so random splits separate them out
-quickly (few splits = anomalous); normal points are surrounded by
-similar points and take many splits to isolate alone. n_estimators=100
-stabilizes this score across many random trees, the same bias-variance
-reasoning as Day 92 for Random Forest.
-
-PATCH LOG:
-  - Added calibrate_rule_thresholds() call (features.py). detect.py and
-    evaluate.py both now require artifact["rule_thresholds"] to exist --
-    an artifact saved by the previous version of this file lacks that
-    key entirely, and both will raise KeyError on load rather than
-    silently running with no rule-layer thresholds. Retrain after
-    pulling this patch.
-  - SKYGUARD_ARCHITECTURE_DRAFT_2.md §9 SYNC (this patch): this file was
-    still written against the PRE-§9 features.py contract in two places,
-    both would have failed hard the first time this ran against the
-    current features.py/config.py:
-      1. build_feature_matrix(df, metadata) -- features.py's signature
-         is single-arg now (spatial features removed, metadata was only
-         ever used for cluster_id lookup for those). TypeError otherwise.
-         Since nothing else in this file needed metadata, the
-         stations_metadata.csv load is dropped entirely rather than kept
-         around unused.
-      2. The per-station threshold diagnostic read
-         rule_thresholds["frozen"][prefix] -- calibrate_rule_thresholds()
-         no longer produces a "frozen" key at all (§1: frozen is a
-         deterministic floor-match now, calibrated thresholds only exist
-         for "roc_small" and "spike"). KeyError otherwise. Diagnostic
-         rewritten to print both real keys.
-      3. contamination reverted 0.02 -> 'auto'. The comment directly
-         above the IsolationForest(...) call argues, at length, for
-         'auto' specifically BECAUSE we're fitting on data we've
-         validated as clean -- asserting a fixed anomaly rate on data we
-         just asserted is normal bakes in a contradiction. The code had
-         drifted to a hardcoded 0.02 that contradicts its own comment.
-         Restoring 'auto' to match the documented reasoning. If 0.02 was
-         actually an intentional, separately-justified choice, say so and
-         I'll put it back -- flagging this as a real behavior change, not
-         a formatting fix.
+Isolation Forest builds an ensemble of randomized trees that isolate observations
+via random feature/threshold splits. Anomalous observations reside far from the
+nominal distribution and require few splits to isolate, while nominal points
+require many splits. Using n_estimators=100 provides score stability across trees.
 """
 
 import sys
@@ -79,10 +34,8 @@ def load_clean_training_data():
     labeled/injected file -- this is the training/serving separation
     rule enforced in code, not just a comment.
 
-    NOTE (this patch): no longer loads stations_metadata.csv. It was
-    only ever used to pass cluster_id through to build_feature_matrix
-    for the now-removed spatial features (§9) -- nothing else in this
-    file needs it, and build_feature_matrix no longer accepts it.
+    Operates strictly on uncorrupted baseline measurements to prevent
+    leakage between training and serving evaluation regimes.
     """
     stations_path = DATA_DIR / "all_stations.csv"
 
@@ -179,11 +132,7 @@ def train():
     # fraction of ~2000+ rows/station either way.
     rule_thresholds = calibrate_rule_thresholds(featured)
 
-    # DIAGNOSTIC FIX (this patch): the old block read
-    # rule_thresholds["frozen"][prefix] -- that key doesn't exist
-    # anymore (§1: frozen is a deterministic floor-match, not a
-    # calibrated threshold). The two real calibrated rule types are
-    # "roc_small" and "spike" -- print both instead.
+    # Empirical rule thresholds for single-station temporal jumps and spikes
     print("\n--- PER-STATION THRESHOLD DIAGNOSTIC ---")
     for rule_key in ("roc_small", "spike"):
         for prefix in ["temp", "pressure", "humidity"]:

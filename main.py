@@ -174,8 +174,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SkyGuard AI", lifespan=lifespan)
 
-# allow_origins=["*"] -- fine for hackathon per BACKEND_BLUEPRINT.md
-# section 6; tighten to the deployed frontend URL once known.
+# allow_origins=["*"] -- Permissive CORS for dashboard and API access; restrict in hardened production deployments.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

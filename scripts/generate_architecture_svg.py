@@ -1,6 +1,7 @@
 import os
 
-ASSETS_DIR = r"C:\Users\PRANJAL TIWARI\Desktop\HELL TO SKY\ANITIGRAVITY RESEARCH DOCS\assets"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSETS_DIR = os.path.join(REPO_ROOT, "research_docs", "assets")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
 svg_content = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="100%" height="100%" style="background-color: #0f172a; font-family: 'Inter', -apple-system, sans-serif;">
